@@ -1,5 +1,5 @@
 /**
- * WaveMAX Internationalization (i18n) Library
+ * Laundromat Internationalization (i18n) Library
  * Supports: English (en), Spanish (es), Portuguese (pt), German (de)
  */
 

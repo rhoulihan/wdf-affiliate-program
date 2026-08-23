@@ -488,13 +488,13 @@ async function loadAffiliateData(affiliateId) {
       if (businessElement) businessElement.textContent = data.businessName || 'N/A';
 
       // Display the flat per-affiliate delivery fee (the partner's commission per
-      // order). 0 / unset = WaveMAX Associates handles delivery (house fee).
+      // order). 0 / unset = Laundromat Associates handles delivery (house fee).
       const deliveryFeeElement = document.getElementById('deliveryFee');
       if (deliveryFeeElement) {
         const fee = parseFloat(data.deliveryFee);
         deliveryFeeElement.textContent = (fee > 0)
           ? `$${fee.toFixed(2)}`
-          : (window.i18n ? window.i18n.t('affiliate.dashboard.settings.deliveryByAssociates') : 'WaveMAX Associates');
+          : (window.i18n ? window.i18n.t('affiliate.dashboard.settings.deliveryByAssociates') : ((window.BRAND && window.BRAND.name) || 'Laundromat') + ' Associates');
       }
 
       // Generate and display landing page link

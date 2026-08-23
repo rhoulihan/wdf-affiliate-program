@@ -1,5 +1,5 @@
 /**
- * Language Switcher Component for WaveMAX
+ * Language Switcher Component for Laundromat
  * Creates a dropdown UI for language selection
  */
 

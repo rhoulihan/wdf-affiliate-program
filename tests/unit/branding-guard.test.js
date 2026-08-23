@@ -16,6 +16,11 @@ const EXCLUDED_PREFIXES = [
   'design-explorer/', 'tests/unit/design-explorer/',
   'public/design-explorer/', 'public/franchise-default/', 'public/dev/',
   'scripts/franchise-build/',
+  // Austin marketing client JS — defers to Phase 4 with its embeds (Q3
+  // consistency). Excludes austin-landing-init.js, austin-about-init.js,
+  // austin-commercial-init.js, austin-contact-init.js, austin-fb-pixel.js,
+  // austin-hibu-phone-swap.js, austin-host-mock*.js, austin-*-init.js, etc.
+  'public/assets/js/austin-',
 ];
 const EXCLUDED_FILES = new Set([
   'server/middleware/accessGate.js', 'server/middleware/mediatorGate.js',
@@ -67,6 +72,12 @@ const INFRA_ALLOW = [
   // franchisor mark + entity; mechanically tokenizing them is legally wrong).
   /WaveMAX is a trademark/gi, /WaveMAX™/gi, /the WaveMAX logo/gi,
   /WaveMAX Franchise, LLC/gi, /WaveMAX WDF Affiliate Portal/gi,
+  // Client-JS infra identifiers (Task 6) — wire-protocol/postMessage source
+  // tag, localStorage key, host-page DOM id, global bridge API name, and the
+  // WordPress embed-page URL slug. These have functional bindings across the
+  // iframe/host boundary (never display copy); renaming is a Phase-4 concern.
+  /wavemax-embed/gi, /wavemax-language/gi, /wavemax-iframe/gi,
+  /WaveMaxBridgeV3/gi, /wavemax-austin-affiliate-program/gi,
 ];
 
 function isExcludedPath(p) {

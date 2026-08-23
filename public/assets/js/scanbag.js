@@ -57,7 +57,7 @@
   function handleDecoded(text) {
     var token = tokenFromQr(text);
     if (token) { go(token); return; }
-    setStatus('That QR isn’t a WaveMAX bag. Keep scanning…', 'error');
+    setStatus('That QR isn’t a ' + ((window.BRAND && window.BRAND.name) || 'Laundromat') + ' bag. Keep scanning…', 'error');
   }
 
   function scanLoop() {

@@ -1,5 +1,5 @@
 /**
- * WaveMAX Password Validator Component
+ * Laundromat Password Validator Component
  * A reusable username/password component with validation and strength indicator
  * Based on the affiliate registration form implementation
  */

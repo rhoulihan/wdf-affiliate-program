@@ -1,4 +1,4 @@
-// Modal Utility System for WaveMAX Affiliate Program
+// Modal Utility System for Laundromat Affiliate Program
 // Provides consistent modal dialogs across all pages
 
 (function() {

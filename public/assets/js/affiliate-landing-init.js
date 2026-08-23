@@ -35,7 +35,7 @@
                         </p>
                         <div class="mt-4">
                             <a href="https://www.wavemaxlaundry.com" class="btn btn-light btn-lg">
-                                <i class="bi bi-house-door me-2"></i>Visit WaveMAX Laundry
+                                <i class="bi bi-house-door me-2"></i>Visit ${(window.BRAND && window.BRAND.name) || 'Laundromat'}
                             </a>
                         </div>
                     </div>

@@ -166,7 +166,7 @@
         c.appendChild(buildAddOnTable(free, containerId, 'claim.order.freeOptionsTitle', 'Free Options', false));
       }
       // Non-optional delivery-fee line item (every order has an effective fee —
-      // the partner's own or the WaveMAX-Associates default). Display-only.
+      // the partner's own or the Laundromat-Associates default). Display-only.
       if (Number(currentDeliveryFee) > 0) {
         var dfRow = document.createElement('div');
         dfRow.className = 'order-delivery-fee';
@@ -233,7 +233,7 @@
     case 'claimable': {
       var affiliate = (data && data.affiliate) || {};
       var name = affiliate.businessName ||
-          ((affiliate.firstName || '') + ' ' + (affiliate.lastName || '')).trim() || 'WaveMAX';
+          ((affiliate.firstName || '') + ' ' + (affiliate.lastName || '')).trim() || ((window.BRAND && window.BRAND.name) || 'Laundromat');
       // textContent — never innerHTML (XSS)
       document.getElementById('claim-affiliate-name').textContent = name;
       show('claimable');
@@ -261,7 +261,7 @@
 
   var pending = null; // last resolveData awaiting confirm
   var pendingPickupInstructions = ''; // partner instructions from the last resolve (shown to the customer on start)
-  var currentDeliveryFee = 0; // effective delivery fee (partner's own or WaveMAX-Associates default) for the order form + summary
+  var currentDeliveryFee = 0; // effective delivery fee (partner's own or Laundromat-Associates default) for the order form + summary
 
   function enterStaffScan() {
     // No persistent session anymore: every bag QR requires a fresh code, so we

@@ -1,4 +1,4 @@
-// WaveMAX Affiliate Registration Form Validation
+// Laundromat Affiliate Registration Form Validation
 (function() {
   'use strict';
 

@@ -1,5 +1,5 @@
 /**
- * Pricing Preview Component for WaveMAX Affiliate Program
+ * Pricing Preview Component for Laundromat Affiliate Program
  * Reusable component that previews per-order earnings from the partner's flat
  * delivery fee + the WDF commission. (The V1 minimum/per-bag fee model was
  * removed in the 2026-06-23 audit — delivery is now a single flat fee per order,

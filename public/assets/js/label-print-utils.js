@@ -1,10 +1,10 @@
-// Label Printing Utilities for WaveMAX
+// Label Printing Utilities for Laundromat
 (function() {
   'use strict';
 
   console.log('label-print-utils.js loading...');
 
-  // WaveMAX Austin store address — printed on every bag label, below the
+  // Laundromat store address — printed on every bag label, below the
   // customer name, so a bag's destination/return point is always on the label.
   var STORE_ADDRESS_LINES = ['825 E Rundberg Ln, Suite F1', 'Austin, TX 78753'];
 
@@ -64,7 +64,7 @@
         // Add header
         pdf.setFontSize(20);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('WaveMAX Laundry', pageWidth / 2, margin + 0.3, { align: 'center' });
+        pdf.text((window.BRAND && window.BRAND.name) || 'Laundromat', pageWidth / 2, margin + 0.3, { align: 'center' });
         
         // Add customer name
         pdf.setFontSize(16);
@@ -201,7 +201,7 @@
         // Add header
         pdf.setFontSize(24);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('WaveMAX Laundry', pageWidth / 2, margin + 0.5, { align: 'center' });
+        pdf.text((window.BRAND && window.BRAND.name) || 'Laundromat', pageWidth / 2, margin + 0.5, { align: 'center' });
         
         // Add customer name
         pdf.setFontSize(18);

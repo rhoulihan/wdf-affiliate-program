@@ -1015,11 +1015,11 @@
       const pageHeight = 6;
       const contentWidth = pageWidth - (margin * 2);
       
-      // Add WaveMAX Laundry logo/title
+      // Add Laundromat logo/title
       pdf.setFontSize(18);
       pdf.setFont(undefined, 'bold');
       pdf.setTextColor(74, 144, 226); // #4A90E2
-      pdf.text('WaveMAX Laundry', margin, margin + 0.3);
+      pdf.text((window.BRAND && window.BRAND.name) || 'Laundromat', margin, margin + 0.3);
       
       // Add customer name
       pdf.setFontSize(16);
@@ -2019,7 +2019,7 @@
                         const totalRevenue = metrics.totalRevenue || 0;
                         const totalCommission = metrics.totalCommission || 0;
 
-                        // Zero-commission WaveMAX-operated collection points
+                        // Zero-commission Laundromat-operated collection points
                         const locationBadge = aff.affiliateType === 'location'
                             ? ` <span class="status-badge inactive">${escapeHtml(t('admin.locationAffiliate.badge', 'Location'))}</span>`
                             : '';

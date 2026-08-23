@@ -1,7 +1,7 @@
 /**
  * Mobile Utilities
  * Provides mobile detection, viewport management, and touch handling utilities
- * Used across all WaveMAX embed pages for consistent mobile experience
+ * Used across all Laundromat embed pages for consistent mobile experience
  */
 
 (function(window) {

@@ -1,4 +1,4 @@
-/* WaveMAX Parent-Iframe Bridge V3
+/* Laundromat Parent-Iframe Bridge V3
  * Runs on the host (parent) page. Clean re-implementation of v2 — drops the
  * Walibu / Google Translate scaffolding, adds location-data + navigate
  * message types, integrates with native data-i18n switcher.
