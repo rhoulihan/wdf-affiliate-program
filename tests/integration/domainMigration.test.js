@@ -1,6 +1,8 @@
 'use strict';
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../../server');
+const authTokenService = require('../../server/services/authTokenService');
 describe('4a host canonicalization', () => {
   const asHost = (h, url = '/embed-app-v2.html') =>
     request(app).get(url).set('Host', h).set('X-Forwarded-Proto', 'https');
@@ -39,5 +41,14 @@ describe('4a host canonicalization', () => {
     const sessionCookie = setCookie.find((c) => /^(?:__Host-)?portal\.sid=/.test(c));
     expect(sessionCookie).toBeTruthy();
     expect(setCookie.some((c) => /(?:__Host-)?wavemax\.sid=/.test(c))).toBe(false);
+  });
+});
+
+describe('4a JWT iss/aud rename (cosmetic)', () => {
+  test('generateToken stamps the portal issuer and audience', () => {
+    const token = authTokenService.generateToken({ id: 'x', role: 'affiliate' });
+    const decoded = jwt.decode(token);
+    expect(decoded.iss).toBe('crhs-portal-api');
+    expect(decoded.aud).toBe('crhs-portal-client');
   });
 });

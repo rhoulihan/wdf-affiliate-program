@@ -24,7 +24,7 @@ const rotation = { maxsize: LOG_MAX_SIZE, maxFiles: LOG_MAX_FILES, tailable: tru
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: logFormat,
-  defaultMeta: { service: 'wavemax-affiliate' },
+  defaultMeta: { service: 'crhs-portal' },
   transports: [
     new winston.transports.File({
       filename: path.join(logDir, 'error.log'),

@@ -39,8 +39,8 @@ class AuthTokenError extends Error {
 function generateToken(data, expiresIn = '1h') {
   return jwt.sign(data, process.env.JWT_SECRET, {
     expiresIn,
-    issuer: 'wavemax-api',
-    audience: 'wavemax-client'
+    issuer: 'crhs-portal-api',
+    audience: 'crhs-portal-client'
   });
 }
 
