@@ -68,6 +68,9 @@ const EXCLUDED_FILES = new Set([
   'public/self-serve-laundry-embed.html', 'public/wash-dry-fold-embed.html',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
   'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
+  // Phase-4a domain-migration tooling — legitimately references wavemax.
+  'tests/unit/domain-guard.test.js', 'tests/fixtures/domain-guard-baseline.json',
+  'tests/integration/domainMigration.test.js',
   // Guard-style test that asserts the ABSENCE of the mark in locales — its
   // /wavemax/i matcher is load-bearing, so it is allowlisted like this file.
   'tests/unit/i18n-brand-token.test.js',
