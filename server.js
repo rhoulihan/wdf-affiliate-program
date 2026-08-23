@@ -434,7 +434,7 @@ app.use((req, res, next) => {
         // Firebase Phone Auth (PR 7) — the auth helper iframe.
         'https://wavemax-bag-registration.firebaseapp.com'],
     'form-action': ['\'self\''],
-    'frame-ancestors': ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com'],
+    'frame-ancestors': ['\'self\'', 'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com'],
     'base-uri': ['\'self\''],
     'child-src': ['\'none\''],
     'worker-src': ['\'self\''],
