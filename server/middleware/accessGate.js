@@ -90,7 +90,7 @@ function reqHost(req) {
 // assets/endpoint, the landing-page logo, cert renewal, and health checks.
 function isExempt(p) {
   return (
-    p === '/assets/images/brand/logo.png' ||
+    p === '/assets/images/brand/logo-wavemax.png' ||
     p === '/favicon.ico' ||
     p.startsWith('/.well-known/acme-challenge') ||
     // Public owner-portal marketing page (crhsent.com/owners/) + its assets —
@@ -243,7 +243,7 @@ function confirmEmailHtml(link) {
   const safeLink = esc(link);
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
   <div style="background:#1e3a8a;text-align:center;padding:22px;border-radius:10px 10px 0 0">
-    <img src="https://rundberglaundry.com/assets/images/brand/logo.png" alt="WaveMAX" style="height:40px">
+    <img src="https://rundberglaundry.com/assets/images/brand/logo-wavemax.png" alt="WaveMAX" style="height:40px">
   </div>
   <div style="padding:28px 24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 10px 10px">
     <h2 style="font-size:18px;margin:0 0 8px">Your site access link</h2>

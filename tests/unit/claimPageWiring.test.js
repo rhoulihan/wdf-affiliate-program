@@ -35,7 +35,7 @@ describe('/claim page wiring', () => {
 
   it('claim-embed.html has the brand logo header and the shared code-entry modal', () => {
     const html = fs.readFileSync(path.join(ROOT, 'public/claim-embed.html'), 'utf8');
-    expect(html).toContain('/assets/images/brand/logo.png');
+    expect(html).toContain('/assets/images/brand/logo-wavemax.png');
     expect(html).toContain('id="claimCodeModal"');
     expect(html).toContain('id="claimCodeInput"');
     expect(html).toContain('id="claimCodeVerify"');

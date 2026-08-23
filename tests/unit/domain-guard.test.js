@@ -35,8 +35,10 @@ const ALLOW = [
   /wavemax-iframe/gi,           // iframe DOM id (kept)
   /['"](?:www\.|affiliate\.)?wavemax\.promo['"]/gi, // retired-host 301-source literals (allowedHosts/RETIRED_HOSTS) — quoted only; an unquoted https://wavemax.promo URL still trips
 ];
-// Only these migration-target patterns are policed (not every "wavemax"):
-const TARGET = /wavemax\.promo|wavemax\.sid|wavemax-api|wavemax-client|wavemax-affiliate'|logo-wavemax|wavemax-(affiliate|components|embed|mhr-chrome|mhr-modal|theme)\.css/i;
+// Only these migration-target patterns are policed (not every "wavemax").
+// Asset-file + CSS-class renames deferred to 4b (shared with deferred subsystems
+// + name collisions), so logo-wavemax / wavemax-*.css are NOT policed here.
+const TARGET = /wavemax\.promo|wavemax\.sid|wavemax-api|wavemax-client|wavemax-affiliate'/i;
 
 function excluded(p) {
   if (EXCLUDED_FILES.has(p)) return true;
@@ -51,7 +53,7 @@ function allowedOnly(line) {
 }
 
 describe('phase-4a domain guard', () => {
-  const raw = execSync('git grep -inI -E "wavemax\\\\.promo|wavemax\\\\.sid|wavemax-api|wavemax-client|logo-wavemax|wavemax-(affiliate|components|embed|mhr-chrome|mhr-modal|theme)\\\\.css|service: .wavemax-affiliate" -- . ":!tests/fixtures/domain-guard-baseline.json"',
+  const raw = execSync('git grep -inI -E "wavemax\\\\.promo|wavemax\\\\.sid|wavemax-api|wavemax-client|service: .wavemax-affiliate" -- . ":!tests/fixtures/domain-guard-baseline.json"',
     { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }).trim();
   const lines = raw ? raw.split('\n') : [];
   const offenders = [];
