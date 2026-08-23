@@ -1,4 +1,4 @@
-// CSP Nonce Middleware for WaveMAX Affiliate Program
+// CSP Nonce Middleware for Laundromat Affiliate Program
 const crypto = require('crypto');
 
 /**

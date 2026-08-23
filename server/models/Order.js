@@ -61,7 +61,7 @@ const orderSchema = new mongoose.Schema({
   // recorded in-app (everything else settles in Cents). `orderTotal` is the
   // amount the operator transferred from Cents; `deliveryFeeCharged` is the
   // partner's OWN delivery fee snapshotted at send-out (the partner commission)
-  // — 0 when the order used the WaveMAX-Associates default (that fee stays house
+  // — 0 when the order used the Laundromat Associates default (that fee stays house
   // revenue). Snapshotting freezes commission history against later fee changes.
   orderTotal: { type: Number, min: 0 },
   deliveryFeeCharged: { type: Number, min: 0, default: 0 },

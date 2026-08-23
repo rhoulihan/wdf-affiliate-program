@@ -1,7 +1,7 @@
 {
   "name": "wavemax-affiliate-program",
   "version": "1.0.0",
-  "description": "WaveMAX Laundry Affiliate Program for Wash, Dry, Fold Services",
+  "description": "Laundromat Affiliate Program for Wash, Dry, Fold Services",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

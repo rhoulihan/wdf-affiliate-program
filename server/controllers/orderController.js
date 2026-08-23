@@ -1,4 +1,4 @@
-// WaveMAX Laundry Affiliate Program
+// Laundromat Affiliate Program
 // API Controllers for handling all API endpoints
 
 const Affiliate = require('../models/Affiliate');

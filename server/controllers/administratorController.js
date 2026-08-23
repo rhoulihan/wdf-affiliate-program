@@ -1,4 +1,4 @@
-// Administrator Controller for WaveMAX Laundry Affiliate Program
+// Administrator Controller for Laundromat Affiliate Program
 // Handles system configuration, operator management, and analytics
 
 const Administrator = require('../models/Administrator');

@@ -1,4 +1,4 @@
-// Affiliate Controller for WaveMAX Laundry Affiliate Program
+// Affiliate Controller for Laundromat Affiliate Program
 
 const Affiliate = require('../models/Affiliate');
 const Customer = require('../models/Customer');
@@ -951,7 +951,7 @@ exports.getPublicAffiliateInfo = async (req, res) => {
     }
 
     // Return public information only — the effective fee (partner's own, else the
-    // WaveMAX-Associates default) is what the customer is shown.
+    // Laundromat Associates default) is what the customer is shown.
     res.status(200).json({
       success: true,
       firstName: affiliate.firstName,
@@ -987,7 +987,7 @@ exports.getPublicAffiliateInfoById = async (req, res) => {
     }
 
     // The effective delivery fee: the partner's own flat fee, else the
-    // WaveMAX-Associates default (utils/deliveryFee.js).
+    // Laundromat Associates default (utils/deliveryFee.js).
     const deliveryFee = await effectiveDeliveryFee(affiliate);
 
     // Return public information formatted for the success page

@@ -1,4 +1,4 @@
-// CSP Helper Utilities for WaveMAX Affiliate Program
+// CSP Helper Utilities for Laundromat Affiliate Program
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');

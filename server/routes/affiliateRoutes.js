@@ -1,4 +1,4 @@
-// Affiliate Routes for WaveMAX Laundry Affiliate Program
+// Affiliate Routes for Laundromat Affiliate Program
 
 const express = require('express');
 const router = express.Router();

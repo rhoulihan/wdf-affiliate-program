@@ -219,7 +219,7 @@ async function resolveScan({ bagToken }) {
     ...(decision.orderId ? { orderId: decision.orderId } : {}),
     ...(customer && customer.centsSyncNeeded ? { centsSyncNeeded: true, customerPhone: customer.phone } : {}),
     pickupInstructions: affiliate ? (affiliate.pickupInstructions || '') : '',
-    // Effective delivery fee (partner's own, or the WaveMAX-Associates default) —
+    // Effective delivery fee (partner's own, or the Laundromat Associates default) —
     // a non-optional line item shown to the customer on the start form/summary,
     // and shown to the operator WITH price so they pick the right fee in Cents.
     deliveryFee: await effectiveDeliveryFee(affiliate),

@@ -1,4 +1,4 @@
-// Encryption Utility for WaveMAX Laundry Affiliate Program
+// Encryption Utility for Laundromat Affiliate Program
 
 const crypto = require('crypto');
 const logger = require('./logger');

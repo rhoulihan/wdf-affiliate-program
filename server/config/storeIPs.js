@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-// Store IP Configuration for WaveMAX Affiliate Program
+// Store IP Configuration for Laundromat Affiliate Program
 // These IP addresses are trusted store locations where operators work
 // Sessions from these IPs will be automatically renewed
 

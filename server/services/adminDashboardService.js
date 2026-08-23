@@ -310,7 +310,7 @@ async function getAffiliateAnalytics({ startDate, endDate }) {
           totalOrders: { $size: '$periodOrders' },
           // Revenue = Σ operator-entered order totals (only set on sent-out orders).
           // Commission = Σ the partner's own delivery fee snapshot (0 for orders
-          // that used the WaveMAX-Associates default — that stays house revenue).
+          // that used the Laundromat Associates default — that stays house revenue).
           // Exclude CANCELLED orders: one cancelled after send-out keeps its
           // snapshot, which never settled — counting it would inflate the totals.
           totalRevenue: {

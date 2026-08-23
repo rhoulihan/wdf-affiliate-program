@@ -1,4 +1,4 @@
-// Customer Model for WaveMAX Laundry Affiliate Program
+// Customer Model for Laundromat Affiliate Program
 
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');

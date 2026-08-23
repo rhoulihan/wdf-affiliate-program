@@ -1,4 +1,4 @@
-// Centralized Validators for WaveMAX Affiliate Program
+// Centralized Validators for Laundromat Affiliate Program
 // Provides consistent validation for common fields across the application
 
 const validator = require('validator');

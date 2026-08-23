@@ -1,6 +1,6 @@
 const logger = require('../utils/logger');
 const adminIpGate = require('./adminIpGate');
-// Role-Based Access Control Middleware for WaveMAX Laundry Affiliate Program
+// Role-Based Access Control Middleware for Laundromat Affiliate Program
 
 /**
  * When the acting user is an administrator, the IP allowlist must hold — this is

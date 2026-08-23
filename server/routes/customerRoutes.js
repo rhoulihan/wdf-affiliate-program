@@ -1,4 +1,4 @@
-// Customer Routes for WaveMAX Laundry Affiliate Program
+// Customer Routes for Laundromat Affiliate Program
 //
 // Phase 1: the customer surface is bag-claim registration only — there is no
 // customer login, dashboard, profile, or order portal. The only authenticated

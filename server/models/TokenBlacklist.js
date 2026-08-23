@@ -1,4 +1,4 @@
-// TokenBlacklist Model for WaveMAX Laundry Affiliate Program
+// TokenBlacklist Model for Laundromat Affiliate Program
 // Stores blacklisted JWT tokens to prevent usage after logout
 
 const mongoose = require('mongoose');

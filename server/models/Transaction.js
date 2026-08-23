@@ -1,4 +1,4 @@
-// Transaction Model for WaveMAX Laundry Affiliate Program
+// Transaction Model for Laundromat Affiliate Program
 
 const mongoose = require('mongoose');
 

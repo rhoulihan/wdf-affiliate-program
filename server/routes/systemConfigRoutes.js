@@ -1,4 +1,4 @@
-// System Configuration Routes for WaveMAX Laundry Affiliate Program
+// System Configuration Routes for Laundromat Affiliate Program
 
 const express = require('express');
 const router = express.Router();

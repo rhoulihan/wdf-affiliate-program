@@ -1,4 +1,4 @@
-// Administrator Model for WaveMAX Laundry Affiliate Program
+// Administrator Model for Laundromat Affiliate Program
 // Handles system administrators who manage operators and system configuration
 
 const mongoose = require('mongoose');

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WaveMAX Log Cleanup Script
+# Laundromat Log Cleanup Script
 # This script cleans up log files and temporary files
 
 echo "Starting log cleanup..."

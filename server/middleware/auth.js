@@ -1,4 +1,4 @@
-// Authentication Middleware for WaveMAX Laundry Affiliate Program
+// Authentication Middleware for Laundromat Affiliate Program
 
 const jwt = require('jsonwebtoken');
 const Affiliate = require('../models/Affiliate');

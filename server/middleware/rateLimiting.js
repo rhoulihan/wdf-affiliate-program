@@ -1,5 +1,5 @@
 /**
- * Rate Limiting Middleware for WaveMAX
+ * Rate Limiting Middleware for Laundromat
  * Implements different rate limits for various endpoint types
  *
  * Configuration:

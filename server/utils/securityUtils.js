@@ -1,5 +1,5 @@
 /**
- * Security Utilities for WaveMAX Affiliate Program
+ * Security Utilities for Laundromat Affiliate Program
  * Contains functions to prevent common security vulnerabilities
  */
 

@@ -1,4 +1,4 @@
-// WaveMAX Laundry Affiliate Program
+// Laundromat Affiliate Program
 // Customer Controller
 //
 // Phase 1: the customer surface is bag-claim registration only. There is no
@@ -237,7 +237,7 @@ exports.claimRegister = ControllerHelpers.asyncWrapper(async (req, res) => {
           // then show the instructions; pickup_location → show them directly.
           serviceType: affiliate.serviceType,
           pickupInstructions: affiliate.pickupInstructions || '',
-          // Effective delivery fee (partner's own or the WaveMAX-Associates
+          // Effective delivery fee (partner's own or the Laundromat Associates
           // default) — a non-optional line item on the start form/summary.
           deliveryFee: await effectiveDeliveryFee(affiliate)
         }

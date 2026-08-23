@@ -1,5 +1,5 @@
 // manualAffiliateController — admin hand-creates an affiliate account without
-// an invite. Primary use: zero-commission 'location' affiliates (WaveMAX-operated
+// an invite. Primary use: zero-commission 'location' affiliates (Laundromat-operated
 // collection points with a contact where bags are dropped/collected on a
 // schedule), but 'standard' is accepted too.
 //
@@ -116,7 +116,7 @@ exports.createAffiliateManually = ControllerHelpers.asyncWrapper(async (req, res
     passwordHash: hash,
     paymentMethod: 'check',
     languagePreference: languagePreference || 'en',
-    // Flat per-affiliate delivery fee. Defaults to 0 (→ the WaveMAX-Associates
+    // Flat per-affiliate delivery fee. Defaults to 0 (→ the Laundromat Associates
     // default_delivery_fee applies); the V1 min/per-bag pair was removed.
     deliveryFee: deliveryFee !== undefined ? parseFloat(deliveryFee) : 0,
     affiliateDeliveryCodeHash: roleCodes.hashCode(deliveryCode),

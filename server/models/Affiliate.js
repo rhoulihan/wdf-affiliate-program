@@ -1,4 +1,4 @@
-// Affiliate Model for WaveMAX Laundry Affiliate Program
+// Affiliate Model for Laundromat Affiliate Program
 
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -13,7 +13,7 @@ const affiliateSchema = new mongoose.Schema({
     unique: true
   },
   // 'standard' = independent commission-earning affiliate.
-  // 'location'  = WaveMAX-operated collection point (a contact + address where
+  // 'location'  = Laundromat-operated collection point (a contact + address where
   // bags are dropped/collected on a schedule) — earns ZERO commission, ever.
   // Created manually by an administrator, never via invite.
   affiliateType: {
@@ -67,7 +67,7 @@ const affiliateSchema = new mongoose.Schema({
   geocodedAt: { type: Date },
   // Flat per-affiliate delivery fee — display-only (money lives in Cents); shown
   // in the order-confirmation email when non-zero. 0 = no delivery fee (the
-  // WaveMAX-Associates `default_delivery_fee` applies; see utils/deliveryFee.js).
+  // Laundromat Associates `default_delivery_fee` applies; see utils/deliveryFee.js).
   // This is the SINGLE source of truth — the V1 minimum/per-bag fee pair was
   // removed in the 2026-06-23 audit (see docs/refactor/CODEBASE-AUDIT-2026-06-23.md).
   deliveryFee: {

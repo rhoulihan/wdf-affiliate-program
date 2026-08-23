@@ -76,7 +76,7 @@ function sanitizeInstructions(raw) {
 
 /**
  * Record the send-out (out_for_delivery) revenue snapshot on an order: freeze
- * the partner's OWN delivery fee as commission (0 for the WaveMAX-Associates
+ * the partner's OWN delivery fee as commission (0 for the Laundromat Associates
  * default — that fee is house revenue), and record the operator-entered order
  * total when present (validated ≥ 0). Frozen now so later fee changes never alter
  * this order's historical commission. The SINGLE place this snapshot is applied
@@ -280,7 +280,7 @@ async function notifyTransition(order, { event }) {
         const addOns = await AddOn.resolveKeys(order.addOns);
         sends.push(emailService.sendOrderStatusUpdateEmail(customer, order, 'pending', {
           pickupInstructions: affiliate ? affiliate.pickupInstructions : '',
-          // Effective fee (partner's own or the WaveMAX-Associates default) — same
+          // Effective fee (partner's own or the Laundromat Associates default) — same
           // as the customer saw on the order form.
           deliveryFee: await effectiveDeliveryFee(affiliate),
           addOns

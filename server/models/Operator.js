@@ -1,4 +1,4 @@
-// Operator Model for WaveMAX Laundry Affiliate Program
+// Operator Model for Laundromat Affiliate Program
 // Handles operators who process wash-dry-fold orders
 
 const mongoose = require('mongoose');

@@ -1,4 +1,4 @@
-// SystemConfig Model for WaveMAX Laundry Affiliate Program
+// SystemConfig Model for Laundromat Affiliate Program
 // Manages system-wide configuration settings
 
 const mongoose = require('mongoose');
@@ -166,13 +166,13 @@ systemConfigSchema.statics.getPublicConfigs = function() {
 systemConfigSchema.statics.initializeDefaults = async function() {
   const defaultConfigs = [
     // Delivery — default fee for partners with no delivery fee of their own
-    // (they use WaveMAX Associates). Displays like any delivery fee but stays as
+    // (they use Laundromat Associates). Displays like any delivery fee but stays as
     // house revenue (not partner commission). See server/utils/deliveryFee.js.
     {
       key: 'default_delivery_fee',
       value: 10,
       defaultValue: 10,
-      description: 'Default delivery fee (USD) for partners with no fee of their own (WaveMAX Associates pickup/delivery)',
+      description: 'Default delivery fee (USD) for partners with no fee of their own (house Associates pickup/delivery)',
       category: 'affiliate',
       dataType: 'number',
       isEditable: true,

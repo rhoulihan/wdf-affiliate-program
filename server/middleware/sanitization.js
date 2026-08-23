@@ -1,4 +1,4 @@
-// Input Sanitization Middleware for WaveMAX Laundry Affiliate Program
+// Input Sanitization Middleware for Laundromat Affiliate Program
 
 const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss');

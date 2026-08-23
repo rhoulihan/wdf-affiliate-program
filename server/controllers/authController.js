@@ -1,4 +1,4 @@
-// Authentication Controller for WaveMAX Laundry Affiliate Program
+// Authentication Controller for Laundromat Affiliate Program
 
 const RefreshToken = require('../models/RefreshToken');
 const TokenBlacklist = require('../models/TokenBlacklist');

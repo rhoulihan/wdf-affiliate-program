@@ -2,7 +2,7 @@
 // claim flow, operator scan, and order emails.
 //
 // A partner who sets their own delivery fee uses it (and earns it as commission).
-// A partner with NO fee uses WaveMAX Associates for pickup/delivery at the
+// A partner with NO fee uses Laundromat Associates for pickup/delivery at the
 // configurable `default_delivery_fee` (default $10). That default DISPLAYS the
 // same way to the customer, but it is house revenue — it is NOT recorded as
 // partner commission (see orderTransitionService: deliveryFeeCharged uses the
@@ -15,7 +15,7 @@ const DEFAULT_DELIVERY_FEE = 10;
 
 /**
  * The fee shown to the customer + used by the operator to pick the right fee in
- * Cents: the partner's own fee when > 0, otherwise the WaveMAX-Associates default.
+ * Cents: the partner's own fee when > 0, otherwise the Laundromat Associates default.
  * @param {{deliveryFee?: number}|null} affiliate
  * @returns {Promise<number>}
  */

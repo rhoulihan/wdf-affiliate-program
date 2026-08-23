@@ -1,4 +1,4 @@
-// Password Validation Utility for WaveMAX Laundry Affiliate Program
+// Password Validation Utility for Laundromat Affiliate Program
 
 /**
  * Strong password validation utility with comprehensive security requirements
