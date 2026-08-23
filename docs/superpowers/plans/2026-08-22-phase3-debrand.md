@@ -232,10 +232,10 @@ describe('brand config', () => {
   });
 
   test('env overrides the display value', () => {
-    process.env.BRAND_DISPLAY_NAME = 'WaveMAX Austin';
+    process.env.BRAND_DISPLAY_NAME = 'Acme Wash'; // neutral non-default; the real prod value never lands in a committed file
     jest.resetModules();
     const brand = require('../../server/config/brand');
-    expect(brand.displayName).toBe('WaveMAX Austin');
+    expect(brand.displayName).toBe('Acme Wash');
   });
 });
 ```
