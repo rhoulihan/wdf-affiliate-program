@@ -29,4 +29,15 @@ describe('4a host canonicalization', () => {
     expect(directive('connect-src')).toContain('https://portal.atxwashdryfold.com');
     expect(directive('frame-ancestors')).toContain('https://portal.atxwashdryfold.com');
   });
+
+  test('session cookie is named portal.sid, never the retired session cookie', async () => {
+    // saveUninitialized:true mints a session cookie on any served (non-/health) request.
+    const r = await asHost('portal.atxwashdryfold.com');
+    const setCookie = r.headers['set-cookie'];
+    expect(Array.isArray(setCookie)).toBe(true);
+    // Under NODE_ENV=test the bare name is used; the __Host- prefix is prod-only.
+    const sessionCookie = setCookie.find((c) => /^(?:__Host-)?portal\.sid=/.test(c));
+    expect(sessionCookie).toBeTruthy();
+    expect(setCookie.some((c) => /(?:__Host-)?wavemax\.sid=/.test(c))).toBe(false);
+  });
 });

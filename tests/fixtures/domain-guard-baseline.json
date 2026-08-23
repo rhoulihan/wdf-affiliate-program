@@ -39,7 +39,6 @@
   "scripts/admin/reset-admin-password.js",
   "scripts/admin/update-admin-email.js",
   "scripts/build-assets.js",
-  "server.js",
   "server/config/csrf-config.js",
   "server/middleware/accessGate.js",
   "server/modules/bags/labelSheetService.js",

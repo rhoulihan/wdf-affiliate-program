@@ -411,8 +411,8 @@ app.use((req, res, next) => {
       'https://fonts.googleapis.com',
       'https://stackpath.bootstrapcdn.com'
     ],
-    'img-src': ['\'self\'', 'data:', 'https://wavemax.promo', 'https://www.wavemax.promo', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://*.tile.openstreetmap.org', 'https://tile.openstreetmap.org', 'https://cdnjs.cloudflare.com', 'https://flagcdn.com', 'https://secure.walibu.com', 'https://upload.wikimedia.org', 'https://*.googleusercontent.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://www.facebook.com'],
-    'connect-src': ['\'self\'', 'https://wavemax.promo', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://stackpath.bootstrapcdn.com', 'https://router.project-osrm.org', 'https://graphhopper.com', 'https://api.openrouteservice.org', 'https://valhalla1.openstreetmap.de', 'https://nominatim.openstreetmap.org', 'https://www.local-marketing-reports.com', 'https://places.googleapis.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://connect.facebook.net', 'https://www.facebook.com',
+    'img-src': ['\'self\'', 'data:', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://*.tile.openstreetmap.org', 'https://tile.openstreetmap.org', 'https://cdnjs.cloudflare.com', 'https://flagcdn.com', 'https://secure.walibu.com', 'https://upload.wikimedia.org', 'https://*.googleusercontent.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://www.facebook.com'],
+    'connect-src': ['\'self\'', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://stackpath.bootstrapcdn.com', 'https://router.project-osrm.org', 'https://graphhopper.com', 'https://api.openrouteservice.org', 'https://valhalla1.openstreetmap.de', 'https://nominatim.openstreetmap.org', 'https://www.local-marketing-reports.com', 'https://places.googleapis.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://connect.facebook.net', 'https://www.facebook.com',
       // Firebase Phone Auth (PR 7) — Identity Toolkit + secure-token endpoints,
       // plus the reCAPTCHA origins the v2 fallback fetches from (www.google.com
       // /recaptcha/... and gstatic). Without www.google.com here the reCAPTCHA
@@ -496,7 +496,7 @@ const corsOptions = {
     const wavemaxDomains = [
       'https://www.wavemaxlaundry.com',
       'https://wavemaxlaundry.com',
-      'https://wavemax.promo', // Add our own domain for iframe same-origin
+      'https://portal.atxwashdryfold.com', // Our own app domain for iframe same-origin
       // Per-location domains that proxy the Austin franchise content
       'https://atxwashateria.com',
       'https://atxwashdryfold.com',
@@ -673,8 +673,8 @@ const sessionStore = process.env.NODE_ENV === 'test'
 // the bare name because __Host- requires Secure which we only set in
 // prod. APP-009 / prod-lockdown-2026-05-20.
 const sessionCookieName = process.env.NODE_ENV === 'production'
-  ? '__Host-wavemax.sid'
-  : 'wavemax.sid';
+  ? '__Host-portal.sid'
+  : 'portal.sid';
 
 // Liveness probe — handled BEFORE the session middleware so the Cloudflare
 // Load Balancer health monitor (~11/sec, ~99% of origin traffic) does NOT mint
@@ -1227,8 +1227,8 @@ app.get('/sitemap.xml', (req, res) => {
   // rundberglaundry.com is the primary domain — its sitemap lists every
   // Austin page so Google indexes the full site. The three sister domains
   // each target a single query and ship a minimal sitemap (apex only).
-  // wavemax.promo is locked down (everything 301s to rundberglaundry),
-  // so its sitemap points at rundberglaundry.
+  // A retired or unknown host is locked down (301s at the edge), so its
+  // sitemap simply points at the primary rundberglaundry.com domain.
   const urls = [];
   if (host === 'rundberglaundry.com') {
     urls.push(
@@ -1250,7 +1250,7 @@ app.get('/sitemap.xml', (req, res) => {
     // atxwashateria.com, runberglaundry.com — apex only.
     urls.push({ loc: `https://${host}/`, priority: '1.0' });
   } else {
-    // wavemax.promo (or unknown host) — redirect target.
+    // Retired or unknown host — falls back to the primary domain.
     urls.push({ loc: 'https://rundberglaundry.com/', priority: '1.0' });
   }
 
