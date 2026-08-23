@@ -247,6 +247,10 @@ public/design-explorer/render/
 mhr-payment-*.png
 *.playwright-mcp-screenshot.png
 .playwright-mcp/
+
+# Stray render/diagram scratch PNGs that occasionally land in repo root
+/chart-render.png
+/lod-frame.png
 serve-explorer.scratch.js
 start-local.sh
 bing_austin.md

@@ -13,6 +13,8 @@ const EXCLUDED_PREFIXES = [
   'public/data/', 'public/franchise-default/', 'public/dev/', 'design-explorer/',
   'public/design-explorer/', 'docs/', 'node_modules/', '.git/', 'crhsent/',
   'scripts/franchise-build/',
+  // test fixtures reference domains for testing (incl. retired-host behavior) — not production refs
+  'tests/',
 ];
 const EXCLUDED_FILES = new Set([
   // excluded/marketing parent pages that host the iframe or name the franchisor
@@ -25,12 +27,13 @@ const EXCLUDED_FILES = new Set([
   'server/config/domainSeoOverrides.js', 'server/config/franchisePreviewCopy.js',
   // this guard + its baseline
   'tests/unit/domain-guard.test.js',
+  // dev-only compose EMAIL_FROM default; gated config — migrate manually
+  'docker-compose.yml',
 ]);
 const EXCLUDED_SUFFIXES = ['.md', '.min.js', '.min.css'];
 // Allowlisted tokens: the deliberate 301-source host entries + kept functional
 // protocol/storage/id tokens + the mail-server/default fallback domains.
 const ALLOW = [
-  /wavemax-embed['"]/gi,        // postMessage source tag (kept)
   /wavemax-language/gi,         // localStorage key (kept)
   /wavemax-iframe/gi,           // iframe DOM id (kept)
   /['"](?:www\.|affiliate\.)?wavemax\.promo['"]/gi, // retired-host 301-source literals (allowedHosts/RETIRED_HOSTS) — quoted only; an unquoted https://wavemax.promo URL still trips
@@ -73,5 +76,8 @@ describe('phase-4a domain guard', () => {
   test('baseline has no stale entries', () => {
     const stale = [...baseline].filter((f) => !seen.has(f) && !excluded(f));
     expect(stale).toEqual([]);
+  });
+  test('baseline fully drained', () => {
+    expect([...baseline]).toEqual([]);
   });
 });

@@ -27,7 +27,7 @@ async function main() {
     const newAdmin = new Administrator({
       firstName: 'System',
       lastName: 'Administrator',
-      email: 'admin@wavemax.promo',
+      email: 'admin@crhsent.com',
       passwordSalt: salt,
       passwordHash: hash,
       permissions: ['all'],

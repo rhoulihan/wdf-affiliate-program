@@ -65,7 +65,7 @@ async function main() {
     console.log(`Password: ${OPERATOR_PASSWORD}`);
     console.log(`Shift: ${newOperator.shiftStart} - ${newOperator.shiftEnd}`);
     console.log('=================================');
-    console.log('\nLogin URL: https://wavemax.promo/embed-app-v2.html?route=/operator-login');
+    console.log('\nLogin URL: https://portal.atxwashdryfold.com/embed-app-v2.html?route=/operator-login');
 
   } catch (error) {
     console.error('\n❌ Error:', error.message);

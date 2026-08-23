@@ -169,8 +169,6 @@ const INFRA_ALLOW = [
   /wavemax-api/gi, /wavemax-client/gi,
   // Winston log service tag (log-aggregation key).
   /service: 'wavemax-affiliate'/gi,
-  // Thermal bag-label logo asset filename (Phase-4 asset rename).
-  /logo-wavemax-thermal\.png/gi,
   // .gitignore audit-doc path prefixes (match real filenames on disk).
   /wavemaxlaundry-site-audit/gi, /wavemax-promo-prelaunch-audit/gi,
   // Mediator gate URL + its clickjacking-demo content path (functional routes).

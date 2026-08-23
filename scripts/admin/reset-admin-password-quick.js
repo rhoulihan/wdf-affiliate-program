@@ -58,7 +58,7 @@ async function main() {
     console.log(`New Password: ${newPassword}`);
     console.log('=================================');
     console.log('\n⚠️  IMPORTANT: Please change this password after first login!');
-    console.log('\nLogin URL: https://wavemax.promo/embed-app-v2.html?route=/administrator-login');
+    console.log('\nLogin URL: https://portal.atxwashdryfold.com/embed-app-v2.html?route=/administrator-login');
 
   } catch (error) {
     console.error('\n❌ Error:', error.message);

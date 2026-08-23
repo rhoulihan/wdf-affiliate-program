@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 const Administrator = require('../../server/models/Administrator');
 const encryptionUtil = require('../../server/utils/encryption');
 
-const ADMIN_EMAIL = 'admin@wavemax.promo';
+const ADMIN_EMAIL = 'admin@crhsent.com';
 const NEW_PASSWORD = 'R8der50!2025';
 
 async function main() {

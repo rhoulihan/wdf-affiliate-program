@@ -130,7 +130,7 @@ async function main() {
 
     console.log('\n✅ Password reset successfully!');
     console.log(`Administrator ${selectedAdmin.email} can now login with the new password.`);
-    console.log('\nLogin URL: https://wavemax.promo/embed-app-v2.html?route=/administrator-login');
+    console.log('\nLogin URL: https://portal.atxwashdryfold.com/embed-app-v2.html?route=/administrator-login');
 
   } catch (error) {
     console.error('\n❌ Error:', error.message);

@@ -245,7 +245,7 @@ const conditionalCsrf = (req, res, next) => {
   }
 
   // SEC H-1 (closed): the previous "bearer-only" bypass — skipping CSRF
-  // whenever an Authorization header was present and the wavemax.sid
+  // whenever an Authorization header was present and the portal.sid
   // cookie was absent — was removed because (a) the bypass keyed on a
   // single cookie name, so any future cookie-based session would silently
   // re-introduce the CSRF hole, and (b) the comment justifying it
