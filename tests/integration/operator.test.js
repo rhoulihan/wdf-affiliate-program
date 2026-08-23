@@ -54,7 +54,7 @@ describe('Operator Integration Tests', () => {
       adminId: 'ADMIN001',
       firstName: 'Super',
       lastName: 'User',
-      email: 'superuser@wavemax.com',
+      email: 'superuser@laundromat.example',
       passwordSalt: salt,
       passwordHash: hash,
       permissions: ['all']
@@ -64,7 +64,7 @@ describe('Operator Integration Tests', () => {
     const adminLogin = await adminAgent
       .post('/api/v1/auth/administrator/login')
       .send({
-        email: 'superuser@wavemax.com',
+        email: 'superuser@laundromat.example',
         password: 'CompletelyUniquePassword417!'
       });
 
@@ -82,7 +82,7 @@ describe('Operator Integration Tests', () => {
       operatorId: 'OPR001',
       firstName: 'Test',
       lastName: 'Operator',
-      email: 'operator@wavemax.com',
+      email: 'operator@laundromat.example',
       username: 'testoperator',
       password: 'OperatorStrongPassword951!',
       shiftStart: '00:00',
@@ -123,7 +123,7 @@ describe('Operator Integration Tests', () => {
           operatorId: 'OPR002',
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john@wavemax.com',
+          email: 'john@laundromat.example',
           username: 'johndoe',
           password: 'StrongPassword951!',
           shiftStart: '09:00',
@@ -135,7 +135,7 @@ describe('Operator Integration Tests', () => {
           operatorId: 'OPR003',
           firstName: 'Jane',
           lastName: 'Smith',
-          email: 'jane@wavemax.com',
+          email: 'jane@laundromat.example',
           username: 'janesmith',
           password: 'StrongPassword951!',
           isActive: false,
@@ -166,7 +166,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'OPR002',
         firstName: 'Inactive',
         lastName: 'Operator',
-        email: 'inactive@wavemax.com',
+        email: 'inactive@laundromat.example',
         username: 'inactiveop',
         password: 'StrongPassword951!',
         isActive: false,
@@ -197,7 +197,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'OPR002',
         firstName: 'Off Shift',
         lastName: 'Operator',
-        email: 'offshift@wavemax.com',
+        email: 'offshift@laundromat.example',
         username: 'offshiftop',
         password: 'StrongPassword951!',
         shiftStart: offShiftStart,
@@ -224,7 +224,7 @@ describe('Operator Integration Tests', () => {
           operatorId: `OPR${String(i).padStart(3, '0')}`,
           firstName: `Op${i}`,
           lastName: 'Test',
-          email: `op${i}@wavemax.com`,
+          email: `op${i}@laundromat.example`,
           username: `op${i}test`,
           password: 'StrongPassword951!',
           createdBy: testAdmin._id,
@@ -264,7 +264,7 @@ describe('Operator Integration Tests', () => {
         adminId: 'LIMITED001',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited@wavemax.com',
+        email: 'limited@laundromat.example',
         passwordSalt: limitedSalt,
         passwordHash: limitedHash,
         permissions: ['customers.read'] // No operator permissions
@@ -273,7 +273,7 @@ describe('Operator Integration Tests', () => {
       const limitedLogin = await agent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited@wavemax.com',
+          email: 'limited@laundromat.example',
           password: 'StrongPassword951!'
         });
 
@@ -293,7 +293,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'OPR002',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         username: 'johndoe2',
         password: 'StrongPassword951!',
         shiftStart: '09:00',
@@ -315,7 +315,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'OPR002',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         totalOrdersProcessed: 150,
         averageProcessingTime: 25.5,
         qualityScore: 95
@@ -337,7 +337,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'OPR002',
         firstName: 'Other',
         lastName: 'Operator',
-        email: 'other@wavemax.com',
+        email: 'other@laundromat.example',
         username: 'otherop',
         password: 'StrongPassword951!',
         createdBy: testAdmin._id
@@ -370,7 +370,7 @@ describe('Operator Integration Tests', () => {
       const newOperator = {
         firstName: 'New',
         lastName: 'Operator',
-        email: 'newop@wavemax.com',
+        email: 'newop@laundromat.example',
         username: 'newoperator',
         password: 'NewPassw0rd!',
         shiftStart: '00:00',
@@ -389,7 +389,7 @@ describe('Operator Integration Tests', () => {
         operatorId: expect.stringMatching(/^OPR/),
         firstName: 'New',
         lastName: 'Operator',
-        email: 'newop@wavemax.com',
+        email: 'newop@laundromat.example',
         shiftStart: '00:00',
         shiftEnd: '23:59',
         isActive: true,
@@ -401,7 +401,7 @@ describe('Operator Integration Tests', () => {
       });
 
       // Verify operator was created successfully
-      const createdOperator = await Operator.findOne({ email: 'newop@wavemax.com' });
+      const createdOperator = await Operator.findOne({ email: 'newop@laundromat.example' });
       expect(createdOperator).toBeDefined();
       expect(createdOperator.operatorId).toMatch(/^OPR/);
     });
@@ -445,7 +445,7 @@ describe('Operator Integration Tests', () => {
         .send({
           firstName: 'Test',
           lastName: 'Operator',
-          email: 'test@wavemax.com',
+          email: 'test@laundromat.example',
           password: 'Passw0rdStr0ng!',
           shiftStart: '25:00' // Invalid time
         });
@@ -462,7 +462,7 @@ describe('Operator Integration Tests', () => {
         .send({
           firstName: 'Duplicate',
           lastName: 'Operator',
-          email: 'operator@wavemax.com', // Already exists
+          email: 'operator@laundromat.example', // Already exists
           password: 'Passw0rdStr0ng!'
         });
 
@@ -477,7 +477,7 @@ describe('Operator Integration Tests', () => {
         adminId: 'LIMITED002',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited2@wavemax.com',
+        email: 'limited2@laundromat.example',
         passwordSalt: limitedSalt2,
         passwordHash: limitedHash2,
         permissions: ['customers.manage'] // No operator permissions
@@ -486,7 +486,7 @@ describe('Operator Integration Tests', () => {
       const limitedLogin = await agent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited2@wavemax.com',
+          email: 'limited2@laundromat.example',
           password: 'StrongPassword951!'
         });
 
@@ -497,7 +497,7 @@ describe('Operator Integration Tests', () => {
         .send({
           firstName: 'New',
           lastName: 'Operator',
-          email: 'new@wavemax.com',
+          email: 'new@laundromat.example',
           password: 'StrongPassword951!'
         });
 
@@ -514,7 +514,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'TARGET001',
         firstName: 'Target',
         lastName: 'Operator',
-        email: 'target@wavemax.com',
+        email: 'target@laundromat.example',
         username: 'targetop',
         password: 'StrongPassword951!',
         shiftStart: '00:00',
@@ -587,7 +587,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'OPR-PROFILE-TEST',
         firstName: 'Profile',
         lastName: 'Test',
-        email: 'profiletest@wavemax.com',
+        email: 'profiletest@laundromat.example',
         username: 'profiletest',
         password: 'ProfileTest951!',
         createdBy: testAdmin._id
@@ -653,7 +653,7 @@ describe('Operator Integration Tests', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('x-csrf-token', adminCsrfToken)
         .send({
-          email: 'operator@wavemax.com' // Already exists
+          email: 'operator@laundromat.example' // Already exists
         });
 
       expect(response.status).toBe(409);
@@ -669,7 +669,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'DELETE001',
         firstName: 'Delete',
         lastName: 'Me',
-        email: 'delete@wavemax.com',
+        email: 'delete@laundromat.example',
         username: 'deleteme',
         password: 'StrongPassword951!',
         createdBy: testAdmin._id
@@ -712,7 +712,7 @@ describe('Operator Integration Tests', () => {
         adminId: 'LIMITED003',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited3@wavemax.com',
+        email: 'limited3@laundromat.example',
         passwordSalt: limitedSalt3,
         passwordHash: limitedHash3,
         permissions: ['customers.manage'] // No operator permissions
@@ -721,7 +721,7 @@ describe('Operator Integration Tests', () => {
       const limitedLogin = await agent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited3@wavemax.com',
+          email: 'limited3@laundromat.example',
           password: 'StrongPassword951!'
         });
 
@@ -755,7 +755,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'PIN001',
         firstName: 'Pin',
         lastName: 'Reset',
-        email: 'pinreset@wavemax.com',
+        email: 'pinreset@laundromat.example',
         username: 'pinreset',
         password: 'StrongPassword951!',
         createdBy: testAdmin._id
@@ -799,7 +799,7 @@ describe('Operator Integration Tests', () => {
           operatorId: 'AVAIL001',
           firstName: 'Available1',
           lastName: 'Op',
-          email: 'avail1@wavemax.com',
+          email: 'avail1@laundromat.example',
           username: 'avail1op',
           password: 'StrongPassword951!',
           currentOrderCount: 2,
@@ -809,7 +809,7 @@ describe('Operator Integration Tests', () => {
           operatorId: 'AVAIL002',
           firstName: 'Available2',
           lastName: 'Op',
-          email: 'avail2@wavemax.com',
+          email: 'avail2@laundromat.example',
           username: 'avail2op',
           password: 'StrongPassword951!',
           currentOrderCount: 5,
@@ -819,7 +819,7 @@ describe('Operator Integration Tests', () => {
           operatorId: 'BUSY001',
           firstName: 'Busy',
           lastName: 'Op',
-          email: 'busy@wavemax.com',
+          email: 'busy@laundromat.example',
           username: 'busyop',
           password: 'StrongPassword951!',
           currentOrderCount: 12, // Over limit
@@ -829,7 +829,7 @@ describe('Operator Integration Tests', () => {
           operatorId: 'INACTIVE001',
           firstName: 'Inactive',
           lastName: 'Op',
-          email: 'inactive@wavemax.com',
+          email: 'inactive@laundromat.example',
           username: 'inactiveop2',
           password: 'StrongPassword951!',
           currentOrderCount: 0,
@@ -889,7 +889,7 @@ describe('Operator Integration Tests', () => {
         operatorId: 'STATS001',
         firstName: 'Stats',
         lastName: 'Operator',
-        email: 'stats@wavemax.com',
+        email: 'stats@laundromat.example',
         username: 'statsop',
         password: 'StrongPassword951!',
         totalOrdersProcessed: 10,

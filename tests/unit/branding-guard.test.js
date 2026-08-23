@@ -85,6 +85,27 @@ const EXCLUDED_FILES = new Set([
   // Proprietary LICENSE names the CRHS/WaveMAX marks verbatim (legal text) +
   // dev-persona doc — both kept literal.
   'LICENSE', 'init.prompt',
+  // ---- Phase-3 Task-9 test-fixture reconciliation ----
+  // Tests bound to already-excluded, Phase-4-deferred subsystems — they assert on
+  // the real WaveMAX mark that their (excluded) source still emits. De-brand these
+  // together with their subsystems in Phase 4.
+  //   Franchise-preview + GBP (peers of franchiseController/franchisePreview*/gbp*):
+  'tests/integration/franchisePreview.e2e.test.js', 'tests/unit/franchisePreview.test.js',
+  'tests/unit/franchisePreviewEmail.test.js', 'tests/unit/franchisePreviewRender.test.js',
+  'tests/unit/gbpService.test.js', 'tests/unit/gbpToLocationData.test.js',
+  //   Partner-landing middleware (excluded partnerLanding.js) + its no-brand guard:
+  'tests/unit/partnerLanding.test.js',
+  //   crhsent sales page served at /wavemax/ (excluded crhsent/ tree + mediatorGate):
+  'tests/integration/crhsentCsp.test.js',
+  //   Austin marketing reference build (peers of the excluded wash-dry-fold-embed.html
+  //   + wavemax-theme.css / wavemax-components.css asset rename, all Phase-4):
+  'tests/e2e/austin-reference/wash-dry-fold.spec.js',
+  // Guard-style tests whose /wavemax/i absence-matcher is load-bearing (asserts the
+  // page carries NO brand) — allowlisted like i18n-brand-token.test.js above.
+  'tests/unit/affiliateApplicationForm.test.js', 'tests/unit/partnerInquiryForm.test.js',
+  // Security-control test: asserts 'wavemax' stays in the weak-password blocklist
+  // (source passwordValidator.js is excluded for the same reason — a control, not copy).
+  'tests/unit/passwordValidator.test.js',
 ]);
 const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 

@@ -201,7 +201,7 @@ describe('Email Service - Uncovered Functions', () => {
       await emailService.sendServiceDownAlert(alertData);
 
       // Should still send to default fallback email.
-      // Fallback domain migrated wavemax.com -> rundberglaundry.com
+      // Fallback domain migrated to rundberglaundry.com
       // (see server/services/email/dispatcher/ops.js).
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({

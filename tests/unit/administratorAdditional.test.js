@@ -27,7 +27,7 @@ describe('Administrator Model - Additional Coverage', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['system_config', 'view_analytics']
       }));
@@ -44,7 +44,7 @@ describe('Administrator Model - Additional Coverage', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'Jane',
         lastName: 'Doe',
-        email: 'jane@wavemax.com',
+        email: 'jane@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['system_config', 'view_analytics', 'operator_management']
       }));
@@ -63,7 +63,7 @@ describe('Administrator Model - Additional Coverage', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'InitialPassword417!'
       }));
 
@@ -96,7 +96,7 @@ describe('Administrator Model - Additional Coverage', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -112,7 +112,7 @@ describe('Administrator Model - Additional Coverage', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 

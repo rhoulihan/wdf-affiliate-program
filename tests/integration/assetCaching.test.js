@@ -9,7 +9,7 @@ const app = require('../../server');
 
 describe('Static asset caching — /assets immutable', () => {
   it('serves CSS under /assets with a 1-year immutable Cache-Control', async () => {
-    const res = await request(app).get('/assets/css/wavemax-mhr-chrome.css');
+    const res = await request(app).get('/assets/css/theme.css');
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBeDefined();
     expect(res.headers['cache-control']).toMatch(/max-age=31536000/);

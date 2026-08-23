@@ -44,17 +44,17 @@ describe('Location quarantine middleware', () => {
     it('does not redirect / to corporate', async () => {
       const response = await request(app).get('/').redirects(0);
       // Existing behavior: / redirects to /franchise/. Just assert NOT corporate.
-      expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+      expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
     });
 
     it('does not redirect /about/ to corporate', async () => {
       const response = await request(app).get('/about/').redirects(0);
-      expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+      expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
     });
 
     it('does not redirect /dallas-tx/ to corporate', async () => {
       const response = await request(app).get('/dallas-tx/').redirects(0);
-      expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+      expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
     });
   });
 
@@ -65,7 +65,7 @@ describe('Location quarantine middleware', () => {
 
     it('does not redirect /about/ to corporate', async () => {
       const response = await request(app).get('/about/').redirects(0);
-      expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+      expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
     });
   });
 
@@ -78,22 +78,22 @@ describe('Location quarantine middleware', () => {
     describe('Austin allowlist', () => {
       it('allows /austin-tx/ (does not 302 to corporate)', async () => {
         const response = await request(app).get('/austin-tx/').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /austin-tx (no trailing slash)', async () => {
         const response = await request(app).get('/austin-tx').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /austin-tx/wash-dry-fold/', async () => {
         const response = await request(app).get('/austin-tx/wash-dry-fold/').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /austin-tx/self-serve-laundry/', async () => {
         const response = await request(app).get('/austin-tx/self-serve-laundry/').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /api/austin-tx/places-config', async () => {
@@ -106,17 +106,17 @@ describe('Location quarantine middleware', () => {
     describe('Affiliate-program app allowlist', () => {
       it('allows /api/v1/* endpoints (may return 401, but not 302 to corporate)', async () => {
         const response = await request(app).get('/api/v1/affiliates/AFF-test/public').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /api/csrf-token', async () => {
         const response = await request(app).get('/api/csrf-token').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /api/health', async () => {
         const response = await request(app).get('/api/health').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /health', async () => {
@@ -126,44 +126,44 @@ describe('Location quarantine middleware', () => {
 
       it('allows /embed-app-v2.html', async () => {
         const response = await request(app).get('/embed-app-v2.html').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /affiliate-login-embed.html', async () => {
         const response = await request(app).get('/affiliate-login-embed.html').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /claim-embed.html', async () => {
         // The customer surface is now bag-claim registration only
         // (customer login/dashboard retired in Phase 1 PR 6).
         const response = await request(app).get('/claim-embed.html').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /operator-scan-embed.html', async () => {
         const response = await request(app).get('/operator-scan-embed.html').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /administrator-dashboard-embed.html', async () => {
         const response = await request(app).get('/administrator-dashboard-embed.html').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /assets/* static files', async () => {
         const response = await request(app).get('/assets/css/styles.css').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /locales/* translation files', async () => {
         const response = await request(app).get('/locales/en/common.json').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /franchise-default/* internal iframe content', async () => {
         const response = await request(app).get('/franchise-default/landing.html').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
     });
 
@@ -171,22 +171,22 @@ describe('Location quarantine middleware', () => {
     describe('Legal allowlist', () => {
       it('allows /privacy-policy', async () => {
         const response = await request(app).get('/privacy-policy').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /terms-and-conditions', async () => {
         const response = await request(app).get('/terms-and-conditions').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /terms-of-service', async () => {
         const response = await request(app).get('/terms-of-service').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('allows /refund-policy', async () => {
         const response = await request(app).get('/refund-policy').redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
     });
 
@@ -200,14 +200,14 @@ describe('Location quarantine middleware', () => {
       ]) {
         it(`allows ${p} (does not 302 to corporate)`, async () => {
           const response = await request(app).get(p).redirects(0);
-          expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+          expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
         });
       }
 
       it('still redirects a lookalike (/design-exploreriffic) to corporate', async () => {
         const response = await request(app).get('/design-exploreriffic').redirects(0);
         expect(response.status).toBe(302);
-        expect(response.headers.location || '').toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').toContain('wavemaxlaundry.com');
       });
     });
 
@@ -384,7 +384,7 @@ describe('Location quarantine middleware', () => {
           .set('Host', 'crhsent.com')
           .redirects(0);
         expect(response.status).toBe(404);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('serves a 404 for an unknown path on www.crhsent.com too', async () => {
@@ -393,7 +393,7 @@ describe('Location quarantine middleware', () => {
           .set('Host', 'www.crhsent.com')
           .redirects(0);
         expect(response.status).toBe(404);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
 
       it('never redirects a suspicious path on crhsent.com to corporate', async () => {
@@ -401,7 +401,7 @@ describe('Location quarantine middleware', () => {
           .get('/wp-login.php')
           .set('Host', 'crhsent.com')
           .redirects(0);
-        expect(response.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
     });
 

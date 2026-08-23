@@ -23,8 +23,8 @@ process.env.BASE_URL = 'https://wavemax.promo';
 // Get MongoDB URI and append test database name
 const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wavemax_affiliate';
 const testUri = baseUri.includes('?')
-  ? baseUri.replace(/\/[^/\?]+\?/, '/wavemax_test?')
-  : baseUri.replace(/\/[^/]+$/, '/wavemax_test');
+  ? baseUri.replace(/\/[^/\?]+\?/, '/laundromat_test?')
+  : baseUri.replace(/\/[^/]+$/, '/laundromat_test');
 
 // Global connection promise to prevent multiple connections
 let connectionPromise = null;
@@ -42,7 +42,7 @@ async function connectWithFallback() {
   } catch (realMongoErr) {
     const { MongoMemoryServer } = require('mongodb-memory-server');
     memoryServer = await MongoMemoryServer.create();
-    const memoryUri = memoryServer.getUri('wavemax_test');
+    const memoryUri = memoryServer.getUri('laundromat_test');
     console.log('Real Mongo unreachable, using mongodb-memory-server fallback');
     return mongoose.connect(memoryUri, {
       serverSelectionTimeoutMS: 30000,

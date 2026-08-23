@@ -18,7 +18,7 @@ describe('Operator scan code', () => {
     const { salt, hash } = encryptionUtil.hashPassword('CompletelyUniquePassword417!');
     admin = await Administrator.create({
       adminId: `ADM${Date.now()}`, firstName: 'Ops', lastName: 'Admin',
-      email: `opsadmin${Date.now()}@wavemax.com`,
+      email: `opsadmin${Date.now()}@laundromat.example`,
       passwordSalt: salt, passwordHash: hash, permissions: ['all']
     });
     adminAgent = createAgent(app);
@@ -43,7 +43,7 @@ describe('Operator scan code', () => {
       .set('x-csrf-token', adminCsrf)
       .send({
         firstName: 'Scan', lastName: 'Op',
-        email: `scanop${Date.now()}@wavemax.com`,
+        email: `scanop${Date.now()}@laundromat.example`,
         username: `scanop${Date.now()}`,
         password: 'StrongOperatorPass417!'
       });
@@ -58,7 +58,7 @@ describe('Operator scan code', () => {
   test('POST /api/v1/operators/:operatorId/scan-code/reset regenerates (admin, CSRF)', async () => {
     const operator = await Operator.create({
       firstName: 'Reset', lastName: 'Op',
-      email: `resetop${Date.now()}@wavemax.com`, username: `resetop${Date.now()}`,
+      email: `resetop${Date.now()}@laundromat.example`, username: `resetop${Date.now()}`,
       password: 'StrongOperatorPass417!', createdBy: admin._id,
       scanCodeHmac: roleCodes.hmacCode('OLDCODE9'), scanCodeSetAt: new Date(Date.now() - 1000)
     });
@@ -79,7 +79,7 @@ describe('Operator scan code', () => {
   test('old reset-pin route is gone; scan-code reset rejects non-admin', async () => {
     const operator = await Operator.create({
       firstName: 'Rbac', lastName: 'Op',
-      email: `rbacop${Date.now()}@wavemax.com`, username: `rbacop${Date.now()}`,
+      email: `rbacop${Date.now()}@laundromat.example`, username: `rbacop${Date.now()}`,
       password: 'StrongOperatorPass417!', createdBy: admin._id
     });
 

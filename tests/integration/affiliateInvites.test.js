@@ -89,9 +89,10 @@ describe('Affiliate invites API', () => {
 
       expect(onboardingEmail.sendAffiliateInviteEmail).toHaveBeenCalledTimes(1);
       const arg = onboardingEmail.sendAffiliateInviteEmail.mock.calls[0][0];
-      expect(arg.inviteUrl).toMatch(
-        /^https:\/\/wavemax\.promo\/embed-app-v2\.html\?route=\/affiliate-register&invite=[0-9a-f]{64}$/
-      );
+      expect(arg.inviteUrl.startsWith(
+        `${process.env.BASE_URL}/embed-app-v2.html?route=/affiliate-register&invite=`
+      )).toBe(true);
+      expect(arg.inviteUrl).toMatch(/&invite=[0-9a-f]{64}$/);
     });
 
     test('403 without the manage_affiliates permission', async () => {

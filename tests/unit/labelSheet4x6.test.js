@@ -1,5 +1,5 @@
 // labelSheetService — 4x6 single-label-per-page thermal format (HP KE100).
-// Each page = one 4in x 6in label: WaveMAX logo, affiliate name (every label),
+// Each page = one 4in x 6in label: the logo, affiliate name (every label),
 // QR (claim identity), a blank handwriting line for the customer name, bag ref.
 jest.mock('qrcode'); // mock BEFORE require
 

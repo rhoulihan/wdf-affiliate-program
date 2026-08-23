@@ -1,4 +1,4 @@
-// Enhanced Password Validator Unit Tests for WaveMAX Laundry Affiliate Program
+// Enhanced Password Validator Unit Tests for the Laundromat Affiliate Program
 
 const {
   validatePasswordStrength,

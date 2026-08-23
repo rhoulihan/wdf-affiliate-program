@@ -141,7 +141,7 @@ describe('orderTransitionService', () => {
     });
 
     it('snapshots deliveryFeeCharged = 0 for a default-fee partner (house revenue, not commission)', async () => {
-      affiliate.deliveryFee = 0; await affiliate.save(); // no own fee → WaveMAX Associates default
+      affiliate.deliveryFee = 0; await affiliate.save(); // no own fee → platform default
       await openPending();
       await svc.advanceOrder({ bag: await freshBag(), ...opRole });
       const { order } = await svc.advanceOrder({ bag: await freshBag(), ...opRole, paymentConfirmed: true, orderTotal: 30 });

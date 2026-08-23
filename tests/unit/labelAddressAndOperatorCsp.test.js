@@ -6,7 +6,7 @@ const ROOT = path.join(__dirname, '..', '..');
 describe('bag label store address', () => {
   const src = fs.readFileSync(path.join(ROOT, 'public/assets/js/label-print-utils.js'), 'utf8');
 
-  it('defines the WaveMAX Austin store address', () => {
+  it('defines the Austin store address', () => {
     expect(src).toContain('825 E Rundberg Ln, Suite F1');
     expect(src).toContain('Austin, TX 78753');
   });

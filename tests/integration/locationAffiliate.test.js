@@ -1,4 +1,4 @@
-// Location affiliates — WaveMAX-operated collection points.
+// Location affiliates — operator-run collection points.
 //
 // Seam under test:
 //   POST /api/v1/administrators/affiliates — admin hand-creates an affiliate
@@ -32,7 +32,7 @@ describe('Location affiliates (admin manual-create)', () => {
       lastName: 'Point',
       email: 'locpoint@example.com',
       phone: '512-555-0100',
-      businessName: 'WaveMAX North Austin Drop',
+      businessName: 'North Austin Drop',
       address: '1 Collect St',
       city: 'Austin',
       state: 'TX',
@@ -88,7 +88,7 @@ describe('Location affiliates (admin manual-create)', () => {
       expect(persisted).toBeTruthy();
       expect(persisted.affiliateType).toBe('location');
       expect(persisted.isActive).toBe(true);
-      // Location affiliates charge no delivery fee by default (→ WaveMAX Associates default applies)
+      // Location affiliates charge no delivery fee by default (→ platform default applies)
       expect(persisted.deliveryFee).toBe(0);
       // The returned one-time secrets verify against the stored hashes
       expect(encryptionUtil.verifyPassword(

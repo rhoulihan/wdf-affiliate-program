@@ -15,7 +15,7 @@ describe('rateLimitMongoStore', () => {
       // already wired by setup.js this is a no-op.
       const { MongoMemoryServer } = require('mongodb-memory-server');
       const mem = await MongoMemoryServer.create();
-      await mongoose.connect(mem.getUri('wavemax_test'));
+      await mongoose.connect(mem.getUri('laundromat_test'));
     }
     MongoStore = require('../../server/middleware/rateLimitMongoStore');
   });

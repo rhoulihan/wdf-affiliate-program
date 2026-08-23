@@ -19,7 +19,7 @@ describe('System Config API Tests', () => {
     const { salt, hash } = encryptionUtil.hashPassword('Test@Admin#2025!');
     testAdmin = await Administrator.create({
       adminId: 'ADM999',
-      email: 'test.admin@wavemax.com',
+      email: 'test.admin@laundromat.example',
       passwordSalt: salt,
       passwordHash: hash,
       firstName: 'Test',
@@ -205,7 +205,7 @@ describe('System Config API Tests', () => {
           const { salt, hash } = encryptionUtil.hashPassword('Test@Admin#2025!');
           testAdmin = await Administrator.create({
             adminId: 'ADM999',
-            email: 'test.admin@wavemax.com',
+            email: 'test.admin@laundromat.example',
             passwordSalt: salt,
             passwordHash: hash,
             firstName: 'Test',
@@ -310,7 +310,7 @@ describe('System Config API Tests', () => {
         const { salt: limitedSalt, hash: limitedHash } = encryptionUtil.hashPassword('Limited@Admin#2025!');
         const limitedAdmin = await Administrator.create({
           adminId: 'ADM998',
-          email: 'limited.admin@wavemax.com',
+          email: 'limited.admin@laundromat.example',
           passwordSalt: limitedSalt,
           passwordHash: limitedHash,
           firstName: 'Limited',

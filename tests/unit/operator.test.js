@@ -20,7 +20,7 @@ describe('Operator Model', () => {
       const operatorData = {
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'SecurePassword123!',
         shiftStart: '08:00',
@@ -36,7 +36,7 @@ describe('Operator Model', () => {
       expect(saved.operatorId).toMatch(/^OPR/);
       expect(saved.firstName).toBe('John');
       expect(saved.lastName).toBe('Doe');
-      expect(saved.email).toBe('john.doe@wavemax.com');
+      expect(saved.email).toBe('john.doe@laundromat.example');
       expect(saved.username).toBe('johndoe');
       expect(saved.role).toBe('operator');
       expect(saved.isActive).toBe(true);
@@ -98,7 +98,7 @@ describe('Operator Model', () => {
       const operatorData = {
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -129,7 +129,7 @@ describe('Operator Model', () => {
       const operatorData = {
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -139,7 +139,7 @@ describe('Operator Model', () => {
 
       const duplicate = new Operator({
         ...operatorData,
-        email: 'jane.doe@wavemax.com',
+        email: 'jane.doe@laundromat.example',
         firstName: 'Jane'
       });
 
@@ -158,7 +158,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'john doe!', // Invalid - contains space and special char
         password: 'password123',
         createdBy: createdById
@@ -180,7 +180,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         shiftStart: '25:00', // Invalid time
@@ -203,7 +203,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         shiftStart: '08:30',
@@ -220,7 +220,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         qualityScore: 150, // Out of range
@@ -242,7 +242,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: '  John  ',
         lastName: '  Doe  ',
-        email: '  john.doe@wavemax.com  ',
+        email: '  john.doe@laundromat.example  ',
         username: '  johndoe  ',
         password: 'password123',
         createdBy: createdById
@@ -251,7 +251,7 @@ describe('Operator Model', () => {
       const saved = await operator.save();
       expect(saved.firstName).toBe('John');
       expect(saved.lastName).toBe('Doe');
-      expect(saved.email).toBe('john.doe@wavemax.com');
+      expect(saved.email).toBe('john.doe@laundromat.example');
       expect(saved.username).toBe('johndoe');
     });
 
@@ -259,14 +259,14 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'JOHN.DOE@WAVEMAX.COM',
+        email: 'JOHN.DOE@LAUNDROMAT.EXAMPLE',
         username: 'JOHNDOE',
         password: 'password123',
         createdBy: createdById
       });
 
       const saved = await operator.save();
-      expect(saved.email).toBe('john.doe@wavemax.com');
+      expect(saved.email).toBe('john.doe@laundromat.example');
       expect(saved.username).toBe('johndoe');
     });
 
@@ -274,7 +274,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -298,7 +298,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: plainPassword,
         createdBy: createdById
@@ -318,7 +318,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: plainPassword,
         createdBy: createdById
@@ -334,7 +334,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'CorrectPassword123!',
         createdBy: createdById
@@ -350,7 +350,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -372,7 +372,7 @@ describe('Operator Model', () => {
       operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -458,7 +458,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -477,7 +477,7 @@ describe('Operator Model', () => {
       const operator = new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -500,7 +500,7 @@ describe('Operator Model', () => {
         const operator = new Operator({
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john.doe@wavemax.com',
+          email: 'john.doe@laundromat.example',
           username: 'johndoe',
           password: 'password123',
           createdBy: createdById
@@ -516,7 +516,7 @@ describe('Operator Model', () => {
         const operator = new Operator({
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john.doe@wavemax.com',
+          email: 'john.doe@laundromat.example',
           username: 'johndoe',
           password: 'password123',
           shiftStart: `${String(currentHour).padStart(2, '0')}:00`,
@@ -534,7 +534,7 @@ describe('Operator Model', () => {
         const operator = new Operator({
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john.doe@wavemax.com',
+          email: 'john.doe@laundromat.example',
           username: 'johndoe',
           password: 'password123',
           shiftStart: `${String((currentHour + 2) % 24).padStart(2, '0')}:00`,
@@ -550,7 +550,7 @@ describe('Operator Model', () => {
         const operator = new Operator({
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john.doe@wavemax.com',
+          email: 'john.doe@laundromat.example',
           username: 'johndoe',
           password: 'password123',
           shiftStart: '22:00',
@@ -576,7 +576,7 @@ describe('Operator Model', () => {
       const operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         totalOrdersProcessed: 10,
@@ -594,7 +594,7 @@ describe('Operator Model', () => {
       const operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -610,7 +610,7 @@ describe('Operator Model', () => {
       const operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         qualityScore: 80,
@@ -627,7 +627,7 @@ describe('Operator Model', () => {
       const operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         qualityScore: 80,
@@ -647,7 +647,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'Active',
           lastName: 'Op',
-          email: 'active@wavemax.com',
+          email: 'active@laundromat.example',
           username: 'activeop',
           password: 'password123',
           isActive: true,
@@ -657,7 +657,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'Inactive',
           lastName: 'Op',
-          email: 'inactive@wavemax.com',
+          email: 'inactive@laundromat.example',
           username: 'inactiveop',
           password: 'password123',
           isActive: false,
@@ -678,7 +678,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'OnShift',
           lastName: 'Op',
-          email: 'onshift@wavemax.com',
+          email: 'onshift@laundromat.example',
           username: 'onshiftop',
           password: 'password123',
           shiftStart: `${String(currentHour).padStart(2, '0')}:00`,
@@ -689,7 +689,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'OffShift',
           lastName: 'Op',
-          email: 'offshift@wavemax.com',
+          email: 'offshift@laundromat.example',
           username: 'offshiftop',
           password: 'password123',
           shiftStart: `${String((currentHour + 2) % 24).padStart(2, '0')}:00`,
@@ -708,15 +708,15 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john.doe@wavemax.com',
+          email: 'john.doe@laundromat.example',
           username: 'johndoe',
           password: 'password123',
           createdBy: createdById
         }).save();
 
-        const found = await Operator.findByEmailWithPassword('john.doe@wavemax.com');
+        const found = await Operator.findByEmailWithPassword('john.doe@laundromat.example');
         expect(found).toBeDefined();
-        expect(found.email).toBe('john.doe@wavemax.com');
+        expect(found.email).toBe('john.doe@laundromat.example');
         expect(found.password).toBeDefined(); // Password should be included
       });
 
@@ -724,19 +724,19 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john.doe@wavemax.com',
+          email: 'john.doe@laundromat.example',
           username: 'johndoe',
           password: 'password123',
           createdBy: createdById
         }).save();
 
-        const found = await Operator.findByEmailWithPassword('JOHN.DOE@WAVEMAX.COM');
+        const found = await Operator.findByEmailWithPassword('JOHN.DOE@LAUNDROMAT.EXAMPLE');
         expect(found).toBeDefined();
-        expect(found.email).toBe('john.doe@wavemax.com');
+        expect(found.email).toBe('john.doe@laundromat.example');
       });
 
       it('should return null for non-existent email', async () => {
-        const found = await Operator.findByEmailWithPassword('nonexistent@wavemax.com');
+        const found = await Operator.findByEmailWithPassword('nonexistent@laundromat.example');
         expect(found).toBeNull();
       });
     });
@@ -746,7 +746,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'Available',
           lastName: 'Op',
-          email: 'available@wavemax.com',
+          email: 'available@laundromat.example',
           username: 'availableop',
           password: 'password123',
           currentOrderCount: 2,
@@ -756,7 +756,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'Busy',
           lastName: 'Op',
-          email: 'busy@wavemax.com',
+          email: 'busy@laundromat.example',
           username: 'busyop',
           password: 'password123',
           currentOrderCount: 10,
@@ -772,7 +772,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'Less',
           lastName: 'Busy',
-          email: 'less@wavemax.com',
+          email: 'less@laundromat.example',
           username: 'lessbusy',
           password: 'password123',
           currentOrderCount: 5,
@@ -782,7 +782,7 @@ describe('Operator Model', () => {
         await new Operator({
           firstName: 'Least',
           lastName: 'Busy',
-          email: 'least@wavemax.com',
+          email: 'least@laundromat.example',
           username: 'leastbusy',
           password: 'password123',
           currentOrderCount: 2,
@@ -799,7 +799,7 @@ describe('Operator Model', () => {
           await new Operator({
             firstName: `Op${i}`,
             lastName: 'Test',
-            email: `op${i}@wavemax.com`,
+            email: `op${i}@laundromat.example`,
             username: `op${i}`,
             password: 'password123',
             currentOrderCount: i,
@@ -820,7 +820,7 @@ describe('Operator Model', () => {
       const operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -836,7 +836,7 @@ describe('Operator Model', () => {
       const operator = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         username: 'johndoe',
         password: 'password123',
         createdBy: createdById
@@ -859,7 +859,7 @@ describe('Operator Model', () => {
       const operator1 = await new Operator({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john1@wavemax.com',
+        email: 'john1@laundromat.example',
         username: 'john1',
         password: 'password123',
         createdBy: createdById
@@ -868,7 +868,7 @@ describe('Operator Model', () => {
       const operator2 = await new Operator({
         firstName: 'Jane',
         lastName: 'Doe',
-        email: 'jane@wavemax.com',
+        email: 'jane@laundromat.example',
         username: 'jane',
         password: 'password123',
         createdBy: createdById
@@ -887,7 +887,7 @@ describe('Operator Model', () => {
         operatorId: customId,
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         username: 'john',
         password: 'password123',
         createdBy: createdById

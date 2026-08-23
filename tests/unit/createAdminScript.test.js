@@ -1,4 +1,4 @@
-// Admin Creation Script Unit Tests for WaveMAX Laundry Affiliate Program
+// Admin Creation Script Unit Tests for the Laundromat Affiliate Program
 
 const fs = require('fs');
 const path = require('path');

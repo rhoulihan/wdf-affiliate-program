@@ -66,7 +66,7 @@ describe('Administrator Integration Tests', () => {
       adminId: 'ADMIN001',
       firstName: 'Super',
       lastName: 'Admin',
-      email: 'admin@wavemax.com',
+      email: 'admin@laundromat.example',
       password: 'CompletelyDifferentPassword417!',
       permissions: ['all'],
       createdAt: new Date()
@@ -77,7 +77,7 @@ describe('Administrator Integration Tests', () => {
     const loginRes = await adminAgent
       .post('/api/v1/auth/administrator/login')
       .send({
-        email: 'admin@wavemax.com',
+        email: 'admin@laundromat.example',
         password: 'CompletelyDifferentPassword417!'
       });
 
@@ -92,7 +92,7 @@ describe('Administrator Integration Tests', () => {
           adminId: 'ADMIN002',
           firstName: 'John',
           lastName: 'Doe',
-          email: 'john@wavemax.com',
+          email: 'john@laundromat.example',
           password: 'StrongPassword417!',
           permissions: ['administrators.read', 'operators.manage'],
           createdAt: new Date()
@@ -101,7 +101,7 @@ describe('Administrator Integration Tests', () => {
           adminId: 'ADMIN003',
           firstName: 'Jane',
           lastName: 'Smith',
-          email: 'jane@wavemax.com',
+          email: 'jane@laundromat.example',
           password: 'StrongPassword417!',
           permissions: ['customers.manage'],
           isActive: false,
@@ -133,7 +133,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'ADMIN002',
         firstName: 'Inactive',
         lastName: 'Admin',
-        email: 'inactive@wavemax.com',
+        email: 'inactive@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.manage'],
         isActive: false,
@@ -158,7 +158,7 @@ describe('Administrator Integration Tests', () => {
           adminId: `ADMIN${String(i).padStart(3, '0')}`,
           firstName: `Admin${i}`,
           lastName: 'Test',
-          email: `admin${i}@wavemax.com`,
+          email: `admin${i}@laundromat.example`,
           password: 'StrongPassword417!',
           permissions: ['customers.read'],
           createdAt: new Date(Date.now() - i * 60000) // Different timestamps
@@ -237,7 +237,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'ADMIN002',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.manage', 'operators.manage'],
         createdAt: new Date()
@@ -254,7 +254,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'ADMIN002',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         permissions: ['customers.manage', 'operators.manage']
       });
       expect(response.body.administrator.password).toBeUndefined();
@@ -288,7 +288,7 @@ describe('Administrator Integration Tests', () => {
       const newAdmin = {
         firstName: 'New',
         lastName: 'Admin',
-        email: 'newadmin@wavemax.com',
+        email: 'newadmin@laundromat.example',
         password: 'NewStrongPassword849!',
         permissions: ['customers.read', 'operators.read']
       };
@@ -305,7 +305,7 @@ describe('Administrator Integration Tests', () => {
         adminId: expect.stringMatching(/^ADM/),
         firstName: 'New',
         lastName: 'Admin',
-        email: 'newadmin@wavemax.com',
+        email: 'newadmin@laundromat.example',
         permissions: ['customers.read', 'operators.read'],
         isActive: true
       });
@@ -315,7 +315,7 @@ describe('Administrator Integration Tests', () => {
       const loginRes = await agent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'newadmin@wavemax.com',
+          email: 'newadmin@laundromat.example',
           password: 'NewStrongPassword849!'
         });
 
@@ -362,7 +362,7 @@ describe('Administrator Integration Tests', () => {
         .send({
           firstName: 'Test',
           lastName: 'Admin',
-          email: 'test@wavemax.com',
+          email: 'test@laundromat.example',
           password: 'weak',
           permissions: []
         });
@@ -379,7 +379,7 @@ describe('Administrator Integration Tests', () => {
         .send({
           firstName: 'Duplicate',
           lastName: 'Admin',
-          email: 'admin@wavemax.com', // Already exists
+          email: 'admin@laundromat.example', // Already exists
           password: 'UniqueStrongPassword849!',
           permissions: []
         });
@@ -394,7 +394,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'LIMITED001',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited@wavemax.com',
+        email: 'limited@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.read'] // No admin permissions
       }));
@@ -406,7 +406,7 @@ describe('Administrator Integration Tests', () => {
       const limitedLogin = await limitedAgent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited@wavemax.com',
+          email: 'limited@laundromat.example',
           password: 'StrongPassword417!'
         });
 
@@ -417,7 +417,7 @@ describe('Administrator Integration Tests', () => {
         .send({
           firstName: 'New',
           lastName: 'Admin',
-          email: 'new@wavemax.com',
+          email: 'new@laundromat.example',
           password: 'StrongPassword417!',
           permissions: []
         });
@@ -435,7 +435,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'TARGET001',
         firstName: 'Target',
         lastName: 'Admin',
-        email: 'target@wavemax.com',
+        email: 'target@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.read'],
         isActive: true
@@ -459,7 +459,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'TARGET001',
         firstName: 'Updated',
         lastName: 'Name',
-        email: 'target@wavemax.com',
+        email: 'target@laundromat.example',
         permissions: ['customers.manage', 'operators.manage']
       });
     });
@@ -470,11 +470,11 @@ describe('Administrator Integration Tests', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('x-csrf-token', csrfToken)
         .send({
-          email: 'newemail@wavemax.com'
+          email: 'newemail@laundromat.example'
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.administrator.email).toBe('newemail@wavemax.com');
+      expect(response.body.administrator.email).toBe('newemail@laundromat.example');
     });
 
     it('should update password', async () => {
@@ -497,7 +497,7 @@ describe('Administrator Integration Tests', () => {
         .post('/api/v1/auth/administrator/login')
         .set('X-CSRF-Token', newCsrfToken)
         .send({
-          email: 'target@wavemax.com',
+          email: 'target@laundromat.example',
           password: 'NewStrongPassword849!'
         });
 
@@ -520,7 +520,7 @@ describe('Administrator Integration Tests', () => {
       const loginRes = await agent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'target@wavemax.com',
+          email: 'target@laundromat.example',
           password: 'StrongPassword417!'
         });
 
@@ -547,7 +547,7 @@ describe('Administrator Integration Tests', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('x-csrf-token', csrfToken)
         .send({
-          email: 'admin@wavemax.com' // Already exists
+          email: 'admin@laundromat.example' // Already exists
         });
 
       expect(response.status).toBe(409);
@@ -573,7 +573,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'LIMITED002',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited2@wavemax.com',
+        email: 'limited2@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.read'] // No admin permissions
       }));
@@ -585,7 +585,7 @@ describe('Administrator Integration Tests', () => {
       const limitedLogin = await limitedAgent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited2@wavemax.com',
+          email: 'limited2@laundromat.example',
           password: 'StrongPassword417!'
         });
 
@@ -610,7 +610,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'DELETE001',
         firstName: 'Delete',
         lastName: 'Me',
-        email: 'delete@wavemax.com',
+        email: 'delete@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.read']
       }));
@@ -660,7 +660,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'LIMITED003',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited3@wavemax.com',
+        email: 'limited3@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.manage'] // No admin delete permission
       }));
@@ -672,7 +672,7 @@ describe('Administrator Integration Tests', () => {
       const limitedLogin = await limitedAgent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited3@wavemax.com',
+          email: 'limited3@laundromat.example',
           password: 'StrongPassword417!'
         });
 
@@ -706,7 +706,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'RESET001',
         firstName: 'Reset',
         lastName: 'Password',
-        email: 'reset@wavemax.com',
+        email: 'reset@laundromat.example',
         password: 'OldStrongPassword417!',
         permissions: ['customers.read']
       }));
@@ -734,7 +734,7 @@ describe('Administrator Integration Tests', () => {
         .post('/api/v1/auth/administrator/login')
         .set('X-CSRF-Token', newCsrfToken)
         .send({
-          email: 'reset@wavemax.com',
+          email: 'reset@laundromat.example',
           password: 'NewStrongPassword849!'
         });
 
@@ -748,7 +748,7 @@ describe('Administrator Integration Tests', () => {
         .post('/api/v1/auth/administrator/login')
         .set('X-CSRF-Token', oldCsrfToken)
         .send({
-          email: 'reset@wavemax.com',
+          email: 'reset@laundromat.example',
           password: 'OldStrongPassword417!'
         });
 
@@ -796,7 +796,7 @@ describe('Administrator Integration Tests', () => {
         adminId: 'LIMITED004',
         firstName: 'Limited',
         lastName: 'Admin',
-        email: 'limited4@wavemax.com',
+        email: 'limited4@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['customers.read'] // No admin update permission
       }));
@@ -808,7 +808,7 @@ describe('Administrator Integration Tests', () => {
       const limitedLogin = await limitedAgent
         .post('/api/v1/auth/administrator/login')
         .send({
-          email: 'limited4@wavemax.com',
+          email: 'limited4@laundromat.example',
           password: 'StrongPassword417!'
         });
 

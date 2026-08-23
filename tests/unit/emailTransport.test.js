@@ -16,9 +16,9 @@ describe('email transport — From override', () => {
   });
 
   it('uses the fromOverride argument verbatim when provided', async () => {
-    await sendEmail('to@example.com', 'Subj', '<p>hi</p>', '"WaveMAX" <admin@rundberglaundry.com>');
+    await sendEmail('to@example.com', 'Subj', '<p>hi</p>', '"Laundromat" <admin@rundberglaundry.com>');
     expect(sendMail).toHaveBeenCalledTimes(1);
-    expect(sendMail.mock.calls[0][0].from).toBe('"WaveMAX" <admin@rundberglaundry.com>');
+    expect(sendMail.mock.calls[0][0].from).toBe('"Laundromat" <admin@rundberglaundry.com>');
   });
 
   it('falls back to the default From when no override is given', async () => {

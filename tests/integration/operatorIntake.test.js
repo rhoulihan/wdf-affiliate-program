@@ -40,12 +40,12 @@ describe('POST /api/v1/operators/intake (kiosk, state-driven advance)', () => {
     const { salt, hash } = encryptionUtil.hashPassword('CompletelyUniquePassword417!');
     testAdmin = await Administrator.create({
       adminId: 'ADMIN001', firstName: 'Super', lastName: 'User',
-      email: 'superuser@wavemax.com', passwordSalt: salt, passwordHash: hash,
+      email: 'superuser@laundromat.example', passwordSalt: salt, passwordHash: hash,
       permissions: ['all']
     });
     const adminLogin = await adminAgent
       .post('/api/v1/auth/administrator/login')
-      .send({ email: 'superuser@wavemax.com', password: 'CompletelyUniquePassword417!' });
+      .send({ email: 'superuser@laundromat.example', password: 'CompletelyUniquePassword417!' });
     adminToken = adminLogin.body.token;
     adminCsrfToken = await getCsrfToken(app, adminAgent);
 
@@ -53,7 +53,7 @@ describe('POST /api/v1/operators/intake (kiosk, state-driven advance)', () => {
     process.env.DEFAULT_OPERATOR_ID = 'OPR001';
     testOperator = await Operator.create({
       operatorId: 'OPR001', firstName: 'Test', lastName: 'Operator',
-      email: 'operator@wavemax.com', username: 'testoperator',
+      email: 'operator@laundromat.example', username: 'testoperator',
       password: 'OperatorStrongPassword951!',
       shiftStart: '00:00', shiftEnd: '23:59', createdBy: testAdmin._id
     });

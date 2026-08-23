@@ -30,7 +30,7 @@ describe('Administrator Model', () => {
       const adminData = createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         password: 'SecurePassword417!'
       });
 
@@ -42,7 +42,7 @@ describe('Administrator Model', () => {
       expect(saved.adminId).toMatch(/^ADM/);
       expect(saved.firstName).toBe('John');
       expect(saved.lastName).toBe('Doe');
-      expect(saved.email).toBe('john.doe@wavemax.com');
+      expect(saved.email).toBe('john.doe@laundromat.example');
       expect(saved.role).toBe('administrator');
       expect(saved.isActive).toBe(true);
       expect(saved.loginAttempts).toBe(0);
@@ -96,7 +96,7 @@ describe('Administrator Model', () => {
       const adminData = createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         password: 'StrongPassword417!'
       });
 
@@ -127,7 +127,7 @@ describe('Administrator Model', () => {
         adminId: 'ADM123456',
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john.doe@wavemax.com',
+        email: 'john.doe@laundromat.example',
         password: 'StrongPassword417!'
       }));
       await admin1.save();
@@ -136,7 +136,7 @@ describe('Administrator Model', () => {
         adminId: 'ADM123456',
         firstName: 'Jane',
         lastName: 'Smith',
-        email: 'jane.smith@wavemax.com',
+        email: 'jane.smith@laundromat.example',
         password: 'StrongPassword849!'
       }));
 
@@ -155,7 +155,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['invalid_permission']
       }));
@@ -177,7 +177,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: validPermissions
       }));
@@ -190,33 +190,33 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: '  John  ',
         lastName: '  Doe  ',
-        email: '  john@wavemax.com  ',
+        email: '  john@laundromat.example  ',
         password: 'StrongPassword417!'
       }));
 
       const saved = await admin.save();
       expect(saved.firstName).toBe('John');
       expect(saved.lastName).toBe('Doe');
-      expect(saved.email).toBe('john@wavemax.com');
+      expect(saved.email).toBe('john@laundromat.example');
     });
 
     it('should convert email to lowercase', async () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'John.Doe@WaveMAX.com',
+        email: 'John.Doe@Laundromat.example',
         password: 'StrongPassword417!'
       }));
 
       const saved = await admin.save();
-      expect(saved.email).toBe('john.doe@wavemax.com');
+      expect(saved.email).toBe('john.doe@laundromat.example');
     });
 
     it('should not allow role to be changed after creation', async () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -238,7 +238,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: plainPassword
       }));
 
@@ -258,13 +258,13 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: plainPassword
       }));
 
       await admin.save();
 
-      const adminWithPassword = await Administrator.findByEmailWithPassword('john@wavemax.com');
+      const adminWithPassword = await Administrator.findByEmailWithPassword('john@laundromat.example');
       const isValid = adminWithPassword.verifyPassword(plainPassword);
 
       expect(isValid).toBe(true);
@@ -274,13 +274,13 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'CorrectPassword417!'
       }));
 
       await admin.save();
 
-      const adminWithPassword = await Administrator.findByEmailWithPassword('john@wavemax.com');
+      const adminWithPassword = await Administrator.findByEmailWithPassword('john@laundromat.example');
       const isValid = adminWithPassword.verifyPassword('WrongPassword123!');
 
       expect(isValid).toBe(false);
@@ -290,7 +290,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -311,7 +311,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -326,7 +326,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         loginAttempts: 4
       }));
@@ -345,7 +345,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         loginAttempts: 3,
         lockUntil: new Date(Date.now() + 60000)
@@ -364,7 +364,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         loginAttempts: 5,
         lockUntil: new Date(Date.now() - 60000) // Expired lock
@@ -382,7 +382,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -406,7 +406,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -426,7 +426,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -449,7 +449,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['system_config', 'view_analytics']
       }));
@@ -465,7 +465,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['system_config', 'view_analytics']
       }));
@@ -481,7 +481,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: ['system_config', 'view_analytics']
       }));
@@ -497,7 +497,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!',
         permissions: []
       }));
@@ -520,21 +520,21 @@ describe('Administrator Model', () => {
         createAdminData({
           firstName: 'Active',
           lastName: 'Admin1',
-          email: 'active1@wavemax.com',
+          email: 'active1@laundromat.example',
           password: 'StrongPassword417!',
           isActive: true
         }),
         createAdminData({
           firstName: 'Inactive',
           lastName: 'Admin',
-          email: 'inactive@wavemax.com',
+          email: 'inactive@laundromat.example',
           password: 'StrongPassword417!',
           isActive: false
         }),
         createAdminData({
           firstName: 'Active',
           lastName: 'Admin2',
-          email: 'active2@wavemax.com',
+          email: 'active2@laundromat.example',
           password: 'StrongPassword417!',
           isActive: true
         })
@@ -550,14 +550,14 @@ describe('Administrator Model', () => {
       await Administrator.create(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
-      const admin = await Administrator.findByEmailWithPassword('john@wavemax.com');
+      const admin = await Administrator.findByEmailWithPassword('john@laundromat.example');
 
       expect(admin).toBeDefined();
-      expect(admin.email).toBe('john@wavemax.com');
+      expect(admin.email).toBe('john@laundromat.example');
       expect(admin.passwordHash).toBeDefined(); // Password hash should be included
       expect(admin.passwordSalt).toBeDefined(); // Password salt should be included
     });
@@ -566,18 +566,18 @@ describe('Administrator Model', () => {
       await Administrator.create(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
-      const admin = await Administrator.findByEmailWithPassword('JOHN@WAVEMAX.COM');
+      const admin = await Administrator.findByEmailWithPassword('JOHN@LAUNDROMAT.EXAMPLE');
 
       expect(admin).toBeDefined();
-      expect(admin.email).toBe('john@wavemax.com');
+      expect(admin.email).toBe('john@laundromat.example');
     });
 
     it('should return null for non-existent email', async () => {
-      const admin = await Administrator.findByEmailWithPassword('nonexistent@wavemax.com');
+      const admin = await Administrator.findByEmailWithPassword('nonexistent@laundromat.example');
       expect(admin).toBeNull();
     });
   });
@@ -587,7 +587,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -603,7 +603,7 @@ describe('Administrator Model', () => {
       const admin = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
@@ -625,14 +625,14 @@ describe('Administrator Model', () => {
       const admin1 = new Administrator(createAdminData({
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 
       const admin2 = new Administrator(createAdminData({
         firstName: 'Jane',
         lastName: 'Smith',
-        email: 'jane@wavemax.com',
+        email: 'jane@laundromat.example',
         password: 'StrongPassword849!'
       }));
 
@@ -651,7 +651,7 @@ describe('Administrator Model', () => {
         adminId: customId,
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@wavemax.com',
+        email: 'john@laundromat.example',
         password: 'StrongPassword417!'
       }));
 

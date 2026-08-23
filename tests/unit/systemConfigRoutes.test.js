@@ -50,8 +50,8 @@ describe('System Config Routes', () => {
       const mockConfigs = [
         {
           key: 'STORE_NAME',
-          value: 'WaveMAX Laundry',
-          defaultValue: 'WaveMAX',
+          value: 'Laundromat Co',
+          defaultValue: 'Laundromat',
           description: 'Store name',
           category: 'general',
           isPublic: true
@@ -75,8 +75,8 @@ describe('System Config Routes', () => {
       expect(response.body).toHaveLength(2);
       expect(response.body[0]).toEqual({
         key: 'STORE_NAME',
-        currentValue: 'WaveMAX Laundry',
-        defaultValue: 'WaveMAX',
+        currentValue: 'Laundromat Co',
+        defaultValue: 'Laundromat',
         description: 'Store name',
         category: 'general',
         isPublic: true
@@ -99,8 +99,8 @@ describe('System Config Routes', () => {
     it('should return specific public configuration', async () => {
       const mockConfig = {
         key: 'STORE_NAME',
-        value: 'WaveMAX Laundry',
-        defaultValue: 'WaveMAX',
+        value: 'Laundromat Co',
+        defaultValue: 'Laundromat',
         description: 'Store name',
         category: 'general',
         isPublic: true
@@ -114,8 +114,8 @@ describe('System Config Routes', () => {
 
       expect(response.body).toEqual({
         key: 'STORE_NAME',
-        currentValue: 'WaveMAX Laundry',
-        defaultValue: 'WaveMAX',
+        currentValue: 'Laundromat Co',
+        defaultValue: 'Laundromat',
         description: 'Store name',
         category: 'general',
         isPublic: true

@@ -1,5 +1,5 @@
 // Effective delivery fee resolution: a partner's own fee, else the
-// WaveMAX-Associates default (SystemConfig `default_delivery_fee`, default $10).
+// platform default (SystemConfig `default_delivery_fee`, default $10).
 const { effectiveDeliveryFee, DEFAULT_DELIVERY_FEE_KEY } = require('../../server/utils/deliveryFee');
 const SystemConfig = require('../../server/models/SystemConfig');
 

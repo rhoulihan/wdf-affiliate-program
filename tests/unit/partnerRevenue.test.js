@@ -1,6 +1,6 @@
 // PR 4 — partner revenue/commission surfacing. Admin analytics sums the
 // operator-entered order totals (revenue) and the partner-fee snapshots
-// (commission); the WaveMAX-Associates default ($0 partner fee) stays revenue.
+// (commission); the platform default ($0 partner fee) stays revenue.
 const adminDashboardService = require('../../server/services/adminDashboardService');
 const Affiliate = require('../../server/models/Affiliate');
 const Order = require('../../server/models/Order');
@@ -24,7 +24,7 @@ describe('admin affiliate analytics — revenue + commission', () => {
     const base = { affiliateId: aff.affiliateId, customerId: 'CUST-x', bagId: 'BAG-x', status: 'complete' };
     // partner-fee order: counts $8 toward commission
     await Order.create({ ...base, orderTotal: 42.5, deliveryFeeCharged: 8 });
-    // WaveMAX-Associates default order: $0 commission, but its total is revenue
+    // platform-default order: $0 commission, but its total is revenue
     await Order.create({ ...base, orderTotal: 30, deliveryFeeCharged: 0 });
     // an unsent (pending) order: no orderTotal → excluded from revenue
     await Order.create({ ...base, status: 'pending' });
