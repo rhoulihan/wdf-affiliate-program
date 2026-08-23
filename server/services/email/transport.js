@@ -5,6 +5,7 @@
 
 const nodemailer = require('nodemailer');
 const logger = require('../../utils/logger');
+const brand = require('../../config/brand');
 
 /**
  * Create the underlying mailer. Returns either a console-logging stub
@@ -54,7 +55,7 @@ function createTransport() {
  * Send an HTML email to `to`.
  * Attachments are not supported — upstream mail policy blocks them; images
  * must be referenced by URL.
- * @param {string} [fromOverride] - full From header (e.g. '"WaveMAX" <admin@x>').
+ * @param {string} [fromOverride] - full From header (e.g. '"Brand Name" <admin@x>').
  *   Requires the SMTP login to be permitted to send as that address.
  */
 async function sendEmail(to, subject, html, fromOverride) {
@@ -65,7 +66,7 @@ async function sendEmail(to, subject, html, fromOverride) {
   logger.info('[sendEmail] Sending email to:', to);
   const transporter = createTransport();
 
-  const from = fromOverride || `"WaveMAX Laundry" <${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@rundberglaundry.com'}>`;
+  const from = fromOverride || `"${brand.displayName}" <${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@rundberglaundry.com'}>`;
   const mailOptions = { from, to, subject, html };
 
   try {

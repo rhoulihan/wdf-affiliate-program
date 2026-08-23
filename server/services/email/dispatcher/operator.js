@@ -4,6 +4,7 @@ const logger = require('../../../utils/logger');
 
 const { loadTemplate, fillTemplate } = require('../template-manager');
 const { sendEmail } = require('../transport');
+const brand = require('../../../config/brand');
 // =============================================================================
 // Operator Emails
 // =============================================================================
@@ -19,11 +20,11 @@ exports.sendOperatorWelcomeEmail = async (operator, temporaryPin) => {
     // Get translations for the email content
     const translations = {
       en: {
-        EMAIL_TITLE: 'Welcome to WaveMAX Operations Team',
-        EMAIL_HEADER: 'Welcome to WaveMAX Operations',
+        EMAIL_TITLE: `Welcome to ${brand.displayName} Operations Team`,
+        EMAIL_HEADER: `Welcome to ${brand.displayName} Operations`,
         EMAIL_SUBHEADER: 'Your Operator Account is Ready',
         GREETING: `Welcome aboard, ${operator.firstName}!`,
-        WELCOME_MESSAGE: 'We\'re excited to have you join the WaveMAX operations team. Your operator account has been created and you\'re ready to start processing orders.',
+        WELCOME_MESSAGE: `We\'re excited to have you join the ${brand.displayName} operations team. Your operator account has been created and you\'re ready to start processing orders.`,
         CREDENTIALS_TITLE: 'Your Login Credentials',
         EMPLOYEE_ID_LABEL: 'Employee ID',
         TEMPORARY_PIN_LABEL: 'Temporary PIN',
@@ -37,11 +38,11 @@ exports.sendOperatorWelcomeEmail = async (operator, temporaryPin) => {
         FOOTER_SECURITY_NOTE: 'This email contains confidential login information. Please keep it secure.'
       },
       es: {
-        EMAIL_TITLE: 'Bienvenido al Equipo de Operaciones WaveMAX',
-        EMAIL_HEADER: 'Bienvenido a Operaciones WaveMAX',
+        EMAIL_TITLE: `Bienvenido al Equipo de Operaciones ${brand.displayName}`,
+        EMAIL_HEADER: `Bienvenido a Operaciones ${brand.displayName}`,
         EMAIL_SUBHEADER: 'Su Cuenta de Operador está Lista',
         GREETING: `¡Bienvenido a bordo, ${operator.firstName}!`,
-        WELCOME_MESSAGE: 'Estamos emocionados de que se una al equipo de operaciones WaveMAX. Su cuenta de operador ha sido creada y está listo para comenzar a procesar pedidos.',
+        WELCOME_MESSAGE: `Estamos emocionados de que se una al equipo de operaciones ${brand.displayName}. Su cuenta de operador ha sido creada y está listo para comenzar a procesar pedidos.`,
         CREDENTIALS_TITLE: 'Sus Credenciales de Acceso',
         EMPLOYEE_ID_LABEL: 'ID de Empleado',
         TEMPORARY_PIN_LABEL: 'PIN Temporal',
@@ -55,11 +56,11 @@ exports.sendOperatorWelcomeEmail = async (operator, temporaryPin) => {
         FOOTER_SECURITY_NOTE: 'Este correo contiene información de acceso confidencial. Por favor manténgala segura.'
       },
       pt: {
-        EMAIL_TITLE: 'Bem-vindo à Equipe de Operações WaveMAX',
-        EMAIL_HEADER: 'Bem-vindo às Operações WaveMAX',
+        EMAIL_TITLE: `Bem-vindo à Equipe de Operações ${brand.displayName}`,
+        EMAIL_HEADER: `Bem-vindo às Operações ${brand.displayName}`,
         EMAIL_SUBHEADER: 'Sua Conta de Operador está Pronta',
         GREETING: `Bem-vindo a bordo, ${operator.firstName}!`,
-        WELCOME_MESSAGE: 'Estamos animados em tê-lo na equipe de operações WaveMAX. Sua conta de operador foi criada e você está pronto para começar a processar pedidos.',
+        WELCOME_MESSAGE: `Estamos animados em tê-lo na equipe de operações ${brand.displayName}. Sua conta de operador foi criada e você está pronto para começar a processar pedidos.`,
         CREDENTIALS_TITLE: 'Suas Credenciais de Login',
         EMPLOYEE_ID_LABEL: 'ID do Funcionário',
         TEMPORARY_PIN_LABEL: 'PIN Temporário',
@@ -73,11 +74,11 @@ exports.sendOperatorWelcomeEmail = async (operator, temporaryPin) => {
         FOOTER_SECURITY_NOTE: 'Este e-mail contém informações de login confidenciais. Por favor, mantenha-o seguro.'
       },
       de: {
-        EMAIL_TITLE: 'Willkommen beim WaveMAX Operations Team',
-        EMAIL_HEADER: 'Willkommen bei WaveMAX Operations',
+        EMAIL_TITLE: `Willkommen beim ${brand.displayName} Operations Team`,
+        EMAIL_HEADER: `Willkommen bei ${brand.displayName} Operations`,
         EMAIL_SUBHEADER: 'Ihr Betreiberkonto ist bereit',
         GREETING: `Willkommen an Bord, ${operator.firstName}!`,
-        WELCOME_MESSAGE: 'Wir freuen uns, Sie im WaveMAX Operations Team begrüßen zu dürfen. Ihr Betreiberkonto wurde erstellt und Sie können mit der Bearbeitung von Aufträgen beginnen.',
+        WELCOME_MESSAGE: `Wir freuen uns, Sie im ${brand.displayName} Operations Team begrüßen zu dürfen. Ihr Betreiberkonto wurde erstellt und Sie können mit der Bearbeitung von Aufträgen beginnen.`,
         CREDENTIALS_TITLE: 'Ihre Anmeldedaten',
         EMPLOYEE_ID_LABEL: 'Mitarbeiter-ID',
         TEMPORARY_PIN_LABEL: 'Temporäre PIN',
@@ -110,10 +111,10 @@ exports.sendOperatorWelcomeEmail = async (operator, temporaryPin) => {
 
     // Translate subject based on language
     const subjects = {
-      en: 'Welcome to WaveMAX Operations Team',
-      es: 'Bienvenido al Equipo de Operaciones WaveMAX',
-      pt: 'Bem-vindo à Equipe de Operações WaveMAX',
-      de: 'Willkommen beim WaveMAX Operations Team'
+      en: `Welcome to ${brand.displayName} Operations Team`,
+      es: `Bienvenido al Equipo de Operaciones ${brand.displayName}`,
+      pt: `Bem-vindo à Equipe de Operações ${brand.displayName}`,
+      de: `Willkommen beim ${brand.displayName} Operations Team`
     };
     const subject = subjects[language] || subjects.en;
 

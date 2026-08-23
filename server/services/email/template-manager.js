@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
+const brand = require('../../config/brand');
 const { promisify } = require('util');
 
 const readFile = promisify(fs.readFile);
@@ -44,6 +45,10 @@ async function loadTemplate(templateName, language = 'en') {
 function fillTemplate(template, data) {
   const baseUrl = process.env.BASE_URL || 'https://rundberglaundry.com';
   data.BASE_URL = baseUrl;
+  // Auto-inject the brand tokens so every template resolves them without each
+  // caller having to pass them. Caller-supplied values still win.
+  if (data.BRAND_NAME === undefined) data.BRAND_NAME = brand.displayName;
+  if (data.BRAND_LEGAL === undefined) data.BRAND_LEGAL = brand.legalName;
 
   return template.replace(/\[([A-Za-z0-9_]+)\]/g, (match, placeholder) => {
     const candidates = [placeholder, placeholder.toLowerCase(), placeholder.toUpperCase()];
@@ -105,9 +110,9 @@ const FALLBACK_TEMPLATE = `
   </head>
   <body>
     <div class="container">
-      <div class="header"><h1>WaveMAX Laundry</h1></div>
+      <div class="header"><h1>[BRAND_NAME]</h1></div>
       <div class="content">[EMAIL_CONTENT]</div>
-      <div class="footer">&copy; 2025 CRHS Enterprises, LLC. All rights reserved.</div>
+      <div class="footer">&copy; 2025 [BRAND_LEGAL]. All rights reserved.</div>
     </div>
   </body>
   </html>

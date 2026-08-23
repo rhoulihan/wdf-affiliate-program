@@ -4,6 +4,7 @@ const logger = require('../../../utils/logger');
 
 const { loadTemplate, fillTemplate, formatTimeSlot } = require('../template-manager');
 const { sendEmail } = require('../transport');
+const brand = require('../../../config/brand');
 // =============================================================================
 // Customer Emails
 // =============================================================================
@@ -99,7 +100,7 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
     // Build affiliate name with fallback
     const affiliateName = affiliate.businessName ||
       `${affiliate.firstName || ''} ${affiliate.lastName || ''}`.trim() ||
-      'Your WaveMAX Partner';
+      `Your ${brand.displayName} Partner`;
 
     // The bag's claim URL drives the "Request a pickup" button — and is exactly
     // what the QR on the bag encodes, so tapping the button OR scanning the bag
@@ -117,8 +118,8 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
     // Get translations for the email content
     const translations = {
       en: {
-        EMAIL_TITLE: 'Welcome to WaveMAX Laundry Service',
-        EMAIL_HEADER: 'Welcome to WaveMAX Laundry!',
+        EMAIL_TITLE: `Welcome to ${brand.displayName} Service`,
+        EMAIL_HEADER: `Welcome to ${brand.displayName}!`,
         GREETING: `Hi ${customer.firstName},`,
         WELCOME_MESSAGE: 'Your bag is registered and your account is ready. Whenever you have laundry to send, just request a pickup.',
         CONFIRM_EMAIL_TITLE: 'Confirm your email',
@@ -139,8 +140,8 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
         FOOTER_RIGHTS: 'All rights reserved.'
       },
       es: {
-        EMAIL_TITLE: 'Bienvenido al Servicio de Lavandería WaveMAX',
-        EMAIL_HEADER: '¡Bienvenido a WaveMAX Laundry!',
+        EMAIL_TITLE: `Bienvenido al Servicio de Lavandería ${brand.displayName}`,
+        EMAIL_HEADER: `¡Bienvenido a ${brand.displayName}!`,
         GREETING: `Hola ${customer.firstName},`,
         WELCOME_MESSAGE: 'Su bolsa está registrada y su cuenta está lista. Cuando tenga ropa para enviar, solo solicite una recogida.',
         CONFIRM_EMAIL_TITLE: 'Confirme su correo electrónico',
@@ -161,8 +162,8 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
         FOOTER_RIGHTS: 'Todos los derechos reservados.'
       },
       pt: {
-        EMAIL_TITLE: 'Bem-vindo ao Serviço de Lavanderia WaveMAX',
-        EMAIL_HEADER: 'Bem-vindo ao WaveMAX Laundry!',
+        EMAIL_TITLE: `Bem-vindo ao Serviço de Lavanderia ${brand.displayName}`,
+        EMAIL_HEADER: `Bem-vindo ao ${brand.displayName}!`,
         GREETING: `Olá ${customer.firstName},`,
         WELCOME_MESSAGE: 'Sua sacola está registrada e sua conta está pronta. Sempre que tiver roupas para enviar, basta solicitar uma coleta.',
         CONFIRM_EMAIL_TITLE: 'Confirme seu e-mail',
@@ -183,8 +184,8 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
         FOOTER_RIGHTS: 'Todos os direitos reservados.'
       },
       de: {
-        EMAIL_TITLE: 'Willkommen beim WaveMAX Wäscheservice',
-        EMAIL_HEADER: 'Willkommen bei WaveMAX Laundry!',
+        EMAIL_TITLE: `Willkommen beim ${brand.displayName} Wäscheservice`,
+        EMAIL_HEADER: `Willkommen bei ${brand.displayName}!`,
         GREETING: `Hallo ${customer.firstName},`,
         WELCOME_MESSAGE: 'Ihr Beutel ist registriert und Ihr Konto ist bereit. Wann immer Sie Wäsche zu senden haben, fordern Sie einfach eine Abholung an.',
         CONFIRM_EMAIL_TITLE: 'Bestätigen Sie Ihre E-Mail',
@@ -225,10 +226,10 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
 
     // Translate subject based on language
     const subjects = {
-      en: 'Welcome to WaveMAX Laundry Service',
-      es: 'Bienvenido al Servicio de Lavandería WaveMAX',
-      pt: 'Bem-vindo ao Serviço de Lavanderia WaveMAX',
-      de: 'Willkommen beim WaveMAX Wäscheservice'
+      en: `Welcome to ${brand.displayName} Service`,
+      es: `Bienvenido al Servicio de Lavandería ${brand.displayName}`,
+      pt: `Bem-vindo ao Serviço de Lavanderia ${brand.displayName}`,
+      de: `Willkommen beim ${brand.displayName} Wäscheservice`
     };
     const subject = subjects[language] || subjects.en;
 
@@ -268,8 +269,8 @@ exports.sendOrderStatusUpdateEmail = async (customer, order, status, opts = {}) 
         DELIVERY_INSTRUCTIONS_LABEL: 'Delivery instructions',
         DELIVERY_FEE_LABEL: 'Delivery fee',
         PREMIUM_OPTIONS_LABEL: 'Premium options',
-        THANK_YOU_MESSAGE: 'Thank you for choosing WaveMAX Laundry!',
-        CLOSING_MESSAGE: 'Best regards,<br>The WaveMAX Laundry Team',
+        THANK_YOU_MESSAGE: `Thank you for choosing ${brand.displayName}!`,
+        CLOSING_MESSAGE: `Best regards,<br>The ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'All rights reserved.',
         FOOTER_AUTOMATED_MESSAGE: 'This is an automated message. Please do not reply to this email.',
         STATUS_MESSAGES: {
@@ -297,8 +298,8 @@ exports.sendOrderStatusUpdateEmail = async (customer, order, status, opts = {}) 
         DELIVERY_INSTRUCTIONS_LABEL: 'Instrucciones de entrega',
         DELIVERY_FEE_LABEL: 'Tarifa de entrega',
         PREMIUM_OPTIONS_LABEL: 'Opciones premium',
-        THANK_YOU_MESSAGE: '¡Gracias por elegir WaveMAX Laundry!',
-        CLOSING_MESSAGE: 'Saludos cordiales,<br>El Equipo de WaveMAX Laundry',
+        THANK_YOU_MESSAGE: `¡Gracias por elegir ${brand.displayName}!`,
+        CLOSING_MESSAGE: `Saludos cordiales,<br>El Equipo de ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos los derechos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Este es un mensaje automatizado. Por favor no responda a este correo.',
         STATUS_MESSAGES: {
@@ -326,8 +327,8 @@ exports.sendOrderStatusUpdateEmail = async (customer, order, status, opts = {}) 
         DELIVERY_INSTRUCTIONS_LABEL: 'Instruções de entrega',
         DELIVERY_FEE_LABEL: 'Taxa de entrega',
         PREMIUM_OPTIONS_LABEL: 'Opções premium',
-        THANK_YOU_MESSAGE: 'Obrigado por escolher WaveMAX Laundry!',
-        CLOSING_MESSAGE: 'Atenciosamente,<br>A Equipe WaveMAX Laundry',
+        THANK_YOU_MESSAGE: `Obrigado por escolher ${brand.displayName}!`,
+        CLOSING_MESSAGE: `Atenciosamente,<br>A Equipe ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos os direitos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Esta é uma mensagem automatizada. Por favor, não responda a este e-mail.',
         STATUS_MESSAGES: {
@@ -355,8 +356,8 @@ exports.sendOrderStatusUpdateEmail = async (customer, order, status, opts = {}) 
         DELIVERY_INSTRUCTIONS_LABEL: 'Lieferhinweise',
         DELIVERY_FEE_LABEL: 'Liefergebühr',
         PREMIUM_OPTIONS_LABEL: 'Premium-Optionen',
-        THANK_YOU_MESSAGE: 'Vielen Dank, dass Sie sich für WaveMAX Laundry entschieden haben!',
-        CLOSING_MESSAGE: 'Mit freundlichen Grüßen,<br>Das WaveMAX Laundry Team',
+        THANK_YOU_MESSAGE: `Vielen Dank, dass Sie sich für ${brand.displayName} entschieden haben!`,
+        CLOSING_MESSAGE: `Mit freundlichen Grüßen,<br>Das ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.',
         FOOTER_AUTOMATED_MESSAGE: 'Dies ist eine automatisierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.',
         STATUS_MESSAGES: {
@@ -429,7 +430,7 @@ exports.sendOrderCancellationEmail = async (customer, order) => {
         ORDER_ID_LABEL: 'Order ID',
         CANCELLED_AT_LABEL: 'Cancelled At',
         APOLOGY_MESSAGE: 'We\'re sorry for any inconvenience. If you have any questions, please contact your affiliate partner.',
-        CLOSING_MESSAGE: 'Best regards,<br>The WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Best regards,<br>The ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'All rights reserved.',
         FOOTER_AUTOMATED_MESSAGE: 'This is an automated message. Please do not reply to this email.'
       },
@@ -442,7 +443,7 @@ exports.sendOrderCancellationEmail = async (customer, order) => {
         ORDER_ID_LABEL: 'ID del Pedido',
         CANCELLED_AT_LABEL: 'Cancelado a las',
         APOLOGY_MESSAGE: 'Lamentamos cualquier inconveniente. Si tiene preguntas, contacte a su socio afiliado.',
-        CLOSING_MESSAGE: 'Saludos cordiales,<br>El Equipo de WaveMAX Laundry',
+        CLOSING_MESSAGE: `Saludos cordiales,<br>El Equipo de ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos los derechos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Este es un mensaje automatizado. Por favor no responda a este correo.'
       },
@@ -455,7 +456,7 @@ exports.sendOrderCancellationEmail = async (customer, order) => {
         ORDER_ID_LABEL: 'ID do Pedido',
         CANCELLED_AT_LABEL: 'Cancelado às',
         APOLOGY_MESSAGE: 'Pedimos desculpas por qualquer inconveniente. Se tiver dúvidas, entre em contato com seu parceiro afiliado.',
-        CLOSING_MESSAGE: 'Atenciosamente,<br>A Equipe WaveMAX Laundry',
+        CLOSING_MESSAGE: `Atenciosamente,<br>A Equipe ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos os direitos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Esta é uma mensagem automatizada. Por favor, não responda a este e-mail.'
       },
@@ -468,7 +469,7 @@ exports.sendOrderCancellationEmail = async (customer, order) => {
         ORDER_ID_LABEL: 'Bestell-ID',
         CANCELLED_AT_LABEL: 'Storniert um',
         APOLOGY_MESSAGE: 'Wir entschuldigen uns für etwaige Unannehmlichkeiten. Bei Fragen kontaktieren Sie bitte Ihren Affiliate-Partner.',
-        CLOSING_MESSAGE: 'Mit freundlichen Grüßen,<br>Das WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Mit freundlichen Grüßen,<br>Das ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.',
         FOOTER_AUTOMATED_MESSAGE: 'Dies ist eine automatisierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.'
       }
@@ -526,8 +527,8 @@ exports.sendCustomerDeliveredEmail = async (customer, order, { affiliateName } =
         DELIVERED_AT_LABEL: 'Delivered',
         DELIVERED_BY_LABEL: 'Delivered by',
         AFFILIATE_NAME_FALLBACK: 'Your delivery provider',
-        THANKS_MESSAGE: 'Thank you for choosing WaveMAX Laundry!',
-        CLOSING_MESSAGE: 'Best regards,<br>The WaveMAX Laundry Team',
+        THANKS_MESSAGE: `Thank you for choosing ${brand.displayName}!`,
+        CLOSING_MESSAGE: `Best regards,<br>The ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'All rights reserved.',
         FOOTER_AUTOMATED_MESSAGE: 'This is an automated message. Please do not reply to this email.'
       },
@@ -540,8 +541,8 @@ exports.sendCustomerDeliveredEmail = async (customer, order, { affiliateName } =
         DELIVERED_AT_LABEL: 'Entregado',
         DELIVERED_BY_LABEL: 'Entregado por',
         AFFILIATE_NAME_FALLBACK: 'Su proveedor de entrega',
-        THANKS_MESSAGE: '¡Gracias por elegir WaveMAX Laundry!',
-        CLOSING_MESSAGE: 'Saludos cordiales,<br>El Equipo de WaveMAX Laundry',
+        THANKS_MESSAGE: `¡Gracias por elegir ${brand.displayName}!`,
+        CLOSING_MESSAGE: `Saludos cordiales,<br>El Equipo de ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos los derechos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Este es un mensaje automatizado. Por favor no responda a este correo.'
       },
@@ -554,8 +555,8 @@ exports.sendCustomerDeliveredEmail = async (customer, order, { affiliateName } =
         DELIVERED_AT_LABEL: 'Entregue',
         DELIVERED_BY_LABEL: 'Entregue por',
         AFFILIATE_NAME_FALLBACK: 'Seu provedor de entrega',
-        THANKS_MESSAGE: 'Obrigado por escolher a WaveMAX Laundry!',
-        CLOSING_MESSAGE: 'Atenciosamente,<br>Equipe WaveMAX Laundry',
+        THANKS_MESSAGE: `Obrigado por escolher a ${brand.displayName}!`,
+        CLOSING_MESSAGE: `Atenciosamente,<br>Equipe ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos os direitos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Esta é uma mensagem automática. Por favor, não responda a este e-mail.'
       },
@@ -568,8 +569,8 @@ exports.sendCustomerDeliveredEmail = async (customer, order, { affiliateName } =
         DELIVERED_AT_LABEL: 'Geliefert',
         DELIVERED_BY_LABEL: 'Geliefert von',
         AFFILIATE_NAME_FALLBACK: 'Ihr Lieferpartner',
-        THANKS_MESSAGE: 'Vielen Dank, dass Sie WaveMAX Laundry gewählt haben!',
-        CLOSING_MESSAGE: 'Mit freundlichen Grüßen,<br>Ihr WaveMAX Laundry Team',
+        THANKS_MESSAGE: `Vielen Dank, dass Sie ${brand.displayName} gewählt haben!`,
+        CLOSING_MESSAGE: `Mit freundlichen Grüßen,<br>Ihr ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.',
         FOOTER_AUTOMATED_MESSAGE: 'Dies ist eine automatische Nachricht. Bitte antworten Sie nicht auf diese E-Mail.'
       }

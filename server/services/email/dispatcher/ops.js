@@ -3,12 +3,13 @@
 // lifecycle emails were removed in Phase 1 PR 3 with the old order lifecycle.)
 
 const { sendEmail } = require('../transport');
+const brand = require('../../../config/brand');
 /**
  * Send service down alert email
  */
 exports.sendServiceDownAlert = async function({ serviceName, error, timestamp, serviceData }) {
   const mailOptions = {
-    from: `"WaveMAX Monitoring" <${process.env.EMAIL_FROM || 'no-reply@rundberglaundry.com'}>`,
+    from: `"${brand.displayName} Monitoring" <${process.env.EMAIL_FROM || 'no-reply@rundberglaundry.com'}>`,
     to: process.env.ALERT_EMAIL || process.env.DEFAULT_ADMIN_EMAIL || 'admin@rundberglaundry.com',
     subject: `⚠️ CRITICAL: ${serviceName} Service Down - ${new Date().toISOString()}`,
     html: `

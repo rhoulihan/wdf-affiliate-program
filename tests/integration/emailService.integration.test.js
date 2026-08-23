@@ -10,6 +10,7 @@
 
 let logger;
 const path = require('path');
+const brand = require('../../server/config/brand');
 
 describe('Email Service Integration', () => {
   let emailService;
@@ -104,12 +105,12 @@ describe('Email Service Integration', () => {
       // Console transport logs the email content
       expect(consoleSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleSpy).toHaveBeenCalledWith('To:', 'test@example.com');
-      expect(consoleSpy).toHaveBeenCalledWith('From:', '"WaveMAX Laundry" <test@wavemax.promo>');
+      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@wavemax.promo>`);
       
       // Check for subject
       const calls = consoleSpy.mock.calls.map(call => call.join(' '));
       expect(calls.some(call => call.includes('Subject:'))).toBe(true);
-      expect(calls.some(call => call.includes('Welcome to WaveMAX Laundry Affiliate Program'))).toBe(true);
+      expect(calls.some(call => call.includes(`Welcome to ${brand.displayName} Affiliate Program`))).toBe(true);
     });
 
     it('should log customer welcome emails to console', async () => {
@@ -130,7 +131,7 @@ describe('Email Service Integration', () => {
       
       expect(consoleSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleSpy).toHaveBeenCalledWith('To:', 'customer@example.com');
-      expect(consoleSpy).toHaveBeenCalledWith('From:', '"WaveMAX Laundry" <test@wavemax.promo>');
+      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@wavemax.promo>`);
       
       // Also logs success message
       expect(consoleSpy).toHaveBeenCalledWith('Customer welcome email sent successfully to:', 'customer@example.com');
@@ -149,7 +150,7 @@ describe('Email Service Integration', () => {
       
       expect(consoleSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleSpy).toHaveBeenCalledWith('To:', 'user@example.com');
-      expect(consoleSpy).toHaveBeenCalledWith('From:', '"WaveMAX Laundry" <test@wavemax.promo>');
+      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@wavemax.promo>`);
       
       const calls = consoleSpy.mock.calls.map(call => call.join(' '));
       expect(calls.some(call => call.includes('Password Reset'))).toBe(true);

@@ -6,13 +6,14 @@
 
 const { loadTemplate, fillTemplate } = require('../template-manager');
 const { sendEmail } = require('../transport');
+const brand = require('../../../config/brand');
 const logger = require('../../../utils/logger');
 
 const SUBJECTS = {
-  en: 'Your WaveMAX Affiliate Invitation',
-  es: 'Su invitación de afiliado de WaveMAX',
-  pt: 'Seu convite de afiliado WaveMAX',
-  de: 'Ihre WaveMAX-Partner-Einladung'
+  en: `Your ${brand.displayName} Affiliate Invitation`,
+  es: `Su invitación de afiliado de ${brand.displayName}`,
+  pt: `Seu convite de afiliado ${brand.displayName}`,
+  de: `Ihre ${brand.displayName}-Partner-Einladung`
 };
 
 const DATE_LOCALES = { en: 'en-US', es: 'es-ES', pt: 'pt-BR', de: 'de-DE' };

@@ -4,6 +4,7 @@ const logger = require('../../../utils/logger');
 
 const { loadTemplate, fillTemplate, formatTimeSlot } = require('../template-manager');
 const { sendEmail } = require('../transport');
+const brand = require('../../../config/brand');
 // =============================================================================
 // Affiliate Emails
 // =============================================================================
@@ -20,10 +21,10 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
     // Get translations for the email content
     const translations = {
       en: {
-        EMAIL_TITLE: 'Welcome to WaveMAX Laundry Affiliate Program',
+        EMAIL_TITLE: `Welcome to ${brand.displayName} Affiliate Program`,
         EMAIL_HEADER: 'Welcome to the Affiliate Program!',
         GREETING: `Hi ${affiliate.firstName},`,
-        WELCOME_MESSAGE: 'Congratulations and welcome to the WaveMAX Laundry Affiliate Program! We\'re excited to have you join our network of affiliate partners.',
+        WELCOME_MESSAGE: `Congratulations and welcome to the ${brand.displayName} Affiliate Program! We\'re excited to have you join our network of affiliate partners.`,
         READY_MESSAGE: 'You\'re now ready to start offering premium wash, dry, fold laundry services to your customers, with pickup and delivery handled by you.',
         YOUR_INFO_TITLE: 'Your Affiliate Information',
         AFFILIATE_ID_LABEL: 'Affiliate ID',
@@ -33,7 +34,7 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         STEP_1: 'Customers join by claiming one of your laundry bags.',
         STEP_2: 'Receive laundry bags with unique barcodes for your customers',
         STEP_3: 'Coordinate pickups and deliveries based on customer schedules',
-        STEP_4: 'Bring the laundry to our WaveMAX location for washing, drying, and folding',
+        STEP_4: `Bring the laundry to our ${brand.displayName} location for washing, drying, and folding`,
         STEP_5: 'Deliver clean laundry back to your customers',
         STEP_6: 'Earn commissions on every order!',
         COMMISSION_LABEL: 'COMMISSION ON WDF',
@@ -43,10 +44,10 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         DASHBOARD_BUTTON: 'Go to Dashboard'
       },
       es: {
-        EMAIL_TITLE: 'Bienvenido al Programa de Afiliados de WaveMAX Laundry',
+        EMAIL_TITLE: `Bienvenido al Programa de Afiliados de ${brand.displayName}`,
         EMAIL_HEADER: '¡Bienvenido al Programa de Afiliados!',
         GREETING: `Hola ${affiliate.firstName},`,
-        WELCOME_MESSAGE: '¡Felicitaciones y bienvenido al Programa de Afiliados de WaveMAX Laundry! Estamos emocionados de que se una a nuestra red de socios afiliados.',
+        WELCOME_MESSAGE: `¡Felicitaciones y bienvenido al Programa de Afiliados de ${brand.displayName}! Estamos emocionados de que se una a nuestra red de socios afiliados.`,
         READY_MESSAGE: 'Ahora está listo para comenzar a ofrecer servicios premium de lavado, secado y doblado de ropa, con recogida y entrega manejados por usted.',
         YOUR_INFO_TITLE: 'Su Información de Afiliado',
         AFFILIATE_ID_LABEL: 'ID de Afiliado',
@@ -56,7 +57,7 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         STEP_1: 'Los clientes se unen reclamando una de tus bolsas de lavandería.',
         STEP_2: 'Reciba bolsas de lavandería con códigos de barras únicos para sus clientes',
         STEP_3: 'Coordine recogidas y entregas según los horarios de los clientes',
-        STEP_4: 'Lleve la ropa a nuestra ubicación WaveMAX para lavar, secar y doblar',
+        STEP_4: `Lleve la ropa a nuestra ubicación ${brand.displayName} para lavar, secar y doblar`,
         STEP_5: 'Entregue la ropa limpia a sus clientes',
         STEP_6: '¡Gane comisiones en cada pedido!',
         COMMISSION_LABEL: 'COMISIÓN EN WDF',
@@ -66,10 +67,10 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         DASHBOARD_BUTTON: 'Ir al Panel'
       },
       pt: {
-        EMAIL_TITLE: 'Bem-vindo ao Programa de Afiliados WaveMAX Laundry',
+        EMAIL_TITLE: `Bem-vindo ao Programa de Afiliados ${brand.displayName}`,
         EMAIL_HEADER: 'Bem-vindo ao Programa de Afiliados!',
         GREETING: `Olá ${affiliate.firstName},`,
-        WELCOME_MESSAGE: 'Parabéns e bem-vindo ao Programa de Afiliados WaveMAX Laundry! Estamos animados em tê-lo em nossa rede de parceiros afiliados.',
+        WELCOME_MESSAGE: `Parabéns e bem-vindo ao Programa de Afiliados ${brand.displayName}! Estamos animados em tê-lo em nossa rede de parceiros afiliados.`,
         READY_MESSAGE: 'Você está pronto para começar a oferecer serviços premium de lavar, secar e dobrar roupas, com coleta e entrega gerenciadas por você.',
         YOUR_INFO_TITLE: 'Suas Informações de Afiliado',
         AFFILIATE_ID_LABEL: 'ID de Afiliado',
@@ -79,7 +80,7 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         STEP_1: 'Os clientes aderem resgatando uma de suas sacolas de lavanderia.',
         STEP_2: 'Receba sacolas de lavanderia com códigos de barras exclusivos para seus clientes',
         STEP_3: 'Coordene coletas e entregas com base nos horários dos clientes',
-        STEP_4: 'Leve a roupa para nossa localização WaveMAX para lavar, secar e dobrar',
+        STEP_4: `Leve a roupa para nossa localização ${brand.displayName} para lavar, secar e dobrar`,
         STEP_5: 'Entregue roupas limpas de volta aos seus clientes',
         STEP_6: 'Ganhe comissões em cada pedido!',
         COMMISSION_LABEL: 'COMISSÃO EM WDF',
@@ -89,10 +90,10 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         DASHBOARD_BUTTON: 'Ir para o Painel'
       },
       de: {
-        EMAIL_TITLE: 'Willkommen beim WaveMAX Laundry Affiliate-Programm',
+        EMAIL_TITLE: `Willkommen beim ${brand.displayName} Affiliate-Programm`,
         EMAIL_HEADER: 'Willkommen beim Affiliate-Programm!',
         GREETING: `Hallo ${affiliate.firstName},`,
-        WELCOME_MESSAGE: 'Herzlichen Glückwunsch und willkommen beim WaveMAX Laundry Affiliate-Programm! Wir freuen uns, Sie in unserem Netzwerk von Affiliate-Partnern begrüßen zu dürfen.',
+        WELCOME_MESSAGE: `Herzlichen Glückwunsch und willkommen beim ${brand.displayName} Affiliate-Programm! Wir freuen uns, Sie in unserem Netzwerk von Affiliate-Partnern begrüßen zu dürfen.`,
         READY_MESSAGE: 'Sie sind jetzt bereit, Premium-Wasch-, Trocken- und Faltservice anzubieten, wobei Abholung und Lieferung von Ihnen übernommen werden.',
         YOUR_INFO_TITLE: 'Ihre Affiliate-Informationen',
         AFFILIATE_ID_LABEL: 'Affiliate-ID',
@@ -102,7 +103,7 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         STEP_1: 'Kunden treten bei, indem sie einen Ihrer Wäschebeutel einlösen.',
         STEP_2: 'Erhalten Sie Wäschesäcke mit einzigartigen Barcodes für Ihre Kunden',
         STEP_3: 'Koordinieren Sie Abholungen und Lieferungen basierend auf Kundenterminen',
-        STEP_4: 'Bringen Sie die Wäsche zu unserem WaveMAX-Standort zum Waschen, Trocknen und Falten',
+        STEP_4: `Bringen Sie die Wäsche zu unserem ${brand.displayName}-Standort zum Waschen, Trocknen und Falten`,
         STEP_5: 'Liefern Sie saubere Wäsche an Ihre Kunden zurück',
         STEP_6: 'Verdienen Sie Provisionen bei jeder Bestellung!',
         COMMISSION_LABEL: 'PROVISION AUF WDF',
@@ -135,10 +136,10 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
 
     // Translate subject based on language
     const subjects = {
-      en: 'Welcome to WaveMAX Laundry Affiliate Program',
-      es: 'Bienvenido al Programa de Afiliados de WaveMAX Laundry',
-      pt: 'Bem-vindo ao Programa de Afiliados WaveMAX Laundry',
-      de: 'Willkommen beim WaveMAX Laundry Affiliate-Programm'
+      en: `Welcome to ${brand.displayName} Affiliate Program`,
+      es: `Bienvenido al Programa de Afiliados de ${brand.displayName}`,
+      pt: `Bem-vindo ao Programa de Afiliados ${brand.displayName}`,
+      de: `Willkommen beim ${brand.displayName} Affiliate-Programm`
     };
     const subject = subjects[language] || subjects.en;
 
@@ -213,7 +214,7 @@ exports.sendAffiliateNewCustomerEmail = async (affiliate, customer, bagInfo = {}
         NEXT_STEPS_LIST: `<ol><li>Contact the customer to arrange bag delivery</li><li>Deliver <strong>${numberOfBags}</strong> laundry bag(s) they purchased during registration</li><li>Explain the pickup and delivery process</li><li>Schedule their first pickup if requested</li><li>Remind them that bag fees will be credited on their first order</li></ol>`,
         VIEW_CUSTOMER_BUTTON: 'View Customer in Dashboard',
         REMINDER_MESSAGE: 'Remember: Providing excellent service from the start helps ensure customer retention and positive reviews!',
-        FOOTER_SENT_BY: 'This email was sent by WaveMAX Laundry Affiliate Program',
+        FOOTER_SENT_BY: `This email was sent by ${brand.displayName} Affiliate Program`,
         FOOTER_QUESTIONS: 'Questions? Contact us at',
         FOOTER_RIGHTS: 'All rights reserved.'
       },
@@ -238,7 +239,7 @@ exports.sendAffiliateNewCustomerEmail = async (affiliate, customer, bagInfo = {}
         NEXT_STEPS_LIST: `<ol><li>Contacte al cliente para coordinar la entrega de bolsas</li><li>Entregue <strong>${numberOfBags}</strong> bolsa(s) de lavandería que compraron durante el registro</li><li>Explique el proceso de recogida y entrega</li><li>Programe su primera recogida si lo solicitan</li><li>Recuérdeles que las tarifas de bolsas se acreditarán en su primer pedido</li></ol>`,
         VIEW_CUSTOMER_BUTTON: 'Ver Cliente en el Panel',
         REMINDER_MESSAGE: 'Recuerde: ¡Brindar un excelente servicio desde el principio ayuda a garantizar la retención de clientes y reseñas positivas!',
-        FOOTER_SENT_BY: 'Este correo fue enviado por el Programa de Afiliados WaveMAX Laundry',
+        FOOTER_SENT_BY: `Este correo fue enviado por el Programa de Afiliados ${brand.displayName}`,
         FOOTER_QUESTIONS: '¿Preguntas? Contáctenos en',
         FOOTER_RIGHTS: 'Todos los derechos reservados.'
       },
@@ -263,7 +264,7 @@ exports.sendAffiliateNewCustomerEmail = async (affiliate, customer, bagInfo = {}
         NEXT_STEPS_LIST: `<ol><li>Entre em contato com o cliente para organizar a entrega das sacolas</li><li>Entregue <strong>${numberOfBags}</strong> sacola(s) de lavanderia que compraram durante o registro</li><li>Explique o processo de coleta e entrega</li><li>Agende a primeira coleta se solicitado</li><li>Lembre-os de que as taxas das sacolas serão creditadas no primeiro pedido</li></ol>`,
         VIEW_CUSTOMER_BUTTON: 'Ver Cliente no Painel',
         REMINDER_MESSAGE: 'Lembre-se: Fornecer um excelente serviço desde o início ajuda a garantir a retenção de clientes e avaliações positivas!',
-        FOOTER_SENT_BY: 'Este e-mail foi enviado pelo Programa de Afiliados WaveMAX Laundry',
+        FOOTER_SENT_BY: `Este e-mail foi enviado pelo Programa de Afiliados ${brand.displayName}`,
         FOOTER_QUESTIONS: 'Dúvidas? Entre em contato conosco em',
         FOOTER_RIGHTS: 'Todos os direitos reservados.'
       },
@@ -288,7 +289,7 @@ exports.sendAffiliateNewCustomerEmail = async (affiliate, customer, bagInfo = {}
         NEXT_STEPS_LIST: `<ol><li>Kontaktieren Sie den Kunden, um die Sacklieferung zu arrangieren</li><li>Liefern Sie <strong>${numberOfBags}</strong> Wäschesack/-säcke, die während der Registrierung gekauft wurden</li><li>Erklären Sie den Abhol- und Lieferprozess</li><li>Planen Sie die erste Abholung auf Anfrage</li><li>Erinnern Sie sie daran, dass die Sackgebühren bei der ersten Bestellung gutgeschrieben werden</li></ol>`,
         VIEW_CUSTOMER_BUTTON: 'Kunde im Dashboard anzeigen',
         REMINDER_MESSAGE: 'Denken Sie daran: Exzellenter Service von Anfang an hilft, Kundenbindung und positive Bewertungen zu gewährleisten!',
-        FOOTER_SENT_BY: 'Diese E-Mail wurde vom WaveMAX Laundry Affiliate-Programm gesendet',
+        FOOTER_SENT_BY: `Diese E-Mail wurde vom ${brand.displayName} Affiliate-Programm gesendet`,
         FOOTER_QUESTIONS: 'Fragen? Kontaktieren Sie uns unter',
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.'
       }
@@ -366,7 +367,7 @@ exports.sendAffiliateNewOrderEmail = async (affiliate, customer, order) => {
         SPECIAL_INSTRUCTIONS_LABEL: 'Special Instructions',
         VIEW_ORDER_BUTTON: 'View in Dashboard',
         PICKUP_REMINDER: 'A customer has started a laundry order for one of your bags. Please coordinate the pickup with them.',
-        CLOSING_MESSAGE: 'Best regards,<br>The WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Best regards,<br>The ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'All rights reserved.',
         FOOTER_AUTOMATED_MESSAGE: 'This is an automated message. Please do not reply to this email.'
       },
@@ -387,7 +388,7 @@ exports.sendAffiliateNewOrderEmail = async (affiliate, customer, order) => {
         SPECIAL_INSTRUCTIONS_LABEL: 'Instrucciones Especiales',
         VIEW_ORDER_BUTTON: 'Ver en el Panel',
         PICKUP_REMINDER: 'Un cliente ha iniciado un pedido de lavandería para una de sus bolsas. Por favor, coordine la recogida con él.',
-        CLOSING_MESSAGE: 'Saludos cordiales,<br>El Equipo de WaveMAX Laundry',
+        CLOSING_MESSAGE: `Saludos cordiales,<br>El Equipo de ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos los derechos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Este es un mensaje automatizado. Por favor no responda a este correo.'
       },
@@ -408,7 +409,7 @@ exports.sendAffiliateNewOrderEmail = async (affiliate, customer, order) => {
         SPECIAL_INSTRUCTIONS_LABEL: 'Instruções Especiais',
         VIEW_ORDER_BUTTON: 'Ver no Painel',
         PICKUP_REMINDER: 'Um cliente iniciou um pedido de lavanderia para uma de suas sacolas. Por favor, combine a coleta com ele.',
-        CLOSING_MESSAGE: 'Atenciosamente,<br>A Equipe WaveMAX Laundry',
+        CLOSING_MESSAGE: `Atenciosamente,<br>A Equipe ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos os direitos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Esta é uma mensagem automatizada. Por favor, não responda a este e-mail.'
       },
@@ -429,7 +430,7 @@ exports.sendAffiliateNewOrderEmail = async (affiliate, customer, order) => {
         SPECIAL_INSTRUCTIONS_LABEL: 'Besondere Anweisungen',
         VIEW_ORDER_BUTTON: 'Im Dashboard anzeigen',
         PICKUP_REMINDER: 'Ein Kunde hat eine Wäschebestellung für einen Ihrer Beutel gestartet. Bitte stimmen Sie die Abholung mit ihm ab.',
-        CLOSING_MESSAGE: 'Mit freundlichen Grüßen,<br>Das WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Mit freundlichen Grüßen,<br>Das ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.',
         FOOTER_AUTOMATED_MESSAGE: 'Dies ist eine automatisierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.'
       }
@@ -493,7 +494,7 @@ exports.sendAffiliateOrderReadyEmail = async (affiliate, order, customer) => {
         READY_MESSAGE: 'An order has been processed and is ready for pickup at the store.',
         ORDER_ID_LABEL: 'Order ID',
         CUSTOMER_LABEL: 'Customer',
-        CLOSING_MESSAGE: 'Best regards,<br>The WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Best regards,<br>The ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'All rights reserved.',
         FOOTER_AUTOMATED_MESSAGE: 'This is an automated message. Please do not reply to this email.'
       },
@@ -504,7 +505,7 @@ exports.sendAffiliateOrderReadyEmail = async (affiliate, order, customer) => {
         READY_MESSAGE: 'Un pedido ha sido procesado y está listo para recoger en la tienda.',
         ORDER_ID_LABEL: 'ID del Pedido',
         CUSTOMER_LABEL: 'Cliente',
-        CLOSING_MESSAGE: 'Saludos cordiales,<br>El Equipo de WaveMAX Laundry',
+        CLOSING_MESSAGE: `Saludos cordiales,<br>El Equipo de ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos los derechos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Este es un mensaje automatizado. Por favor no responda a este correo.'
       },
@@ -515,7 +516,7 @@ exports.sendAffiliateOrderReadyEmail = async (affiliate, order, customer) => {
         READY_MESSAGE: 'Um pedido foi processado e está pronto para coleta na loja.',
         ORDER_ID_LABEL: 'ID do Pedido',
         CUSTOMER_LABEL: 'Cliente',
-        CLOSING_MESSAGE: 'Atenciosamente,<br>A Equipe WaveMAX Laundry',
+        CLOSING_MESSAGE: `Atenciosamente,<br>A Equipe ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos os direitos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Esta é uma mensagem automatizada. Por favor, não responda a este e-mail.'
       },
@@ -526,7 +527,7 @@ exports.sendAffiliateOrderReadyEmail = async (affiliate, order, customer) => {
         READY_MESSAGE: 'Eine Bestellung wurde bearbeitet und ist im Geschäft zur Abholung bereit.',
         ORDER_ID_LABEL: 'Bestell-ID',
         CUSTOMER_LABEL: 'Kunde',
-        CLOSING_MESSAGE: 'Mit freundlichen Grüßen,<br>Das WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Mit freundlichen Grüßen,<br>Das ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.',
         FOOTER_AUTOMATED_MESSAGE: 'Dies ist eine automatisierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.'
       }
@@ -567,7 +568,7 @@ exports.sendAffiliateOrderCancellationEmail = async (affiliate, order, customer)
         CANCELLED_AT_LABEL: 'Cancelled At',
         VIEW_DASHBOARD_BUTTON: 'View Dashboard',
         DO_NOT_PROCEED_MESSAGE: 'Please do not proceed with this pickup. The customer may reschedule at a later time.',
-        CLOSING_MESSAGE: 'Best regards,<br>The WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Best regards,<br>The ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'All rights reserved.',
         FOOTER_AUTOMATED_MESSAGE: 'This is an automated message. Please do not reply to this email.'
       },
@@ -582,7 +583,7 @@ exports.sendAffiliateOrderCancellationEmail = async (affiliate, order, customer)
         CANCELLED_AT_LABEL: 'Cancelado a las',
         VIEW_DASHBOARD_BUTTON: 'Ver Panel',
         DO_NOT_PROCEED_MESSAGE: 'Por favor no proceda con esta recogida. El cliente puede reprogramar en otro momento.',
-        CLOSING_MESSAGE: 'Saludos cordiales,<br>El Equipo de WaveMAX Laundry',
+        CLOSING_MESSAGE: `Saludos cordiales,<br>El Equipo de ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos los derechos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Este es un mensaje automatizado. Por favor no responda a este correo.'
       },
@@ -597,7 +598,7 @@ exports.sendAffiliateOrderCancellationEmail = async (affiliate, order, customer)
         CANCELLED_AT_LABEL: 'Cancelado às',
         VIEW_DASHBOARD_BUTTON: 'Ver Painel',
         DO_NOT_PROCEED_MESSAGE: 'Por favor, não prossiga com esta coleta. O cliente pode reagendar posteriormente.',
-        CLOSING_MESSAGE: 'Atenciosamente,<br>A Equipe WaveMAX Laundry',
+        CLOSING_MESSAGE: `Atenciosamente,<br>A Equipe ${brand.displayName}`,
         FOOTER_RIGHTS: 'Todos os direitos reservados.',
         FOOTER_AUTOMATED_MESSAGE: 'Esta é uma mensagem automatizada. Por favor, não responda a este e-mail.'
       },
@@ -612,7 +613,7 @@ exports.sendAffiliateOrderCancellationEmail = async (affiliate, order, customer)
         CANCELLED_AT_LABEL: 'Storniert um',
         VIEW_DASHBOARD_BUTTON: 'Dashboard anzeigen',
         DO_NOT_PROCEED_MESSAGE: 'Bitte fahren Sie nicht mit dieser Abholung fort. Der Kunde kann zu einem späteren Zeitpunkt neu planen.',
-        CLOSING_MESSAGE: 'Mit freundlichen Grüßen,<br>Das WaveMAX Laundry Team',
+        CLOSING_MESSAGE: `Mit freundlichen Grüßen,<br>Das ${brand.displayName} Team`,
         FOOTER_RIGHTS: 'Alle Rechte vorbehalten.',
         FOOTER_AUTOMATED_MESSAGE: 'Dies ist eine automatisierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.'
       }
@@ -670,7 +671,7 @@ exports.sendAffiliatePasswordResetEmail = async (affiliate, resetUrl) => {
 
     await sendEmail(
       affiliate.email,
-      'Password Reset Request - WaveMAX Affiliate Portal',
+      `Password Reset Request - ${brand.displayName} Affiliate Portal`,
       html
     );
   } catch (error) {

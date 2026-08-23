@@ -5,6 +5,7 @@ jest.mock('../../server/services/email/transport', () => ({
 
 const fs = require('fs');
 const path = require('path');
+const brand = require('../../server/config/brand');
 const { sendEmail } = require('../../server/services/email/transport');
 const onboarding = require('../../server/services/email/dispatcher/onboarding');
 
@@ -51,7 +52,7 @@ describe('onboarding email dispatcher — sendAffiliateInviteEmail', () => {
       language: 'fr'
     });
     const [, subject] = sendEmail.mock.calls[0];
-    expect(subject).toBe('Your WaveMAX Affiliate Invitation');
+    expect(subject).toBe(`Your ${brand.displayName} Affiliate Invitation`);
   });
 
   test('propagates transport failure to the caller', async () => {

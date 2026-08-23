@@ -4,6 +4,7 @@ const logger = require('../../../utils/logger');
 
 const { loadTemplate, fillTemplate } = require('../template-manager');
 const { sendEmail } = require('../transport');
+const brand = require('../../../config/brand');
 // =============================================================================
 // Administrator Emails
 // =============================================================================
@@ -19,11 +20,11 @@ exports.sendAdministratorWelcomeEmail = async (administrator) => {
     // Get translations for the email content
     const translations = {
       en: {
-        EMAIL_TITLE: 'Welcome to WaveMAX Administrator Portal',
-        EMAIL_HEADER: 'WaveMAX Administrator Portal',
+        EMAIL_TITLE: `Welcome to ${brand.displayName} Administrator Portal`,
+        EMAIL_HEADER: `${brand.displayName} Administrator Portal`,
         EMAIL_SUBHEADER: 'Welcome to the Management Team',
         GREETING: `Welcome, ${administrator.firstName}!`,
-        WELCOME_MESSAGE: 'Your administrator account has been successfully created. You now have access to the WaveMAX Administrator Portal where you can manage operators, view analytics, and configure system settings.',
+        WELCOME_MESSAGE: `Your administrator account has been successfully created. You now have access to the ${brand.displayName} Administrator Portal where you can manage operators, view analytics, and configure system settings.`,
         ADMIN_ID_LABEL: 'Administrator ID',
         EMAIL_LABEL: 'Email',
         ACCOUNT_STATUS_LABEL: 'Account Status',
@@ -37,11 +38,11 @@ exports.sendAdministratorWelcomeEmail = async (administrator) => {
         FOOTER_SECURITY_NOTE: 'This is a secure administrator account notification.'
       },
       es: {
-        EMAIL_TITLE: 'Bienvenido al Portal de Administrador WaveMAX',
-        EMAIL_HEADER: 'Portal de Administrador WaveMAX',
+        EMAIL_TITLE: `Bienvenido al Portal de Administrador ${brand.displayName}`,
+        EMAIL_HEADER: `Portal de Administrador ${brand.displayName}`,
         EMAIL_SUBHEADER: 'Bienvenido al Equipo de Gestión',
         GREETING: `¡Bienvenido, ${administrator.firstName}!`,
-        WELCOME_MESSAGE: 'Su cuenta de administrador ha sido creada exitosamente. Ahora tiene acceso al Portal de Administrador WaveMAX donde puede gestionar operadores, ver análisis y configurar ajustes del sistema.',
+        WELCOME_MESSAGE: `Su cuenta de administrador ha sido creada exitosamente. Ahora tiene acceso al Portal de Administrador ${brand.displayName} donde puede gestionar operadores, ver análisis y configurar ajustes del sistema.`,
         ADMIN_ID_LABEL: 'ID de Administrador',
         EMAIL_LABEL: 'Correo Electrónico',
         ACCOUNT_STATUS_LABEL: 'Estado de Cuenta',
@@ -55,11 +56,11 @@ exports.sendAdministratorWelcomeEmail = async (administrator) => {
         FOOTER_SECURITY_NOTE: 'Esta es una notificación segura de cuenta de administrador.'
       },
       pt: {
-        EMAIL_TITLE: 'Bem-vindo ao Portal de Administrador WaveMAX',
-        EMAIL_HEADER: 'Portal de Administrador WaveMAX',
+        EMAIL_TITLE: `Bem-vindo ao Portal de Administrador ${brand.displayName}`,
+        EMAIL_HEADER: `Portal de Administrador ${brand.displayName}`,
         EMAIL_SUBHEADER: 'Bem-vindo à Equipe de Gestão',
         GREETING: `Bem-vindo, ${administrator.firstName}!`,
-        WELCOME_MESSAGE: 'Sua conta de administrador foi criada com sucesso. Agora você tem acesso ao Portal de Administrador WaveMAX onde pode gerenciar operadores, visualizar análises e configurar configurações do sistema.',
+        WELCOME_MESSAGE: `Sua conta de administrador foi criada com sucesso. Agora você tem acesso ao Portal de Administrador ${brand.displayName} onde pode gerenciar operadores, visualizar análises e configurar configurações do sistema.`,
         ADMIN_ID_LABEL: 'ID de Administrador',
         EMAIL_LABEL: 'E-mail',
         ACCOUNT_STATUS_LABEL: 'Status da Conta',
@@ -73,11 +74,11 @@ exports.sendAdministratorWelcomeEmail = async (administrator) => {
         FOOTER_SECURITY_NOTE: 'Esta é uma notificação segura de conta de administrador.'
       },
       de: {
-        EMAIL_TITLE: 'Willkommen beim WaveMAX Administrator-Portal',
-        EMAIL_HEADER: 'WaveMAX Administrator-Portal',
+        EMAIL_TITLE: `Willkommen beim ${brand.displayName} Administrator-Portal`,
+        EMAIL_HEADER: `${brand.displayName} Administrator-Portal`,
         EMAIL_SUBHEADER: 'Willkommen im Verwaltungsteam',
         GREETING: `Willkommen, ${administrator.firstName}!`,
-        WELCOME_MESSAGE: 'Ihr Administratorkonto wurde erfolgreich erstellt. Sie haben jetzt Zugriff auf das WaveMAX Administrator-Portal, wo Sie Betreiber verwalten, Analysen anzeigen und Systemeinstellungen konfigurieren können.',
+        WELCOME_MESSAGE: `Ihr Administratorkonto wurde erfolgreich erstellt. Sie haben jetzt Zugriff auf das ${brand.displayName} Administrator-Portal, wo Sie Betreiber verwalten, Analysen anzeigen und Systemeinstellungen konfigurieren können.`,
         ADMIN_ID_LABEL: 'Administrator-ID',
         EMAIL_LABEL: 'E-Mail',
         ACCOUNT_STATUS_LABEL: 'Kontostatus',
@@ -109,10 +110,10 @@ exports.sendAdministratorWelcomeEmail = async (administrator) => {
 
     // Translate subject based on language
     const subjects = {
-      en: 'Welcome to WaveMAX Administrator Portal',
-      es: 'Bienvenido al Portal de Administrador WaveMAX',
-      pt: 'Bem-vindo ao Portal de Administrador WaveMAX',
-      de: 'Willkommen beim WaveMAX Administrator-Portal'
+      en: `Welcome to ${brand.displayName} Administrator Portal`,
+      es: `Bienvenido al Portal de Administrador ${brand.displayName}`,
+      pt: `Bem-vindo ao Portal de Administrador ${brand.displayName}`,
+      de: `Willkommen beim ${brand.displayName} Administrator-Portal`
     };
     const subject = subjects[language] || subjects.en;
 
@@ -145,7 +146,7 @@ exports.sendAdministratorPasswordResetEmail = async (administrator, resetUrl) =>
 
     await sendEmail(
       administrator.email,
-      'Password Reset Request - WaveMAX Administrator Portal',
+      `Password Reset Request - ${brand.displayName} Administrator Portal`,
       html
     );
   } catch (error) {
