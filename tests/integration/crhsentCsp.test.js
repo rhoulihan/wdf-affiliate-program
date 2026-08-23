@@ -20,7 +20,7 @@ describe('crhsent.com — full security model (app-served, strict CSP)', () => {
   it('has no inline JS, and links the external asset bundle', async () => {
     const res = await request(app).get('/wavemax/').set('Host', HOST);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('16 months of growth');          // real page content
+    expect(res.text).toContain('Run the checks yourself');       // real page content (stable thesis heading)
     // script-src is strict (nonce-only, no 'unsafe-inline') so inline JS is forbidden:
     // every <script> must carry the per-request nonce and reference an external src.
     expect(res.text).not.toMatch(/<script(?![^>]*\bnonce=)[^>]*>/);  // no nonce-less <script>
