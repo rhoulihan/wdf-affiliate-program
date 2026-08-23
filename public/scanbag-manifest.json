@@ -1,7 +1,7 @@
 {
-  "name": "WaveMAX Scan Bag",
+  "name": "Laundromat Scan Bag",
   "short_name": "Scan Bag",
-  "description": "Scan a WaveMAX bag QR code to start or complete an order.",
+  "description": "Scan a Laundromat bag QR code to start or complete an order.",
   "start_url": "/scanbag",
   "scope": "/scanbag",
   "display": "standalone",

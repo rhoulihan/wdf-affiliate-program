@@ -25,6 +25,16 @@ const EXCLUDED_PREFIXES = [
   // of the excluded franchise-page-helpers.js). Excludes franchise-hero-rotator.js,
   // franchise-reviews-slider.js, franchise-page-helpers.js.
   'public/assets/js/franchise-',
+  // ---- Phase-3 Task-10 deferred public subsystems ----
+  // Franchise multi-tenant data (per-location franchisor records) — the Phase-4
+  // franchise subsystem's data layer, not the affiliate app.
+  'public/data/',
+  // Stylesheets — CSS carries only class-name identifiers and franchisor CDN
+  // URLs (Q1 code identifiers, deferred to Phase 4 with the asset rename); no
+  // user-facing display TEXT lives in CSS.
+  'public/assets/css/',
+  // Franchisor content mirror (site-pages copy for the franchise subsystem).
+  'public/content/',
 ];
 const EXCLUDED_FILES = new Set([
   'server/middleware/accessGate.js', 'server/middleware/mediatorGate.js',
@@ -106,6 +116,12 @@ const EXCLUDED_FILES = new Set([
   // Security-control test: asserts 'wavemax' stays in the weak-password blocklist
   // (source passwordValidator.js is excluded for the same reason — a control, not copy).
   'tests/unit/passwordValidator.test.js',
+  // ---- Phase-3 Task-10 corporate-content locales ----
+  // crhsent/corporate-chrome translations — the corporate subsystem's copy
+  // (peers of the excluded corporate-chrome.js + crhsent/ tree). The affiliate
+  // app's common.json locales stay guarded and are already clean.
+  'public/locales/en/corporate.json', 'public/locales/es/corporate.json',
+  'public/locales/pt/corporate.json', 'public/locales/de/corporate.json',
 ]);
 const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 
@@ -200,5 +216,9 @@ describe('branding guard', () => {
   test('baseline has no stale entries (every listed file still has a real hit)', () => {
     const stale = [...baseline].filter((f) => !baselineHitFiles.has(f) && !isExcludedPath(f));
     expect(stale).toEqual([]);
+  });
+
+  test('the migration baseline is fully drained', () => {
+    expect([...baseline]).toEqual([]);
   });
 });
