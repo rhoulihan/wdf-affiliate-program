@@ -21,6 +21,10 @@ const EXCLUDED_PREFIXES = [
   // austin-commercial-init.js, austin-contact-init.js, austin-fb-pixel.js,
   // austin-hibu-phone-swap.js, austin-host-mock*.js, austin-*-init.js, etc.
   'public/assets/js/austin-',
+  // Franchise-subsystem client JS — franchisor marketing (Phase-4 defer, peers
+  // of the excluded franchise-page-helpers.js). Excludes franchise-hero-rotator.js,
+  // franchise-reviews-slider.js, franchise-page-helpers.js.
+  'public/assets/js/franchise-',
 ];
 const EXCLUDED_FILES = new Set([
   'server/middleware/accessGate.js', 'server/middleware/mediatorGate.js',
@@ -30,7 +34,14 @@ const EXCLUDED_FILES = new Set([
   'server/controllers/franchiseController.js', 'server/routes/franchiseRoutes.js',
   'server/controllers/conciergeController.js', 'server/services/conciergeFaq.js',
   'server/config/domainSeoOverrides.js', 'server/config/franchisePreviewCopy.js',
-  'public/assets/js/franchise-page-helpers.js',
+  // Marketing/franchise + Austin-marketing client JS — referenced only by the
+  // excluded franchisor/Austin pages; de-brand deferred to Phase 4 (controller-
+  // verified). (franchise-hero-rotator.js / franchise-reviews-slider.js /
+  // franchise-page-helpers.js are covered by the 'public/assets/js/franchise-' prefix.)
+  'public/assets/js/corporate-chrome.js', 'public/assets/js/network-reviews-init.js',
+  'public/assets/js/self-serve-laundry-modern.js', 'public/assets/js/self-serve-translations.js',
+  'public/assets/js/seo-config-self-serve.js', 'public/assets/js/seo-config-wash-dry-fold.js',
+  'public/assets/js/wash-dry-fold-translations.js',
   'public/franchise.html', 'public/franchise-host.html',
   'public/why-invest-in-wavemax.html', 'public/wavemax-vs-zombiemat.html',
   'public/wavemax-affiliate.html', 'public/about.html', 'public/testimonials.html',
@@ -78,6 +89,9 @@ const INFRA_ALLOW = [
   // iframe/host boundary (never display copy); renaming is a Phase-4 concern.
   /wavemax-embed/gi, /wavemax-language/gi, /wavemax-iframe/gi,
   /WaveMaxBridgeV3/gi, /wavemax-austin-affiliate-program/gi,
+  // Franchisor CDN asset path (external image URLs on wavemaxlaundry.com's
+  // upload host); appears only in src="…/UploadedImages/WaveMAX/…", never display.
+  /UploadedImages\/WaveMAX\//gi,
 ];
 
 function isExcludedPath(p) {
