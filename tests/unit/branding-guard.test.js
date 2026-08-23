@@ -35,7 +35,7 @@ const EXCLUDED_FILES = new Set([
   'public/iframe-parent-example.html', 'public/iframe-parent-example-complete.html',
   'public/products-placeholder.html',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
-  'tests/unit/mediatorGate.test.js',
+  'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
   // DB-name-only dev/admin scripts (infra: connect string names the ADB database).
   'scripts/seed-claim-bag.js', 'scripts/admin/delete-admin-operators.js',
   'scripts/diagnostics/check-data-distribution.js',

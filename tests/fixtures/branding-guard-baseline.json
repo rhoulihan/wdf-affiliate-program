@@ -325,7 +325,6 @@
   "tests/unit/administratorAdditional.test.js",
   "tests/unit/affiliateApplicationForm.test.js",
   "tests/unit/affiliateLoginInit.test.js",
-  "tests/unit/branding-guard.test.js",
   "tests/unit/claimPageWiring.test.js",
   "tests/unit/createAdminScript.test.js",
   "tests/unit/deliveryFee.test.js",
