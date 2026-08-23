@@ -2,6 +2,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
+const brand = require('../config/brand');
 
 /**
  * Injects CSP nonce into HTML content
@@ -10,6 +11,17 @@ const logger = require('./logger');
  * @returns {string} HTML with nonce attributes added
  */
 const injectNonce = (html, nonce) => {
+  // Brand placeholders (resolve from server/config/brand.js).
+  html = html
+    .replace(/\{\{BRAND_NAME\}\}/g, brand.displayName)
+    .replace(/\{\{BRAND_SHORT\}\}/g, brand.shortName)
+    .replace(/\{\{BRAND_LEGAL\}\}/g, brand.legalName);
+  // Fill the empty brand-name meta (mirror the csp-nonce meta fill).
+  html = html.replace(
+    /<meta([^>]*name=["']brand-name["'][^>]*content=["'])["']([^>]*)>/gi,
+    `<meta$1${brand.displayName}"$2>`
+  );
+
   if (!nonce) return html;
   
   // Replace {{CSP_NONCE}} placeholders

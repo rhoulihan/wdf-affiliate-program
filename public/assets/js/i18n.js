@@ -31,6 +31,11 @@
       // Merge custom options
       Object.assign(this.config, options);
 
+      // Seed the global brand token (brand.js may re-seed it later).
+      this.globalParams = Object.assign({}, this.globalParams, {
+        brandName: (window.BRAND && window.BRAND.name) || 'Laundromat'
+      });
+
       // Detect initial language
       this.currentLanguage = this.detectLanguage();
 
@@ -140,7 +145,7 @@
       }
 
       // Replace parameters
-      return this.interpolate(value, params);
+      return this.interpolate(value, Object.assign({}, this.globalParams, params));
     },
 
     /**
