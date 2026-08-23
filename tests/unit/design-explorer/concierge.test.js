@@ -261,7 +261,7 @@ describe('POST /api/concierge (route through server.js, SDK mocked)', () => {
     mockCreate.mockResolvedValue({ content: [{ type: 'text', text: 'We are open daily 7am to 10pm.' }] });
     const res = await request(app)
       .post('/api/concierge')
-      .set('Host', 'wavemax.promo')
+      .set('Host', 'rundberglaundry.com')
       .send({ message: 'What are your hours?' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ reply: 'We are open daily 7am to 10pm.' });
@@ -271,7 +271,7 @@ describe('POST /api/concierge (route through server.js, SDK mocked)', () => {
   it('no CSRF token required (public endpoint) — empty message still validates to 400', async () => {
     const res = await request(app)
       .post('/api/concierge')
-      .set('Host', 'wavemax.promo')
+      .set('Host', 'rundberglaundry.com')
       .send({ message: '' });
     expect(res.status).toBe(400); // 400 (validation), NOT 403 (CSRF)
   });

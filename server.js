@@ -201,7 +201,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Canonical-host retirement: 301 the old wavemax.promo hosts to the portal host,
+// Canonical-host retirement: 301 the old promo hosts to the portal host,
 // preserving path + query. Wired unconditionally (not env-gated) so it is
 // exercisable in every environment; it only acts on the retired hosts, which are
 // never used in dev/test, so all other traffic passes straight through. Runs
