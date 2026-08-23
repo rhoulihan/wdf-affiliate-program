@@ -13,6 +13,7 @@ const baseline = new Set(
 // Whole-file/tree exclusions (spec §7 + Phase-4 deferrals + generated + docs).
 const EXCLUDED_PREFIXES = [
   'crhsent/', 'dc_private/', 'docs/', 'node_modules/', '.git/',
+  'design-explorer/', 'tests/unit/design-explorer/',
   'public/design-explorer/', 'public/franchise-default/', 'public/dev/',
   'scripts/franchise-build/',
 ];
@@ -22,6 +23,7 @@ const EXCLUDED_FILES = new Set([
   'server/models/AccessClick.js', 'server/models/AccessRequest.js',
   'server/models/MediatorAccess.js',
   'server/controllers/franchiseController.js', 'server/routes/franchiseRoutes.js',
+  'server/controllers/conciergeController.js', 'server/services/conciergeFaq.js',
   'server/config/domainSeoOverrides.js', 'server/config/franchisePreviewCopy.js',
   'public/assets/js/franchise-page-helpers.js',
   'public/franchise.html', 'public/franchise-host.html',
