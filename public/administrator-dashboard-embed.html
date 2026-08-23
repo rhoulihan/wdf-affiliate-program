@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csp-nonce" content="{{nonce}}">
+    <meta name="brand-name" content="">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'nonce-{{nonce}}' https://cdn.jsdelivr.net; style-src 'self' 'nonce-{{nonce}}' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
-    <title data-i18n="administrator.dashboard.title">Administrator Dashboard - WaveMAX</title>
+    <title data-i18n="administrator.dashboard.title">Administrator Dashboard - Laundromat</title>
     <link rel="stylesheet" href="/assets/css/language-switcher.css">
     <link rel="stylesheet" href="/assets/css/administrator-dashboard.css?v=20260620">
 </head>
@@ -13,7 +14,7 @@
     <header class="header">
         <div class="header-content">
             <div class="logo">
-                <h1>WaveMAX Admin</h1>
+                <h1>{{BRAND_NAME}} Admin</h1>
             </div>
             <div class="user-info">
                 <span class="user-name" id="userName">Loading...</span>
@@ -276,7 +277,7 @@
                     <h2 class="card-title" data-i18n="admin.locationAffiliate.title">Add location affiliate</h2>
                 </div>
                 <div class="padding-20">
-                    <p class="text-muted" data-i18n="admin.locationAffiliate.description">WaveMAX-operated collection point with a contact where bags are dropped off and collected on a schedule. Earns no commission. Created directly — no invite email is sent.</p>
+                    <p class="text-muted" data-i18n="admin.locationAffiliate.description">Laundromat-operated collection point with a contact where bags are dropped off and collected on a schedule. Earns no commission. Created directly — no invite email is sent.</p>
                     <form id="locationAffiliateForm">
                         <div class="form-row">
                             <div class="form-group">
@@ -781,7 +782,7 @@
     <script src="/assets/js/administrator-dashboard-init.js?v=20260624c" nonce="{{nonce}}"></script>
     <script src="/assets/js/administrator-dashboard-i18n.js" nonce="{{nonce}}"></script>
 
-  <!-- Hibu Dynamic Phone Insertion — swaps the WaveMAX Austin number for a
+  <!-- Hibu Dynamic Phone Insertion — swaps the Laundromat Austin number for a
        source-indexed tracking number. Loader is blocked by ad-blockers
        gracefully; the init script no-ops when the loader is absent. -->
   <script src="/assets/vendor/ybDynamicPhoneInsertion.js?v=20260520"></script>

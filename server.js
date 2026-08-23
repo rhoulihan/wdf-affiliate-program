@@ -1250,22 +1250,17 @@ app.get('/sitemap.xml', (req, res) => {
   res.send(body);
 });
 
-// Direct routes for legal pages (for Google and external access)
-app.get('/terms-of-service', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'terms-and-conditions.html'));
-});
+// Direct routes for legal pages (for Google and external access).
+// Served through serveHTMLWithNonce so the {{BRAND_NAME}} placeholder + the
+// empty brand-name meta resolve server-side (Phase 3 de-brand).
+const { serveHTMLWithNonce: serveLegalWithNonce } = require('./server/utils/cspHelper');
+app.get('/terms-of-service', serveLegalWithNonce('terms-and-conditions.html'));
 
-app.get('/terms-and-conditions', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'terms-and-conditions.html'));
-});
+app.get('/terms-and-conditions', serveLegalWithNonce('terms-and-conditions.html'));
 
-app.get('/privacy-policy', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'privacy-policy.html'));
-});
+app.get('/privacy-policy', serveLegalWithNonce('privacy-policy.html'));
 
-app.get('/refund-policy', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'refund-policy.html'));
-});
+app.get('/refund-policy', serveLegalWithNonce('refund-policy.html'));
 
 // Block common WordPress scanning paths
 app.use((req, res, next) => {

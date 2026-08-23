@@ -36,6 +36,9 @@ const EXCLUDED_FILES = new Set([
   'public/products-placeholder.html',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
   'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
+  // Guard-style test that asserts the ABSENCE of the mark in locales — its
+  // /wavemax/i matcher is load-bearing, so it is allowlisted like this file.
+  'tests/unit/i18n-brand-token.test.js',
   // DB-name-only dev/admin scripts (infra: connect string names the ADB database).
   'scripts/seed-claim-bag.js', 'scripts/admin/delete-admin-operators.js',
   'scripts/diagnostics/check-data-distribution.js',
