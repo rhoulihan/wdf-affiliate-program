@@ -74,8 +74,9 @@ The implementation plan may sequence **W2 first** (safe, no re-login) then **W1*
 - `server.js:660-661`: rename `__Host-wavemax.sid` / `wavemax.sid` → **`__Host-portal.sid` / `portal.sid`** (neutral). The `__Host-` prefix mandates `Secure`, `Path=/`, and **no `Domain`** → the cookie is automatically host-scoped to `portal.atxwashdryfold.com`. Because cookies are host-bound, the move off `wavemax.promo` already drops the old cookie; the rename is therefore free.
 - **Consequence:** every active session ends at cutover; users re-login once. Inherent to the domain change — communicate, don't mitigate.
 
-### 4.5 JWT issuer/audience
-- `authTokenService.js:42-43`: `issuer:'wavemax-api'` → `'crhs-portal-api'`; `audience:'wavemax-client'` → `'crhs-portal-client'` (both verified on decode). **Existing access tokens (1h TTL) and stored `RefreshToken`s fail issuer/audience validation → users re-auth.** This is the same one-time reset as §4.4, in the same cutover window. No token-table migration; invalid refresh tokens are simply re-issued on next login. (Confirm the decode path enforces issuer/audience so old tokens are rejected cleanly, not silently accepted.)
+### 4.5 JWT issuer/audience (cosmetic)
+- `authTokenService.js:42-43`: `issuer:'wavemax-api'` → `'crhs-portal-api'`; `audience:'wavemax-client'` → `'crhs-portal-client'`.
+- **Mechanism note (verified against code):** the `jwt.verify` sites (`middleware/auth.js:50`, `middleware/scanAuth.js:43`, `modules/bags/bagController.js:84`) validate **only** `algorithms:['HS256']` — they do **not** enforce `issuer`/`audience`. So this rename is **cosmetic**: it removes the `wavemax-*` literal from the token payload but does **not** reject old tokens or force re-auth on its own. The re-login at cutover is driven solely by the host-bound cookie (§4.4). Refresh tokens are opaque DB records (not JWTs) and are unaffected. **Do not add issuer/audience enforcement to `verify`** — that is a separate security change, out of scope here.
 
 ### 4.6 Log service tag
 - `logger.js:27`: `service:'wavemax-affiliate'` → `'crhs-portal'`. Cosmetic (log metadata); no behavior change.
@@ -131,7 +132,7 @@ Rename the ~20 `wavemax-*` classes to a neutral prefix (proposed: `brand-*` for 
 **Integration/unit tests (red-first where a seam changes):**
 1. **Host canonicalization** — a request with host `wavemax.promo` (and `www.`/`affiliate.`) returns `301` to `https://portal.atxwashdryfold.com` with path + query preserved; a request with host `portal.atxwashdryfold.com` is served (not redirected); `atxwashdryfold.com` apex + other marketing hosts are unaffected.
 2. **Cookie name** — the session cookie is issued as `portal.sid` / `__Host-portal.sid` (per env), never `wavemax.sid`.
-3. **JWT issuer/audience** — tokens are signed and **verified** with `crhs-portal-api` / `crhs-portal-client`; a token bearing the old `wavemax-api`/`wavemax-client` is **rejected** on decode.
+3. **JWT issuer/audience** — a freshly minted access token's decoded payload carries `iss:'crhs-portal-api'` / `aud:'crhs-portal-client'` (cosmetic rename; verify does not enforce these, so no "old token rejected" assertion — see §4.5).
 4. **Email** — `transport` renders From `"WaveMAX Austin" <no-reply@crhsent.com>` when `EMAIL_FROM` is set; a rendered template's links use `BASE_URL` (assert the new host).
 5. **Asset integrity (W2)** — no HTML/JS/CSS references a renamed-away `wavemax-*.css` / `logo-wavemax.png`; `build-assets.js` produces the neutral `.min` files; every functional-token rename has both sides updated (a targeted test per functional token).
 6. **Domain guard** — extend the Phase-3 branding guard (or add a companion `domain-guard`) so a **new** un-allowlisted `wavemax.promo` in **app scope** fails CI (franchise-data/docs stay excluded, mirroring the branding guard's exclusion set). This is the regression net that keeps the migration from silently un-migrating.
