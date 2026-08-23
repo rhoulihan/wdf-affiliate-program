@@ -5,7 +5,7 @@ describe('brand config', () => {
   beforeEach(() => { saved = {}; KEYS.forEach((k) => { saved[k] = process.env[k]; delete process.env[k]; }); jest.resetModules(); });
   afterEach(() => { KEYS.forEach((k) => { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }); });
 
-  test('defaults are generic (no "WaveMAX" in code)', () => {
+  test('defaults are generic (no franchisor mark in code)', () => {
     const brand = require('../../server/config/brand');
     expect(brand.displayName).toBe('Laundromat');
     expect(brand.shortName).toBe('Laundromat');
@@ -14,9 +14,9 @@ describe('brand config', () => {
   });
 
   test('env overrides the display value', () => {
-    process.env.BRAND_DISPLAY_NAME = 'WaveMAX Austin';
+    process.env.BRAND_DISPLAY_NAME = 'Acme Wash';
     jest.resetModules();
     const brand = require('../../server/config/brand');
-    expect(brand.displayName).toBe('WaveMAX Austin');
+    expect(brand.displayName).toBe('Acme Wash');
   });
 });
