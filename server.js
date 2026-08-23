@@ -177,6 +177,7 @@ if (process.env.NODE_ENV === 'production') {
   const allowedHosts = [
     'rundberglaundry.com',
     'www.rundberglaundry.com',
+    'portal.atxwashdryfold.com', // canonical portal host (migration target)
     'wavemax.promo',          // transition: still 301s during retirement
     'www.wavemax.promo',
     'affiliate.wavemax.promo',
@@ -199,6 +200,21 @@ if (process.env.NODE_ENV === 'production') {
     }
   });
 }
+
+// Canonical-host retirement: 301 the old wavemax.promo hosts to the portal host,
+// preserving path + query. Wired unconditionally (not env-gated) so it is
+// exercisable in every environment; it only acts on the retired hosts, which are
+// never used in dev/test, so all other traffic passes straight through. Runs
+// after the production HTTPS-upgrade block, which keeps the retired hosts in
+// `allowedHosts` so an http→https upgrade still lands here rather than defaulting.
+const RETIRED_HOSTS = new Set(['wavemax.promo', 'www.wavemax.promo', 'affiliate.wavemax.promo']);
+app.use((req, res, next) => {
+  const host = (req.header('host') || '').toLowerCase();
+  if (RETIRED_HOSTS.has(host)) {
+    return res.redirect(301, `https://portal.atxwashdryfold.com${req.originalUrl}`);
+  }
+  next();
+});
 
 // CSP Nonce Middleware - must come before helmet
 const cspNonceMiddleware = require('./server/middleware/cspNonce');
