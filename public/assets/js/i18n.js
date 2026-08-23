@@ -33,7 +33,8 @@
 
       // Seed the global brand token (brand.js may re-seed it later).
       this.globalParams = Object.assign({}, this.globalParams, {
-        brandName: (window.BRAND && window.BRAND.name) || 'Laundromat'
+        brandName: (window.BRAND && window.BRAND.name) || 'Laundromat',
+        brandLegal: (window.BRAND && window.BRAND.legal) || 'CRHS Enterprises, LLC'
       });
 
       // Detect initial language

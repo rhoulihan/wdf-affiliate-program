@@ -5,9 +5,11 @@
 (function () {
   'use strict';
   function apply(name, short) {
-    window.BRAND = { name: name, short: short || name };
+    // legalName is not exposed by /api/v1/brand — it is a fixed ownership
+    // constant (the real owner, not a franchisor mark), so hardcode it here.
+    window.BRAND = { name: name, short: short || name, legal: 'CRHS Enterprises, LLC' };
     if (window.i18n) {
-      window.i18n.globalParams = Object.assign({}, window.i18n.globalParams, { brandName: name });
+      window.i18n.globalParams = Object.assign({}, window.i18n.globalParams, { brandName: name, brandLegal: window.BRAND.legal });
       if (typeof window.i18n.translatePage === 'function') {
         try { window.i18n.translatePage(); } catch (e) { /* i18n not ready */ }
       }

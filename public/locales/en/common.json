@@ -149,14 +149,14 @@
   },
   "bag": {
     "label": {
-      "affiliateHeading": "WaveMAX Laundry Pickup & Delivery",
+      "affiliateHeading": "{{brandName}} Laundry Pickup & Delivery",
       "bagRef": "Bag ref",
       "printInstructions": "Print this sheet, cut along the lines, and attach one label to each bag."
     }
   },
   "affiliateRegister": {
     "invite": {
-      "invalidOrExpired": "This invitation link is invalid or has expired. Please contact WaveMAX to request a new invitation.",
+      "invalidOrExpired": "This invitation link is invalid or has expired. Please contact {{brandName}} to request a new invitation.",
       "emailLocked": "Your email is set by your invitation and cannot be changed."
     }
   },
@@ -261,17 +261,17 @@
     },
     "email": "Email Address",
     "newPassword": "New Password",
-    "copyright": "© 2024 WaveMAX Laundry. All rights reserved."
+    "copyright": "© 2024 {{brandLegal}}. All rights reserved."
   },
   "landing": {
     "header": {
-      "title": "Join the WaveMAX Affiliate Program",
+      "title": "Join the {{brandName}} Affiliate Program",
       "subtitle": "Partner with Austin's premier laundry service and earn recurring commissions while helping your community save time",
       "loginTooltip": "Sign in to your existing affiliate account",
       "registerTooltip": "Create a new affiliate account and start earning"
     },
     "mainHeader": {
-      "title": "Join the WaveMAX Affiliate Program",
+      "title": "Join the {{brandName}} Affiliate Program",
       "subtitle": "Partner with Austin's premier laundry service and earn recurring commissions while helping your community save time"
     },
     "stats": {
@@ -281,12 +281,12 @@
       "dashboard": "Dashboard Access"
     },
     "hero": {
-      "badge": "Your Local WaveMAX Partner",
+      "badge": "Your Local {{brandName}} Partner",
       "title": "Premium Laundry Pickup & Delivery Service",
       "subtitle": {
-        "full": "Convenient door-to-door service by {{affiliateName}}, with professional washing by WaveMAX",
+        "full": "Convenient door-to-door service by {{affiliateName}}, with professional washing by {{brandName}}",
         "part1": "Convenient door-to-door service by",
-        "part2": ", with professional washing by WaveMAX"
+        "part2": ", with professional washing by {{brandName}}"
       }
     },
     "pricing": {
@@ -317,7 +317,7 @@
         },
         "professional": {
           "title": "Professional WDF Processing",
-          "description": "WaveMAX handles the washing with state-of-the-art Electrolux 450G equipment and Omni LUX UV water purification in a quality-controlled facility."
+          "description": "{{brandName}} handles the washing with state-of-the-art Electrolux 450G equipment and Omni LUX UV water purification in a quality-controlled facility."
         },
         "fastTurnaround": {
           "title": "Fast Turnaround",
@@ -350,12 +350,12 @@
         "title": "Pickup at Your Door",
         "description": {
           "part1": "{{affiliateName}}",
-          "part2": "collects your laundry and transports it to WaveMAX"
+          "part2": "collects your laundry and transports it to {{brandName}}"
         }
       },
       "step3": {
         "title": "Professional Cleaning",
-        "description": "WaveMAX expertly washes, dries, and folds using premium equipment"
+        "description": "{{brandName}} expertly washes, dries, and folds using premium equipment"
       },
       "step4": {
         "title": "Delivery to You",
@@ -374,7 +374,7 @@
         },
         "professional": "Professional washing with Electrolux 450G equipment",
         "purification": "Omni LUX UV water purification for cleanest results",
-        "quality": "Quality-controlled environment at WaveMAX facility",
+        "quality": "Quality-controlled environment at {{brandName}} facility",
         "ecoFriendly": "Eco-friendly cleaning products",
         "transparent": "Transparent pricing - pay for convenience & quality"
       },
@@ -392,8 +392,8 @@
       }
     },
     "quality": {
-      "title": "The WaveMAX Quality Difference",
-      "subtitle": "Your laundry is processed at WaveMAX's state-of-the-art facility",
+      "title": "The {{brandName}} Quality Difference",
+      "subtitle": "Your laundry is processed at {{brandName}}'s state-of-the-art facility",
       "electrolux": {
         "title": "Electrolux 450G Equipment",
         "description": "Professional-grade washers and dryers ensure thorough cleaning and gentle care for all fabric types"
@@ -448,7 +448,7 @@
     "testimonials": {
       "title": "What Our Affiliates Say",
       "sarah": {
-        "quote": "The WaveMAX affiliate program has been a great source of passive income. My property management clients love the service!",
+        "quote": "The {{brandName}} affiliate program has been a great source of passive income. My property management clients love the service!",
         "name": "Sarah M.",
         "title": "Property Manager, Austin"
       },
@@ -465,14 +465,14 @@
     "cta": {
       "title": "Ready to start earning?",
       "customerTitle": "Ready for Fresh, Clean Laundry?",
-      "scanBagToJoin": "To get started, ask your delivery provider for a WaveMAX laundry bag and scan its QR code to create your account.",
+      "scanBagToJoin": "To get started, ask your delivery provider for a {{brandName}} laundry bag and scan its QR code to create your account.",
       "description": "Join our affiliate program and start earning commissions by offering laundry services to your customers.",
-      "inviteOnly": "Affiliates join by invitation — contact WaveMAX to get started.",
+      "inviteOnly": "Affiliates join by invitation — contact {{brandName}} to get started.",
       "login": "Affiliate Login",
       "subtitle": {
-        "full": "Let {{affiliateName}} handle the pickup and delivery while WaveMAX ensures professional cleaning",
+        "full": "Let {{affiliateName}} handle the pickup and delivery while {{brandName}} ensures professional cleaning",
         "part1": "Let",
-        "part2": "handle the pickup and delivery while WaveMAX ensures professional cleaning"
+        "part2": "handle the pickup and delivery while {{brandName}} ensures professional cleaning"
       }
     },
     "footer": {
@@ -481,7 +481,7 @@
       "copyright": "© 2025 CRHS Enterprises, LLC. All rights reserved."
     },
     "page": {
-      "title": "WaveMAX Laundry Affiliate Program - Austin TX"
+      "title": "{{brandName}} Laundry Affiliate Program - Austin TX"
     }
   },
   "affiliate": {
@@ -492,7 +492,7 @@
     },
     "register": {
       "title": "Affiliate Registration",
-      "subtitle": "Fill out the form below to register as a WaveMAX Laundry affiliate partner.",
+      "subtitle": "Fill out the form below to register as a {{brandName}} Laundry affiliate partner.",
       "autoFilledMessage": "Your information has been automatically filled in below. Complete the remaining fields to finish your registration.",
       "businessInfo": "Business Information",
       "personalInfo": "Personal Information",
@@ -560,7 +560,7 @@
       "deliveryFeeLabel": "Delivery Fee ($) *",
       "deliveryFeeDesc": "Your flat delivery fee charged per order",
       "flatFeeTitle": "Flat delivery fee:",
-      "flatFeeDesc": "Set your flat delivery fee per order. You keep 100% of it as commission. Set $0 to use WaveMAX Associates for pickup & delivery.",
+      "flatFeeDesc": "Set your flat delivery fee per order. You keep 100% of it as commission. Set $0 to use {{brandName}} Associates for pickup & delivery.",
       "addressIncomplete": "Please enter your full address: street, city, state, and a 5-digit ZIP code."
     },
     "dashboard": {
@@ -589,7 +589,7 @@
         "registrationLinkDesc": "Direct link for customers to register under your affiliate account",
         "personalInfo": "Personal Information",
         "deliveryFeeStructure": "Delivery Fee",
-        "deliveryByAssociates": "WaveMAX Associates",
+        "deliveryByAssociates": "{{brandName}} Associates",
         "dynamicPricing": "Dynamic Pricing:",
         "dynamicPricingDesc": "Your customers pay whichever is higher: the minimum fee or the calculated per-bag rate. You keep 100% of delivery fees.",
         "minimumDeliveryFee": "Minimum Delivery Fee ($)",
@@ -698,7 +698,7 @@
       "title": "Registration Successful!",
       "congratulations": "Congratulations!",
       "submittedTitle": "Your Application Has Been Submitted",
-      "welcomeMessage": "Welcome to the WaveMAX Affiliate Program! We're excited to have you as our partner.",
+      "welcomeMessage": "Welcome to the {{brandName}} Affiliate Program! We're excited to have you as our partner.",
       "yourInfoTitle": "Your Information",
       "affiliateId": "Affiliate ID",
       "name": "Name",
@@ -723,7 +723,7 @@
   },
   "operator": {
     "login": {
-      "title": "Operator Login - WaveMAX",
+      "title": "Operator Login - {{brandName}}",
       "subtitle": "Operator Portal",
       "pinCode": "Enter PIN Code",
       "pinPlaceholder": "Enter 4-6 digit PIN",
@@ -1194,7 +1194,7 @@
   },
   "emails": {
     "greeting": "Hello {{name}},",
-    "footer": "Thank you for choosing WaveMAX Laundry Services.",
+    "footer": "Thank you for choosing {{brandName}} Laundry Services.",
     "unsubscribe": "Unsubscribe from these emails",
     "viewInBrowser": "View this email in your browser",
     "passwordReset": {
@@ -1204,15 +1204,15 @@
       "ignoreMessage": "If you didn't request this, please ignore this email."
     },
     "welcome": {
-      "adminTitle": "Welcome to WaveMAX Administrator Portal",
+      "adminTitle": "Welcome to {{brandName}} Administrator Portal",
       "adminMessage": "Your administrator account has been created successfully.",
-      "affiliateTitle": "Welcome to WaveMAX Affiliate Program",
-      "affiliateMessage": "Welcome to the WaveMAX Affiliate Program! We're excited to have you as our partner.",
+      "affiliateTitle": "Welcome to {{brandName}} Affiliate Program",
+      "affiliateMessage": "Welcome to the {{brandName}} Affiliate Program! We're excited to have you as our partner.",
       "affiliateId": "Your affiliate ID:",
-      "customerTitle": "Welcome to WaveMAX Laundry Services",
-      "customerMessage": "Welcome to WaveMAX! We're thrilled to have you as our customer.",
-      "operatorTitle": "Welcome to WaveMAX Team",
-      "operatorMessage": "Welcome to the WaveMAX team! Your operator account has been created.",
+      "customerTitle": "Welcome to {{brandName}} Laundry Services",
+      "customerMessage": "Welcome to {{brandName}}! We're thrilled to have you as our customer.",
+      "operatorTitle": "Welcome to {{brandName}} Team",
+      "operatorMessage": "Welcome to the {{brandName}} team! Your operator account has been created.",
       "operatorPin": "Your PIN:",
       "accessPortal": "Access Portal",
       "accessDashboard": "Access Your Dashboard"
@@ -1314,7 +1314,7 @@
     "fetchingInfo": "Please wait while we fetch your information"
   },
   "deletionStatus": {
-    "title": "Data Deletion Status - WaveMAX",
+    "title": "Data Deletion Status - {{brandName}}",
     "header": "Data Deletion Status",
     "description": "Check the status of your Facebook data deletion request",
     "loading": "Loading status...",
@@ -1402,7 +1402,7 @@
     },
     "locationAffiliate": {
       "title": "Add location affiliate",
-      "description": "WaveMAX-operated collection point with a contact where bags are dropped off and collected on a schedule. Earns no commission. Created directly — no invite email is sent.",
+      "description": "{{brandName}}-operated collection point with a contact where bags are dropped off and collected on a schedule. Earns no commission. Created directly — no invite email is sent.",
       "firstName": "Contact first name",
       "lastName": "Contact last name",
       "email": "Email",
