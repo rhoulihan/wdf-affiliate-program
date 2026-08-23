@@ -994,6 +994,7 @@ apiV1Router.use('/', require('./server/routes/partnerInquiryRoutes'));  // /part
 apiV1Router.use('/', require('./server/routes/affiliateApplicationRoutes'));  // /affiliate-application
 apiV1Router.use('/', require('./server/routes/mapsConfigRoute'));  // /maps-config — Maps API key for corporate pages
 apiV1Router.use('/', require('./server/routes/firebaseConfigRoute'));  // /firebase-config — Firebase web config + phone-verify flag (PR 7)
+apiV1Router.use('/', require('./server/routes/brandRoute'));  // /brand — public display-name config (Phase 3 de-brand)
 // Environment endpoint
 apiV1Router.get('/environment', (req, res) => {
   res.json({
