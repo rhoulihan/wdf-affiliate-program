@@ -34,7 +34,7 @@ function escapeHtml(value) {
 // remote assets). The thermal logo is a solid-black PNG (the brand galaxy mark
 // + wordmark) so it prints cleanly on white thermal stock — the standard logo
 // has white text that vanished on paper.
-const LOGO_PATH = path.join(__dirname, '../../../public/assets/images/brand/logo-wavemax-thermal.png');
+const LOGO_PATH = path.join(__dirname, '../../../public/assets/images/brand/logo-thermal.png');
 // Cache-buster for the label's external CSS/JS — these are served immutable
 // (1y) and fronted by Cloudflare, so bump this whenever bag-labels.css or
 // print-labels.js changes or stale styling will print after a deploy.

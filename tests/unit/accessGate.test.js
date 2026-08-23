@@ -73,7 +73,7 @@ describe('accessGate middleware', () => {
   });
 
   it('lets exempt paths through (logo) without whitelist', async () => {
-    const req = mkReq({ path: '/assets/images/brand/logo-wavemax.png' }); const res = mkRes(); const next = jest.fn();
+    const req = mkReq({ path: '/assets/images/brand/logo.png' }); const res = mkRes(); const next = jest.fn();
     await accessGate(req, res, next);
     expect(next).toHaveBeenCalled();
   });
