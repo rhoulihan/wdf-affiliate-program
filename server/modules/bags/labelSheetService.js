@@ -1,7 +1,7 @@
 // Label sheet renderer — print-optimized HTML (spec §6.1).
 //
 // 4x6 thermal format (HP KE100): ONE 4in x 6in label per page. Each label,
-// top to bottom: WaveMAX logo (embedded data-URI so it always prints),
+// top to bottom: brand logo (embedded data-URI so it always prints),
 // affiliate name (on EVERY label), the bag's claim QR (its durable identity),
 // a blank handwriting line for the customer name, and a small staff bag ref.
 //
@@ -18,6 +18,7 @@ const QRCode = require('qrcode');
 const Bag = require('./Bag');
 const Affiliate = require('../../models/Affiliate');
 const SystemConfig = require('../../models/SystemConfig');
+const brand = require('../../config/brand');
 
 function escapeHtml(value) {
   return String(value)
@@ -98,7 +99,7 @@ async function renderLabelSheet(batchId) {
       errorCorrectionLevel: 'M'
     });
     const logoImg = logo
-      ? `      <img class="label-logo" src="${logo}" alt="WaveMAX Laundry">\n`
+      ? `      <img class="label-logo" src="${logo}" alt="${escapeHtml(brand.displayName)}">\n`
       : '';
     return `    <section class="label">
 ${logoImg}      <p class="label-affiliate">${safeName}</p>
@@ -114,7 +115,7 @@ ${safeAddress ? `      <p class="label-partner-address">${safeAddress}</p>\n` : 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WaveMAX Bag Labels — ${escapeHtml(batchId)}</title>
+  <title>${escapeHtml(brand.displayName)} Bag Labels — ${escapeHtml(batchId)}</title>
   <link rel="stylesheet" href="/assets/css/bag-labels.css?v=${ASSET_VERSION}">
 </head>
 <body>

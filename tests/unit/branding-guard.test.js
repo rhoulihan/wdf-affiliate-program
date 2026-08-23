@@ -64,6 +64,27 @@ const EXCLUDED_FILES = new Set([
   // DB-name-only dev/admin scripts (infra: connect string names the ADB database).
   'scripts/seed-claim-bag.js', 'scripts/admin/delete-admin-operators.js',
   'scripts/diagnostics/check-data-distribution.js',
+  // ---- Phase-3 Task-8 completion ----
+  // Security blocklist: 'wavemax' must stay in the weak-password list to reject
+  // the WaveMAX!2024 default credential — it is a control, not display copy.
+  'server/utils/passwordValidator.js',
+  // Franchisor / franchise-preview / GBP / network-reviews / corporate-inquiry
+  // marketing subsystems — not the affiliate app; they name the real WaveMAX
+  // franchisor mark in marketing/legal copy. De-brand deferred to Phase 4
+  // (peers of the already-excluded franchiseController/franchisePreviewCopy).
+  'server/middleware/partnerLanding.js', 'server/models/FranchisePreviewRequest.js',
+  'server/services/corporateInquiryService.js', 'server/services/franchisePreviewEmail.js',
+  'server/services/franchisePreviewPages.js', 'server/services/franchisePreviewRender.js',
+  'server/services/gbpService.js', 'server/services/gbpToLocationData.js',
+  'server/services/networkReviewsService.js', 'scripts/create-franchise-preview.js',
+  'scripts/ops/refresh-hibu.sh', 'tools/flyers/build-flyers.js',
+  // Build script whose only marks are the wavemax-*.css asset filenames (Phase-4
+  // asset rename). Excluded rather than allowlisting the filename globally, which
+  // would also mask the same filename in tests/integration/assetCaching.test.js.
+  'scripts/build-assets.js',
+  // Proprietary LICENSE names the CRHS/WaveMAX marks verbatim (legal text) +
+  // dev-persona doc — both kept literal.
+  'LICENSE', 'init.prompt',
 ]);
 const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 
@@ -92,6 +113,33 @@ const INFRA_ALLOW = [
   // Franchisor CDN asset path (external image URLs on wavemaxlaundry.com's
   // upload host); appears only in src="…/UploadedImages/WaveMAX/…", never display.
   /UploadedImages\/WaveMAX\//gi,
+  // ---- Phase-3 Task-8 completion — anchored infra/operational identifiers ----
+  // MongoDB database name in local/docker connection strings + init.
+  /localhost:27017\/wavemax/gi, /mongo:27017\/wavemax/gi,
+  /MONGO_INITDB_DATABASE=wavemax/gi, /getSiblingDB\('wavemax'\)/gi,
+  // Default seeded admin credential (kept literal; passwordValidator blocks it).
+  /WaveMAX!2024/g,
+  // PM2 live process name — in commands and in the ecosystem.config.js comment.
+  /pm2 (?:start|restart|reload|stop|delete|logs) wavemax/gi, /'wavemax' name/gi,
+  // Production deploy path on the app servers.
+  /\/var\/www\/wavemax\//gi,
+  // Session-cookie name + server.js corporate-origins code identifier.
+  /wavemax\.sid/gi, /wavemaxDomains/g,
+  // JWT issuer/audience claims (token validation depends on these values).
+  /wavemax-api/gi, /wavemax-client/gi,
+  // Winston log service tag (log-aggregation key).
+  /service: 'wavemax-affiliate'/gi,
+  // Thermal bag-label logo asset filename (Phase-4 asset rename).
+  /logo-wavemax-thermal\.png/gi,
+  // .gitignore audit-doc path prefixes (match real filenames on disk).
+  /wavemaxlaundry-site-audit/gi, /wavemax-promo-prelaunch-audit/gi,
+  // Mediator gate URL + its clickjacking-demo content path (functional routes).
+  /crhsent\.com\/wavemax/gi, /\/wavemax\/clickjacking-demo\.html/gi,
+  // Ad-funnel affiliate route slug + page filename, and the two franchise
+  // marketing page slugs (functional route/filename literals; pages themselves
+  // are excluded). Slug form only — display copy uses spaced "WaveMAX …".
+  /\/wavemax-affiliate/gi, /wavemax-affiliate\.html/gi,
+  /why-invest-in-wavemax/gi, /wavemax-vs-zombiemat/gi,
 ];
 
 function isExcludedPath(p) {

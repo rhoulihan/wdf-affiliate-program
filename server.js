@@ -1,4 +1,4 @@
-// WaveMAX Laundry Affiliate Program
+// Laundromat Affiliate Program
 // Main Server Entry Point
 
 require('dotenv').config();
@@ -33,6 +33,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const logger = require('./server/utils/logger');
+const brand = require('./server/config/brand');
 
 // Fail-fast secret validation (production only): a missing/short secret must
 // surface at boot, not silently fall back to a dev-default HMAC (session /
@@ -475,7 +476,7 @@ const corsOptions = {
       ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
       : ['http://localhost:3000'];
 
-    // Add WaveMAX Laundry domains to allowed origins
+    // Add corporate site domains to allowed origins
     const wavemaxDomains = [
       'https://www.wavemaxlaundry.com',
       'https://wavemaxlaundry.com',
@@ -567,7 +568,7 @@ app.use(partnerLanding);
 // ---- crhsent.com — first-class app page, mounted AFTER the access gate so the
 // gate fronts the CRHS content (gated when access_gate_enabled=true). Served
 // through the app (not static nginx) for the full security model: nonce-based
-// CSP (the /wavemax/ path matches isFranchiseHostPage -> strict), HSTS,
+// CSP (the mediator path matches isFranchiseHostPage -> strict), HSTS,
 // frame-ancestors, etc. HTML is nonce-injected via cspHelper; assets sent
 // directly. Path-traversal guarded. ----
 const { readHTMLWithNonce: crhsentReadHTML } = require('./server/utils/cspHelper');
@@ -577,7 +578,7 @@ const CRHSENT_ROOT = path.join(__dirname, 'crhsent');
 // documented-record package prepared for the mediator). Deploys DARK (no-op
 // unless MEDIATOR_GATE_ENABLED=true); mounted here so it has body + cookie
 // parsing and runs BEFORE the crhsent host handler that would otherwise serve
-// the /wavemax content ungated.
+// the mediator's public content ungated.
 app.use(require('./server/middleware/mediatorGate'));
 
 app.use(async (req, res, next) => {
@@ -914,7 +915,7 @@ app.use(conditionalCsrf);
 app.get('/api/csrf-token', csrfTokenEndpoint);
 
 // Concierge — LIVE, FAQ-scoped Claude-backed assistant for the design explorer
-// (and any WaveMAX Austin page). POST /api/concierge { message, history? }.
+// (and any Austin marketing page). POST /api/concierge { message, history? }.
 // Registered here — AFTER conditionalCsrf (the path is on the CSRF public
 // allowlist) and express.json (applied globally above), but BEFORE the
 // apiVersioning middleware that rewrites /api/* → /api/v1/* (which would
@@ -1060,7 +1061,7 @@ app.get(['/laundromat-investment-guide', '/laundromat-investment-guide/'], (req,
 app.get(['/affiliate', '/affiliate/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'affiliate.html'));
 });
-// WaveMAX-themed generic affiliate interest form (for ad campaigns).
+// Generic affiliate interest form (for ad campaigns).
 app.get(['/wavemax-affiliate', '/wavemax-affiliate/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'wavemax-affiliate.html'));
 });
@@ -1146,7 +1147,7 @@ app.get('/api/docs', (req, res) => {
 // Root endpoint - API server info
 app.get('/', (req, res) => {
   res.json({
-    name: 'WaveMAX Affiliate Program API',
+    name: `${brand.displayName} Affiliate Program API`,
     version: '1.0.0',
     status: 'running',
     endpoints: {

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Credential Rotation Script for WaveMAX Affiliate Program
+# Credential Rotation Script for Laundromat Affiliate Program
 # This script safely rotates security credentials and migrates encrypted data
 
 set -e  # Exit on error
@@ -20,7 +20,7 @@ BACKUP_DIR="$PROJECT_ROOT/backup"
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
-echo -e "${GREEN}=== WaveMAX Credential Rotation Tool ===${NC}\n"
+echo -e "${GREEN}=== Laundromat Credential Rotation Tool ===${NC}\n"
 
 # Check if .env file exists
 if [ ! -f "$ENV_FILE" ]; then

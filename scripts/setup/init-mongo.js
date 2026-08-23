@@ -1,7 +1,7 @@
 // MongoDB initialization script for Docker
 // This runs when MongoDB container starts for the first time
 
-// Switch to the wavemax database
+// Switch to the app database
 db = db.getSiblingDB('wavemax');
 
 // Create indexes for better performance
@@ -32,6 +32,6 @@ db.orders.createIndex({ status: 1, scheduledPickup: 1 });
 
 // Log initialization
 print('MongoDB indexes created successfully');
-print('Database ready for WaveMAX Affiliate Program');
+print('Database ready for Laundromat Affiliate Program');
 print('');
 print('Run "node scripts/setup-database.js" after containers start to initialize default data');
