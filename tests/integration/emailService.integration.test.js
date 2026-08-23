@@ -29,8 +29,8 @@ describe('Email Service Integration', () => {
     // Set up test environment - these are already set in setup.js
     // but we ensure they're correct for our tests
     process.env.EMAIL_PROVIDER = 'console';
-    process.env.EMAIL_FROM = 'test@wavemax.promo';
-    process.env.BASE_URL = 'https://wavemax.promo';
+    process.env.EMAIL_FROM = 'test@crhsent.com';
+    process.env.BASE_URL = 'https://portal.atxwashdryfold.com';
   });
 
   afterEach(() => {
@@ -105,7 +105,7 @@ describe('Email Service Integration', () => {
       // Console transport logs the email content
       expect(consoleSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleSpy).toHaveBeenCalledWith('To:', 'test@example.com');
-      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@wavemax.promo>`);
+      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@crhsent.com>`);
       
       // Check for subject
       const calls = consoleSpy.mock.calls.map(call => call.join(' '));
@@ -131,7 +131,7 @@ describe('Email Service Integration', () => {
       
       expect(consoleSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleSpy).toHaveBeenCalledWith('To:', 'customer@example.com');
-      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@wavemax.promo>`);
+      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@crhsent.com>`);
       
       // Also logs success message
       expect(consoleSpy).toHaveBeenCalledWith('Customer welcome email sent successfully to:', 'customer@example.com');
@@ -150,7 +150,7 @@ describe('Email Service Integration', () => {
       
       expect(consoleSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleSpy).toHaveBeenCalledWith('To:', 'user@example.com');
-      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@wavemax.promo>`);
+      expect(consoleSpy).toHaveBeenCalledWith('From:', `"${brand.displayName}" <test@crhsent.com>`);
       
       const calls = consoleSpy.mock.calls.map(call => call.join(' '));
       expect(calls.some(call => call.includes('Password Reset'))).toBe(true);
@@ -197,7 +197,7 @@ describe('Email Service Integration', () => {
       process.env.EMAIL_PROVIDER = 'smtp';
       process.env.EMAIL_HOST = 'smtp.mailcow.email';
       process.env.EMAIL_PORT = '587';
-      process.env.EMAIL_USER = 'noreply@wavemax.promo';
+      process.env.EMAIL_USER = 'noreply@crhsent.com';
       process.env.EMAIL_PASS = 'testpass';
 
       // Verify service loads without errors with Mailcow config
@@ -210,7 +210,7 @@ describe('Email Service Integration', () => {
       process.env.EMAIL_PROVIDER = 'smtp';
       process.env.EMAIL_HOST = 'smtp.mailcow.email';
       process.env.EMAIL_PORT = '465';
-      process.env.EMAIL_USER = 'noreply@wavemax.promo';
+      process.env.EMAIL_USER = 'noreply@crhsent.com';
       process.env.EMAIL_PASS = 'testpass';
 
       expect(() => {

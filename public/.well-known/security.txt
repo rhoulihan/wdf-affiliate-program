@@ -1,11 +1,11 @@
-# RFC 9116 — Security Disclosure Policy for rundberglaundry.com / wavemax.promo
+# RFC 9116 — Security Disclosure Policy for portal.atxwashdryfold.com
 # Operated by CRHS Enterprises, LLC under a franchise license from WaveMAX Franchise, LLC.
 
-Contact: mailto:rickh@wavemaxlaundry.com
+Contact: mailto:security@crhsent.com
 Expires: 2027-05-20T00:00:00.000Z
 Preferred-Languages: en
-Canonical: https://rundberglaundry.com/.well-known/security.txt
-Policy: https://rundberglaundry.com/privacy-policy.html
+Canonical: https://portal.atxwashdryfold.com/.well-known/security.txt
+Policy: https://portal.atxwashdryfold.com/privacy-policy.html
 
 # Please report security vulnerabilities responsibly via email above.
 # Acknowledgement within 5 business days. No bug-bounty program at this

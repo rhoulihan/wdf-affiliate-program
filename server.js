@@ -1246,6 +1246,11 @@ app.get('/sitemap.xml', (req, res) => {
     // Search Console report it "Discovered - currently not indexed": its
     // canonical points away to the apex, so it was never going to index on its own.
     urls.push({ loc: `https://${host}/`, priority: '1.0' });
+  } else if (host === 'portal.atxwashdryfold.com') {
+    // The affiliate app's own canonical host (migration target for the retired
+    // promo hosts). Self-canonical to the portal apex — the app must not point
+    // its sitemap at the marketing primary domain.
+    urls.push({ loc: `https://${host}/`, priority: '1.0' });
   } else if (isManagedHost(host)) {
     // atxwashateria.com, runberglaundry.com — apex only.
     urls.push({ loc: `https://${host}/`, priority: '1.0' });

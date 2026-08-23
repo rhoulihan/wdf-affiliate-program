@@ -1,6 +1,5 @@
 [
   "docker-compose.yml",
-  "public/.well-known/security.txt",
   "public/about-us-embed.html",
   "public/administrator-login-embed.html",
   "public/affiliate-landing-embed.html",
@@ -83,7 +82,6 @@
   "server/templates/emails/pt/order-ready.html",
   "tests/e2e/austin-reference/wash-dry-fold.spec.js",
   "tests/integration/adminCleanUrl.test.js",
-  "tests/integration/emailService.integration.test.js",
   "tests/integration/kioskAdvance.test.js",
   "tests/setup.isolated.js",
   "tests/setup.js",
@@ -95,7 +93,6 @@
   "tests/unit/branding-guard.test.js",
   "tests/unit/claimPageWiring.test.js",
   "tests/unit/emailDispatcherRelocation.test.js",
-  "tests/unit/emailTransport.test.js",
   "tests/unit/inviteService.test.js",
   "tests/unit/onboardingEmail.test.js",
   "tests/unit/partnerLanding.test.js",

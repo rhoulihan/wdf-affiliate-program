@@ -12,7 +12,7 @@ describe('email transport — From override', () => {
     sendMail = jest.fn().mockResolvedValue({ messageId: 'm1' });
     nodemailer.createTransport.mockReturnValue({ sendMail });
     process.env.EMAIL_PROVIDER = 'smtp';
-    process.env.EMAIL_FROM = 'no-reply@wavemax.promo';
+    process.env.EMAIL_FROM = 'no-reply@crhsent.com';
   });
 
   it('uses the fromOverride argument verbatim when provided', async () => {
@@ -23,7 +23,7 @@ describe('email transport — From override', () => {
 
   it('falls back to the default From when no override is given', async () => {
     await sendEmail('to@example.com', 'Subj', '<p>hi</p>');
-    expect(sendMail.mock.calls[0][0].from).toContain('no-reply@wavemax.promo');
+    expect(sendMail.mock.calls[0][0].from).toContain('no-reply@crhsent.com');
   });
 });
 
