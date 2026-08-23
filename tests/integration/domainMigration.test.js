@@ -20,4 +20,13 @@ describe('4a host canonicalization', () => {
     const r = await asHost('portal.atxwashdryfold.com');
     expect(r.status).toBe(200);
   });
+  test('served CSP allows portal.atxwashdryfold.com in connect-src and frame-ancestors', async () => {
+    const r = await asHost('portal.atxwashdryfold.com');
+    const csp = r.headers['content-security-policy'];
+    expect(csp).toBeTruthy();
+    const directive = (name) =>
+      (csp.split(';').map((s) => s.trim()).find((s) => s.startsWith(`${name} `)) || '');
+    expect(directive('connect-src')).toContain('https://portal.atxwashdryfold.com');
+    expect(directive('frame-ancestors')).toContain('https://portal.atxwashdryfold.com');
+  });
 });

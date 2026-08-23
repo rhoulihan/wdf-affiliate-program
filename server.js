@@ -411,8 +411,8 @@ app.use((req, res, next) => {
       'https://fonts.googleapis.com',
       'https://stackpath.bootstrapcdn.com'
     ],
-    'img-src': ['\'self\'', 'data:', 'https://wavemax.promo', 'https://www.wavemax.promo', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://*.tile.openstreetmap.org', 'https://tile.openstreetmap.org', 'https://cdnjs.cloudflare.com', 'https://flagcdn.com', 'https://secure.walibu.com', 'https://upload.wikimedia.org', 'https://*.googleusercontent.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://www.facebook.com'],
-    'connect-src': ['\'self\'', 'https://wavemax.promo', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://stackpath.bootstrapcdn.com', 'https://router.project-osrm.org', 'https://graphhopper.com', 'https://api.openrouteservice.org', 'https://valhalla1.openstreetmap.de', 'https://nominatim.openstreetmap.org', 'https://www.local-marketing-reports.com', 'https://places.googleapis.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://connect.facebook.net', 'https://www.facebook.com',
+    'img-src': ['\'self\'', 'data:', 'https://wavemax.promo', 'https://www.wavemax.promo', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://*.tile.openstreetmap.org', 'https://tile.openstreetmap.org', 'https://cdnjs.cloudflare.com', 'https://flagcdn.com', 'https://secure.walibu.com', 'https://upload.wikimedia.org', 'https://*.googleusercontent.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://www.facebook.com'],
+    'connect-src': ['\'self\'', 'https://wavemax.promo', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://stackpath.bootstrapcdn.com', 'https://router.project-osrm.org', 'https://graphhopper.com', 'https://api.openrouteservice.org', 'https://valhalla1.openstreetmap.de', 'https://nominatim.openstreetmap.org', 'https://www.local-marketing-reports.com', 'https://places.googleapis.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://connect.facebook.net', 'https://www.facebook.com',
       // Firebase Phone Auth (PR 7) — Identity Toolkit + secure-token endpoints,
       // plus the reCAPTCHA origins the v2 fallback fetches from (www.google.com
       // /recaptcha/... and gstatic). Without www.google.com here the reCAPTCHA
@@ -423,18 +423,18 @@ app.use((req, res, next) => {
     'object-src': ['\'none\''],
     'media-src': ['\'self\''],
     'frame-src': isClickjackingDemo
-      ? ['\'self\'', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
+      ? ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
         // Firebase Phone Auth (PR 7) — the auth helper iframe.
         'https://wavemax-bag-registration.firebaseapp.com',
         // Educational clickjacking demo only — see isClickjackingDemo comment above.
         'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com', 'https://rundberglaundry.com']
-      : ['\'self\'', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
+      : ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
         // reCAPTCHA v2 challenge iframe (fallback when Enterprise can't init).
         'https://www.recaptcha.net',
         // Firebase Phone Auth (PR 7) — the auth helper iframe.
         'https://wavemax-bag-registration.firebaseapp.com'],
     'form-action': ['\'self\''],
-    'frame-ancestors': ['\'self\'', 'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com'],
+    'frame-ancestors': ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com'],
     'base-uri': ['\'self\''],
     'child-src': ['\'none\''],
     'worker-src': ['\'self\''],
