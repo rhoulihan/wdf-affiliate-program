@@ -34,6 +34,12 @@ const EXCLUDED_FILES = new Set([
   'public/wavemaxlaundry-embed-code.html', 'public/wavemaxlaundry-embed-code-complete.html',
   'public/iframe-parent-example.html', 'public/iframe-parent-example-complete.html',
   'public/products-placeholder.html',
+  // Austin marketing embeds — raw/SPA-served SEO surfaces (hardcoded title/meta/
+  // og cannot be server-substituted on the static path). De-brand deferred with
+  // the rest of the Austin reference build (Phase 4 / marketing-content pass).
+  'public/about-us-embed.html', 'public/austin-landing-v3-embed.html',
+  'public/commercial-embed.html', 'public/contact-embed.html',
+  'public/self-serve-laundry-embed.html', 'public/wash-dry-fold-embed.html',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
   'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
   // Guard-style test that asserts the ABSENCE of the mark in locales — its
@@ -51,6 +57,16 @@ const INFRA_ALLOW = [
   /wavemaxlaundry\.com/gi, /wavemax-bag-registration/gi,
   /wavemax\.firebaseapp\.com/gi, /wavemax\.appspot\.com/gi,
   /wavemax_affiliate/gi, /wavemax-affiliate-program/gi,
+  // Phase-4 deferred code identifiers — asset filenames, CSS class names, and
+  // API/contact domains. These exact tokens never appear in display copy, so a
+  // line carrying only them is not user-facing brand (the rename is Phase 4).
+  /logo-wavemax\.png/gi, /wavemax-embed\.css/gi,
+  /wavemax-blue/gi, /wavemax-affiliate-container/gi, /wavemax-affiliate-header/gi,
+  /api\.wavemax\.com/gi, /support@wavemax\.com/gi, /legal@wavemax\.com/gi,
+  // Trademark / proprietary legal notices kept VERBATIM (they name the real
+  // franchisor mark + entity; mechanically tokenizing them is legally wrong).
+  /WaveMAX is a trademark/gi, /WaveMAX™/gi, /the WaveMAX logo/gi,
+  /WaveMAX Franchise, LLC/gi, /WaveMAX WDF Affiliate Portal/gi,
 ];
 
 function isExcludedPath(p) {
