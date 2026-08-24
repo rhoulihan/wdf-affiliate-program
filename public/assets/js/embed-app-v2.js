@@ -57,17 +57,6 @@ const EMBED_PAGES = {
     '/administrator-dashboard': '/administrator-dashboard-embed.html',
     '/affiliate-success': '/affiliate-success-embed.html',
     '/affiliate-landing': '/affiliate-landing-embed.html',
-    // Website pages (content-only for iframe embedding)
-    '/home': '/site-page-content-only.html',
-    '/self-serve-laundry': '/self-serve-laundry-embed.html',
-    '/wash-dry-fold': '/wash-dry-fold-embed.html',
-    '/commercial': '/site-page-content-only.html',
-    '/about-us': '/site-page-content-only.html',
-    '/testimonials': '/site-page-content-only.html',
-    '/locations': '/site-page-content-only.html',
-    '/contact': '/site-page-content-only.html',
-    '/employment': '/site-page-content-only.html',
-    '/blog': '/site-page-content-only.html',
     '/affiliate-program': '/affiliate-landing-embed.html'
     // Add more pages here as they are migrated to CSP compliance
 };
@@ -595,51 +584,11 @@ function initializePageScripts(route) {
         '/administrator-login': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/csrf-utils.js', '/assets/js/api-client.js', '/assets/js/administrator-login-init.js'],
         '/administrator-dashboard': ['https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js', '/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/modal-utils.js', '/assets/js/errorHandler.js', '/assets/js/csrf-utils.js', '/assets/js/api-client.js', '/assets/js/password-validator-component.js', '/assets/js/qrcode.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', '/assets/js/label-print-utils.js', '/assets/js/administrator-dashboard-init.js?v=20260624c', '/assets/js/admin-operator-fix.js', '/assets/js/administrator-dashboard-i18n.js'],
         '/affiliate-success': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/modal-utils.js', '/assets/js/affiliate-success-init.js'],
-        '/affiliate-landing': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/api-client.js', '/assets/js/affiliate-landing-init.js?v=20260623a'],
-        // Site pages
-        '/home': ['/assets/js/site-page-loader.js'],
-        '/self-serve-laundry': [
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
-            'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js',
-            '/assets/js/iframe-bridge-v2.js',
-            '/assets/js/self-serve-translations.js',
-            '/assets/js/seo-config-self-serve.js',
-            '/assets/js/self-serve-laundry-modern.js'
-        ],
-        '/wash-dry-fold': [
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
-            'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js',
-            '/assets/js/iframe-bridge-v2.js',
-            '/assets/js/wash-dry-fold-translations.js',
-            '/assets/js/seo-config-wash-dry-fold.js',
-            '/assets/js/wash-dry-fold-modern.js'
-        ],
-        '/commercial': ['/assets/js/site-page-loader.js'],
-        '/about-us': ['/assets/js/site-page-loader.js'],
-        '/testimonials': ['/assets/js/site-page-loader.js'],
-        '/locations': ['/assets/js/site-page-loader.js'],
-        '/contact': ['/assets/js/site-page-loader.js'],
-        '/employment': ['/assets/js/site-page-loader.js'],
-        '/blog': ['/assets/js/site-page-loader.js']
+        '/affiliate-landing': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/api-client.js', '/assets/js/affiliate-landing-init.js?v=20260623a']
     };
 
     // Define page-specific stylesheets
-    const pageStyles = {
-        '/self-serve-laundry': [
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-            'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css',
-            'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap',
-            'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css',
-            '/assets/css/self-serve-laundry-modern.css?v=20250123b'
-        ],
-        '/wash-dry-fold': [
-            'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-            'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css',
-            'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap',
-            'https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css',
-            '/assets/css/wash-dry-fold-modern.css'
-        ]
-    };
+    const pageStyles = {};
 
     // Load scripts for the current route (use base route without query params)
     const baseRoute = route.split('?')[0];
