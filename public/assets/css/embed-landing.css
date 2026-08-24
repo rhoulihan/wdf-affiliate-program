@@ -1,14 +1,14 @@
 /* Embed Landing Page Styles */
 
 /* Custom styles for embedding */
-.wavemax-affiliate-container {
+.affiliate-container {
     font-family: 'Open Sans', sans-serif;
     background-color: #f8f9fa;
     min-height: 600px;
     padding: 0 0 40px 0;
 }
 
-.wavemax-affiliate-header {
+.affiliate-header {
     background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
     color: white;
     padding: 60px 0;
@@ -19,7 +19,7 @@
 }
 
 /* Centered button styles for header */
-.wavemax-affiliate-header .btn-lg {
+.affiliate-header .btn-lg {
     padding: 12px 30px;
     font-size: 1.1rem;
     font-weight: 500;
@@ -29,26 +29,26 @@
     transition: all 0.3s ease;
 }
 
-.wavemax-affiliate-header .btn-primary {
+.affiliate-header .btn-primary {
     background: white;
     color: #1e3a8a;
     border: 2px solid white;
 }
 
-.wavemax-affiliate-header .btn-primary:hover {
+.affiliate-header .btn-primary:hover {
     background: rgba(255, 255, 255, 0.9);
     border-color: rgba(255, 255, 255, 0.9);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.wavemax-affiliate-header .btn-outline-primary {
+.affiliate-header .btn-outline-primary {
     background: transparent;
     color: white;
     border: 2px solid white;
 }
 
-.wavemax-affiliate-header .btn-outline-primary:hover {
+.affiliate-header .btn-outline-primary:hover {
     background: rgba(255, 255, 255, 0.1);
     color: white;
     border-color: white;
@@ -56,14 +56,14 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.wavemax-affiliate-header h1 {
+.affiliate-header h1 {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 20px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.wavemax-affiliate-header p {
+.affiliate-header p {
     font-size: 1.2rem;
     opacity: 0.9;
     max-width: 600px;
@@ -171,7 +171,7 @@
 }
 
 @media (max-width: 768px) {
-    .wavemax-affiliate-header h1 {
+    .affiliate-header h1 {
         font-size: 2rem;
     }
     
@@ -180,14 +180,14 @@
     }
     
     /* Mobile button styles */
-    .wavemax-affiliate-header .btn-lg {
+    .affiliate-header .btn-lg {
         padding: 10px 24px;
         font-size: 1rem;
         margin-bottom: 10px;
         display: inline-block;
     }
     
-    .wavemax-affiliate-header .me-3 {
+    .affiliate-header .me-3 {
         margin-right: 0.5rem !important;
     }
 }
