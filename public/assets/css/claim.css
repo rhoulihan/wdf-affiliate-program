@@ -28,7 +28,7 @@
 
 /* Brand header band (was undefined on this page — other embed pages define it
    in their own per-page stylesheets). */
-.wavemax-blue { background-color: #1e3a8a; }
+.brand-blue { background-color: #1e3a8a; }
 
 /* Brand logo header — shown on every claim state; matches the email header. */
 .claim-logo-header {
