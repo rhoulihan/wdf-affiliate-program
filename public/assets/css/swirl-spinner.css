@@ -15,8 +15,8 @@
 }
 
 /* Animate dots along elliptical path.
- * !important is intentional: wavemax-theme.css has a global
- * @media (prefers-reduced-motion: reduce) rule that nukes
+ * !important is intentional: a global
+ * @media (prefers-reduced-motion: reduce) rule can nuke
  * `animation-duration` to 0.01ms with !important on the universal
  * selector. A loading spinner is functional feedback (status of an
  * in-flight request), not decorative motion — users with

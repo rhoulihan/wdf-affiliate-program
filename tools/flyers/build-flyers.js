@@ -12,8 +12,8 @@
  *                FLYER_URL (default https://rundberglaundry.com/wavemax-affiliate)
  *
  * Outputs to public/assets/flyers/ (served under the gate-exempt /assets/ path):
- *   wavemax-affiliate-flyer-portrait.pdf
- *   wavemax-affiliate-flyer-landscape.pdf
+ *   affiliate-flyer-portrait.pdf
+ *   affiliate-flyer-landscape.pdf
  */
 const fs = require('fs');
 const path = require('path');
@@ -171,7 +171,7 @@ async function main() {
 
   for (const orientation of ['portrait', 'landscape']) {
     const htmlPath = path.join(tmp, `flyer-${orientation}.html`);
-    const pdfPath = path.join(OUT_DIR, `wavemax-affiliate-flyer-${orientation}.pdf`);
+    const pdfPath = path.join(OUT_DIR, `affiliate-flyer-${orientation}.pdf`);
     fs.writeFileSync(htmlPath, pageHTML(orientation, qrSvg));
     execFileSync(CHROME, [
       '--headless=new', '--disable-gpu', '--no-sandbox', '--no-pdf-header-footer',

@@ -24,7 +24,7 @@ describe('/wavemax-affiliate page', () => {
 
   it('is WaveMAX-branded and omits the UT-specific affiliation field', () => {
     expect(html).toContain('/assets/images/brand/logo.png');
-    expect(html).toContain('/assets/css/wavemax-affiliate.css');
+    expect(html).toContain('/assets/css/affiliate-ad.css');
     // The generic ad page must NOT reuse the UT-student affiliation select.
     expect(html).not.toContain('name="affiliation"');
     expect(html).not.toMatch(/ut-student|UT Austin|burnt.?orange/i);
