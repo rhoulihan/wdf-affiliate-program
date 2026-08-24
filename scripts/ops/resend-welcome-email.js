@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
 // Resend welcome email to specific affiliate
+// dotenv MUST load before anything else: the email stack reads BRAND_* and
+// EMAIL_* config, and loading it late is how this script shipped mail branded
+// "Laundromat" instead of the configured brand name.
+require('dotenv').config();
 const mongoose = require('mongoose');
 const Affiliate = require('../../server/models/Affiliate');
 const emailService = require('../../server/utils/emailService');
-require('dotenv').config();
 
 async function resendWelcomeEmail(email) {
   try {

@@ -35,4 +35,19 @@ describe('brand config', () => {
     expect(brand.logoPath).toBe('/custom/logo.svg');
     expect(brand.ogImagePath).toBe('/custom/og.png');
   });
+
+  // Regression: scripts/ops/resend-welcome-email.js required the email stack
+  // before calling dotenv.config(), so brand froze to the 'Laundromat' fallback
+  // and every script-sent email was mis-branded in BOTH the From display name
+  // (transport.js) and the subject (dispatcher/affiliate.js). The values must
+  // resolve when read, not when the module is first imported.
+  test('resolves at access time, so an env load after import still applies', () => {
+    jest.resetModules();
+    const brand = require('../../server/config/brand');
+    expect(brand.displayName).toBe('Laundromat'); // nothing set at import time
+    process.env.BRAND_DISPLAY_NAME = 'Acme Wash'; // a late dotenv.config()
+    process.env.BRAND_LOGO_PATH = '/custom/late.png';
+    expect(brand.displayName).toBe('Acme Wash');
+    expect(brand.logoPath).toBe('/custom/late.png');
+  });
 });
