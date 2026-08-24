@@ -381,11 +381,6 @@ app.use((req, res, next) => {
       'https://cdn.jsdelivr.net',
       'https://code.jquery.com',
       'https://www.local-marketing-reports.com',
-      // reports.hibu.com used to be in this list when the page loaded
-      // Hibu's ybDynamicPhoneInsertion.js cross-origin. We now self-host
-      // a snapshot at /assets/vendor/ybDynamicPhoneInsertion.js (refreshed
-      // every 12h by scripts/ops/refresh-hibu.sh) so the origin is no
-      // longer needed in script-src.
       'https://static.cloudflareinsights.com',
       // Google Maps JS API loader + bootstrap (locations modal)
       'https://maps.googleapis.com',
