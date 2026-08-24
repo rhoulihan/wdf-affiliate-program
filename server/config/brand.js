@@ -11,7 +11,7 @@
 //   BRAND_LEGAL_NAME     — legal entity (real owner)        (default 'CRHS Enterprises, LLC')
 //   BRAND_INSTANCE_NAME  — lowercase instance slug          (default 'laundromat')
 //   BRAND_LOGO_PATH      — site-relative logo image path    (default '/assets/images/brand/logo.png')
-//   BRAND_OG_IMAGE_PATH  — site-relative OG/Twitter image   (default '/assets/images/affiliate-og.png')
+//   BRAND_OG_IMAGE_PATH  — site-relative OG/Twitter image   (default '/assets/images/affiliate-ad-og.png')
 // logoPath is resolved into HTML via the {{BRAND_LOGO}} placeholder (cspHelper)
 // and into emails via the [BRAND_LOGO] placeholder (email/template-manager,
 // where it is prefixed with BASE_URL to yield an absolute URL).
@@ -21,6 +21,6 @@ const shortName = process.env.BRAND_SHORT_NAME || 'Laundromat';
 const legalName = process.env.BRAND_LEGAL_NAME || 'CRHS Enterprises, LLC';
 const instanceName = process.env.BRAND_INSTANCE_NAME || 'laundromat';
 const logoPath = process.env.BRAND_LOGO_PATH || '/assets/images/brand/logo.png';
-const ogImagePath = process.env.BRAND_OG_IMAGE_PATH || '/assets/images/affiliate-og.png';
+const ogImagePath = process.env.BRAND_OG_IMAGE_PATH || '/assets/images/affiliate-ad-og.png';
 
 module.exports = { displayName, shortName, legalName, instanceName, logoPath, ogImagePath };

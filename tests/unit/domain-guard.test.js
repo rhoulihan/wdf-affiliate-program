@@ -16,9 +16,7 @@ const EXCLUDED_PREFIXES = [
   'tests/',
 ];
 const EXCLUDED_FILES = new Set([
-  // kept marketing parent pages that host the iframe or name the franchisor
-  'public/iframe-parent-example.html', 'public/iframe-parent-example-complete.html',
-  'public/wavemaxlaundry-embed-code.html', 'public/wavemaxlaundry-embed-code-complete.html',
+  // kept affiliate-recruitment page that names the franchisor mark
   'public/wavemax-affiliate.html',
   // this guard + its baseline
   'tests/unit/domain-guard.test.js',

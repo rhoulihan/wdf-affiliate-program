@@ -24,7 +24,7 @@ describe('brand config', () => {
   test('image paths default to neutral asset locations', () => {
     const brand = require('../../server/config/brand');
     expect(brand.logoPath).toBe('/assets/images/brand/logo.png');
-    expect(brand.ogImagePath).toBe('/assets/images/affiliate-og.png');
+    expect(brand.ogImagePath).toBe('/assets/images/affiliate-ad-og.png');
   });
 
   test('BRAND_LOGO_PATH / BRAND_OG_IMAGE_PATH env override the image paths', () => {

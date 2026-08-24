@@ -15,10 +15,9 @@ const EXCLUDED_PREFIXES = [
   'crhsent/', 'dc_private/', 'docs/', 'node_modules/', '.git/',
   'design-explorer/', 'tests/unit/design-explorer/',
   'public/design-explorer/',
-  // Stylesheets — CSS carries only class-name identifiers and franchisor CDN
-  // URLs (Q1 code identifiers, deferred to Phase 4 with the asset rename); no
-  // user-facing display TEXT lives in CSS. Includes the kept wavemax-*.css
-  // component/theme sheets used by the affiliate + marketing surfaces.
+  // Stylesheets — CSS carries only class-name identifiers, franchisor CDN
+  // URLs, and brand-name mentions inside header comments; no user-facing
+  // display TEXT lives in CSS.
   'public/assets/css/',
 ];
 const EXCLUDED_FILES = new Set([
@@ -77,11 +76,11 @@ const INFRA_ALLOW = [
   /wavemaxlaundry\.com/gi, /wavemax-bag-registration/gi,
   /wavemax\.firebaseapp\.com/gi, /wavemax\.appspot\.com/gi,
   /wavemax_affiliate/gi, /wavemax-affiliate-program/gi,
-  // Phase-4 deferred code identifiers — asset filenames, CSS class names, and
-  // API/contact domains. These exact tokens never appear in display copy, so a
-  // line carrying only them is not user-facing brand (the rename is Phase 4).
-  /logo-wavemax\.png/gi, /wavemax-embed\.css/gi,
-  /wavemax-blue/gi, /wavemax-affiliate-container/gi, /wavemax-affiliate-header/gi,
+  // API/contact domains — appear in a CSP connect-src directive and in
+  // terms-of-service contact copy, never as user-facing brand display copy.
+  // (The Phase-4 asset-filename + CSS-class identifiers that lived here —
+  // logo-wavemax.png, wavemax-embed.css, wavemax-blue, wavemax-affiliate-{container,header}
+  // — are renamed/deleted, so their strip-patterns were pruned.)
   /api\.wavemax\.com/gi, /support@wavemax\.com/gi, /legal@wavemax\.com/gi,
   // Trademark / proprietary legal notices kept VERBATIM (they name the real
   // franchisor mark + entity; mechanically tokenizing them is legally wrong).
