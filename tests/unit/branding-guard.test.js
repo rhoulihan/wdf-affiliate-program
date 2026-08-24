@@ -30,10 +30,7 @@ const EXCLUDED_FILES = new Set([
   // KEEP affiliate-recruitment marketing page — legitimately names the WaveMAX
   // affiliate program in its recruitment copy (retained through Phase 4b).
   'public/wavemax-affiliate.html',
-  // Kept host-page samples that name the franchisor mark (embed-code examples +
-  // products placeholder).
-  'public/wavemaxlaundry-embed-code.html', 'public/wavemaxlaundry-embed-code-complete.html',
-  'public/iframe-parent-example.html', 'public/iframe-parent-example-complete.html',
+  // Kept host-page sample that names the franchisor mark (products placeholder).
   'public/products-placeholder.html',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
   'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
