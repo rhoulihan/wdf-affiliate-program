@@ -5,6 +5,13 @@ const logger = require('../../../utils/logger');
 const { loadTemplate, fillTemplate, formatTimeSlot } = require('../template-manager');
 const { sendEmail } = require('../transport');
 const brand = require('../../../config/brand');
+
+// Affiliate-facing app links. BASE_URL is read per call, not captured at import,
+// so a late dotenv load can never freeze the fallback. Mirrors the pattern in the
+// admin/customer/operator dispatchers. These were previously hardcoded to the
+// franchisor's marketing host, which sent affiliates -- and the customers they
+// shared their landing link with -- to a site we do not control.
+const appUrl = (query) => `${process.env.BASE_URL || 'https://rundberglaundry.com'}/embed-app-v2.html?${query}`;
 // =============================================================================
 // Affiliate Emails
 // =============================================================================
@@ -16,7 +23,7 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
   try {
     const language = affiliate.languagePreference || 'en';
     const template = await loadTemplate('affiliate-welcome', language);
-    const landingPageUrl = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?route=/affiliate-landing&code=${affiliate.affiliateId}`;
+    const landingPageUrl = appUrl(`route=/affiliate-landing&code=${affiliate.affiliateId}`);
 
     // Get translations for the email content
     const translations = {
@@ -123,10 +130,10 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
       AFFILIATE_ID: affiliate.affiliateId,
       landing_page_url: landingPageUrl,
       LANDING_PAGE_URL: landingPageUrl,
-      login_url: 'https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate',
-      LOGIN_URL: 'https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate',
-      dashboard_url: 'https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate',
-      DASHBOARD_URL: 'https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate',
+      login_url: appUrl('login=affiliate'),
+      LOGIN_URL: appUrl('login=affiliate'),
+      dashboard_url: appUrl('login=affiliate'),
+      DASHBOARD_URL: appUrl('login=affiliate'),
       current_year: new Date().getFullYear(),
       CURRENT_YEAR: new Date().getFullYear(),
       ...emailTranslations
@@ -311,7 +318,7 @@ exports.sendAffiliateNewCustomerEmail = async (affiliate, customer, bagInfo = {}
       customer_address: `${customer.address}, ${customer.city}, ${customer.state} ${customer.zipCode}`,
       service_frequency: customer.serviceFrequency,
       number_of_bags: numberOfBags,
-      dashboard_url: `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate&customer=${customer.customerId}`,
+      dashboard_url: appUrl(`login=affiliate&customer=${customer.customerId}`),
       current_year: new Date().getFullYear(),
       ...emailTranslations
     };
@@ -626,7 +633,7 @@ exports.sendAffiliateOrderCancellationEmail = async (affiliate, order, customer)
       order_id: order.orderId,
       customer_name: `${customer.firstName} ${customer.lastName}`,
       cancellation_time: new Date().toLocaleTimeString(),
-      dashboard_url: 'https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate',
+      dashboard_url: appUrl('login=affiliate'),
       current_year: new Date().getFullYear(),
       ...emailTranslations
     };

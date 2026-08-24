@@ -31,6 +31,9 @@ const EXCLUDED_FILES = new Set([
   'public/wavemax-affiliate.html',
   // Kept host-page sample that names the franchisor mark (products placeholder).
   'public/products-placeholder.html',
+  // Asserts the ABSENCE of the franchisor host in the affiliate email dispatcher,
+  // so it must name it. See affiliate-email-franchisor-urls-2026-08-24.
+  'tests/unit/affiliateEmailUrls.test.js',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
   'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
   // Phase-4a domain-migration tooling — legitimately references wavemax.
