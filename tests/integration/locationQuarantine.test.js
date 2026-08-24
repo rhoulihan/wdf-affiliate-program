@@ -43,7 +43,8 @@ describe('Location quarantine middleware', () => {
 
     it('does not redirect / to corporate', async () => {
       const response = await request(app).get('/').redirects(0);
-      // Existing behavior: / redirects to /franchise/. Just assert NOT corporate.
+      // Existing behavior: / redirects to the app SPA shell (/embed-app-v2.html).
+      // Just assert NOT corporate.
       expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
     });
 

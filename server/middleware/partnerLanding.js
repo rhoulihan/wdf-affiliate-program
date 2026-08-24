@@ -28,6 +28,9 @@ const PARTNER_LANDING_HOSTS = [
   'atxwashdryfold.com', 'www.atxwashdryfold.com'
 ];
 
+// Hosts where the partner page is publicly launched (served to everyone, indexable).
+const PARTNER_PUBLIC_HOSTS = ['atxwashdryfold.com', 'www.atxwashdryfold.com'];
+
 // Read the partner page once at startup (the file ships in the repo). A reload
 // requires a redeploy/pm2 restart, same as any other in-memory-cached template.
 const PAGE_PATH = path.join(__dirname, '..', '..', 'public', 'partner-program.html');
@@ -115,6 +118,12 @@ function partnerLanding(req, res, next) {
   if (isExempt(req.path)) return next();
   if (isStore(req)) return next(); // the store sees the real app on every route
 
+  if (PARTNER_PUBLIC_HOSTS.includes(reqHost(req))) {
+    // atxwashdryfold.com is publicly launched — serve the partner page to everyone (indexable).
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).type('html').send(PARTNER_PAGE);
+  }
+
   if (isPreview(req)) {
     // Preview audience sees the live partner page (indexable meta is in the page;
     // crawlers are not on the allowlist, so they only ever get the noindex hold).
@@ -130,6 +139,7 @@ function partnerLanding(req, res, next) {
 
 module.exports = partnerLanding;
 module.exports._hosts = PARTNER_LANDING_HOSTS;
+module.exports._publicHosts = PARTNER_PUBLIC_HOSTS;
 module.exports._isExempt = isExempt;
 module.exports._isStore = isStore;
 module.exports._isPreview = isPreview;

@@ -1034,8 +1034,14 @@ app.use('/api', (req, res, next) => {
 // like /franchise, /about/, etc. and are static V3-styled marketing
 // pages with no per-franchise data. Mounted BEFORE the slug router so
 // these top-level slugs don't get picked up as (nonexistent) franchise slugs.
+//
+// Root route: serve the affiliate-program SPA app shell. On the marketing
+// hosts (rundberglaundry.com, atxwashdryfold.com, …) the partnerLanding
+// middleware pre-empts `/` before it reaches here, so this route effectively
+// fires only for the app host (portal.atxwashdryfold.com) and any
+// non-marketing host — exactly where we want the app served.
 app.get('/', (req, res) => {
-  res.redirect(302, '/franchise/');
+  res.redirect(302, '/embed-app-v2.html');
 });
 app.get(['/franchise', '/franchise/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'franchise.html'));

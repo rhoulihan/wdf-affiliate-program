@@ -183,3 +183,55 @@ describe('partnerLanding store-IP bypass', () => {
     expect(res.send.mock.calls[0][0]).toMatch(/coming soon/i);
   });
 });
+
+// Phase 4b public launch: atxwashdryfold.com is un-gated — its `/` serves the
+// partner interest form to EVERYONE (indexable, no preview allowlist), while
+// rundberglaundry.com (and the other host families) stay behind the preview gate.
+describe('partnerLanding — atxwashdryfold public launch', () => {
+  it('serves the partner page to a non-preview, non-store visitor on atxwashdryfold.com', () => {
+    for (const host of ['atxwashdryfold.com', 'www.atxwashdryfold.com']) {
+      const res = mkRes(); const next = jest.fn();
+      partnerLanding(req(host, '/', '8.8.8.8'), res, next);   // arbitrary public IP, not the preview allowlist
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      const html = res.send.mock.calls[0][0];
+      expect(html).toMatch(/Rundberg Laundry/);
+      expect(html).toMatch(/partner/i);
+      expect(html).not.toMatch(/coming soon/i);
+      // The public marketing page MUST be indexable — no noindex header on this branch.
+      expect(res.headers['X-Robots-Tag']).toBeUndefined();
+    }
+  });
+
+  it('holds for a visitor with no resolvable IP too — the ungate is host-based, not IP-based', () => {
+    const res = mkRes(); const next = jest.fn();
+    partnerLanding(req('atxwashdryfold.com', '/'), res, next); // no IP at all
+    expect(res.status).toHaveBeenCalledWith(200);
+    const html = res.send.mock.calls[0][0];
+    expect(html).toMatch(/Rundberg Laundry/);
+    expect(html).not.toMatch(/coming soon/i);
+    expect(res.headers['X-Robots-Tag']).toBeUndefined();
+  });
+
+  it('does NOT ungate rundberglaundry.com — a non-preview visitor there still gets the noindex hold', () => {
+    const res = mkRes(); const next = jest.fn();
+    partnerLanding(req('rundberglaundry.com', '/', '8.8.8.8'), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    const html = res.send.mock.calls[0][0];
+    expect(html).toMatch(/coming soon/i);
+    expect(html).not.toMatch(/partner/i);
+    expect(res.headers['X-Robots-Tag']).toBe('noindex, nofollow');
+  });
+
+  it('still exempts app surfaces on atxwashdryfold.com (the SPA shell passes through, not the partner page)', () => {
+    const res = mkRes(); const next = jest.fn();
+    partnerLanding(req('atxwashdryfold.com', '/embed-app-v2.html', '8.8.8.8'), res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.send).not.toHaveBeenCalled();
+  });
+
+  it('exports the public-host list for testability', () => {
+    expect(partnerLanding._publicHosts).toEqual(['atxwashdryfold.com', 'www.atxwashdryfold.com']);
+  });
+});
