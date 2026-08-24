@@ -77,7 +77,7 @@ function sealStrip(lang) {
    Teal in both intensities (the one shared brand hit on warm paper). */
 function logoChip(h) {
   const hh = h || 26;
-  return `<span class="ap-chip"><img src="/assets/images/brand/logo-wavemax.png" alt="WaveMAX" width="${Math.round(hh * 4.39)}" height="${hh}"></span>`;
+  return `<span class="ap-chip"><img src="/assets/images/brand/logo.png" alt="WaveMAX" width="${Math.round(hh * 4.39)}" height="${hh}"></span>`;
 }
 
 /* ===== masthead: wordmark chip + poster nav + a live OPEN seal ===== */

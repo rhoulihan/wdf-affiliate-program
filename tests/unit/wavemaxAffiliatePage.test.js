@@ -23,7 +23,7 @@ describe('/wavemax-affiliate page', () => {
   });
 
   it('is WaveMAX-branded and omits the UT-specific affiliation field', () => {
-    expect(html).toContain('/assets/images/brand/logo-wavemax.png');
+    expect(html).toContain('/assets/images/brand/logo.png');
     expect(html).toContain('/assets/css/wavemax-affiliate.css');
     // The generic ad page must NOT reuse the UT-student affiliation select.
     expect(html).not.toContain('name="affiliation"');
@@ -32,7 +32,7 @@ describe('/wavemax-affiliate page', () => {
 
   it('declares its canonical URL and an og:image', () => {
     expect(html).toContain('rel="canonical" href="https://rundberglaundry.com/wavemax-affiliate"');
-    expect(html).toContain('/assets/images/wavemax-affiliate-og.png');
+    expect(html).toContain('/assets/images/affiliate-ad-og.png');
   });
 
   it('is served by an Express route', () => {

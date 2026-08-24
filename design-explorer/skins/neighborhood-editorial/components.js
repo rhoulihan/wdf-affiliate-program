@@ -52,7 +52,7 @@ const NAV = [
 /* the WaveMAX white wordmark on a dark brand chip — legible on cream/paper */
 function logoChip(h) {
   const hh = h || 26;
-  return `<span class="ne-logo-chip"><img src="/assets/images/brand/logo-wavemax.png" alt="WaveMAX" width="${Math.round(hh * 4.39)}" height="${hh}"></span>`;
+  return `<span class="ne-logo-chip"><img src="/assets/images/brand/logo.png" alt="WaveMAX" width="${Math.round(hh * 4.39)}" height="${hh}"></span>`;
 }
 
 /* ===== Masthead + nav ===== */

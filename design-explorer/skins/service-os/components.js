@@ -62,7 +62,7 @@ function topbar(page, intensity, lang) {
   const tag = intensity === 'heavy' ? esc(L.system) : esc(L.neighborhood);
   return `<header class="so-os"><div class="so-wrap so-os-in">
   <a class="so-brand" href="#" aria-label="WaveMAX Austin home">
-    <span class="so-logo-lockup"><img src="/assets/images/brand/logo-wavemax.png" alt="WaveMAX" width="140" height="28"></span>
+    <span class="so-logo-lockup"><img src="/assets/images/brand/logo.png" alt="WaveMAX" width="140" height="28"></span>
     <span class="so-brand-meta"><span class="so-brand-name">Austin</span><span class="so-brand-tag">${tag}</span></span>
   </a>
   <span class="so-os-spacer"></span>
@@ -133,7 +133,7 @@ function footer(intensity, lang) {
     : (lang === 'es' ? 'Negocio local · con licencia WaveMAX' : 'Locally owned · WaveMAX-licensed');
   return `<footer class="so-footer"><div class="so-wrap so-footer-in">
     <a class="so-brand" href="#" aria-label="WaveMAX Austin">
-      <span class="so-logo-lockup"><img src="/assets/images/brand/logo-wavemax.png" alt="WaveMAX" width="106" height="22"></span>
+      <span class="so-logo-lockup"><img src="/assets/images/brand/logo.png" alt="WaveMAX" width="106" height="22"></span>
     </a>
     <p class="so-footer-meta"><b>${esc(NAP.street)}</b>, ${esc(NAP.city)} ${esc(NAP.state)} · ${esc(NAP.phone)} · ${esc(ownership)}</p>
   </div></footer>`;

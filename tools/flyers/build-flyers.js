@@ -30,7 +30,7 @@ const URL_LABEL = URL.replace(/^https?:\/\//, '');
 const b64 = (p, mime) => `data:${mime};base64,${fs.readFileSync(p).toString('base64')}`;
 const FONT_DISP = b64(path.join(ROOT, 'public/assets/fonts/space-grotesk-latin.woff2'), 'font/woff2');
 const FONT_BODY = b64(path.join(ROOT, 'public/assets/fonts/plus-jakarta-sans-latin.woff2'), 'font/woff2');
-const LOGO = b64(path.join(ROOT, 'public/assets/images/brand/logo-wavemax.png'), 'image/png');
+const LOGO = b64(path.join(ROOT, 'public/assets/images/brand/logo.png'), 'image/png');
 
 // ── content ────────────────────────────────────────────────────────────────
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';

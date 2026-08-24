@@ -15,7 +15,9 @@ const injectNonce = (html, nonce) => {
   html = html
     .replace(/\{\{BRAND_NAME\}\}/g, brand.displayName)
     .replace(/\{\{BRAND_SHORT\}\}/g, brand.shortName)
-    .replace(/\{\{BRAND_LEGAL\}\}/g, brand.legalName);
+    .replace(/\{\{BRAND_LEGAL\}\}/g, brand.legalName)
+    .replace(/\{\{BRAND_LOGO\}\}/g, brand.logoPath)
+    .replace(/\{\{BRAND_OG_IMAGE\}\}/g, brand.ogImagePath);
   // Fill the empty brand-name meta (mirror the csp-nonce meta fill).
   html = html.replace(
     /<meta([^>]*name=["']brand-name["'][^>]*content=["'])["']([^>]*)>/gi,

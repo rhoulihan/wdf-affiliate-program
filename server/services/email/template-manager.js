@@ -49,6 +49,8 @@ function fillTemplate(template, data) {
   // caller having to pass them. Caller-supplied values still win.
   if (data.BRAND_NAME === undefined) data.BRAND_NAME = brand.displayName;
   if (data.BRAND_LEGAL === undefined) data.BRAND_LEGAL = brand.legalName;
+  // [BRAND_LOGO] resolves to an ABSOLUTE URL (emails can't use relative paths).
+  if (data.BRAND_LOGO === undefined) data.BRAND_LOGO = `${baseUrl}${brand.logoPath}`;
 
   return template.replace(/\[([A-Za-z0-9_]+)\]/g, (match, placeholder) => {
     const candidates = [placeholder, placeholder.toLowerCase(), placeholder.toUpperCase()];
