@@ -323,17 +323,7 @@ app.use((req, res, next) => {
     '/customer-login-embed.html',
     '/customer-dashboard-embed.html',
     '/forgot-password-embed.html',
-    '/reset-password-embed.html',
-    '/site-page-content-only.html',
-    // Austin franchisee content surfaces — embed pages have zero inline
-    // executable scripts after the 2026-05-20 sweep that converted the
-    // off-screen `style="position:absolute…"` attrs to .wm-sr-only.
-    '/austin-landing-v3-embed.html',
-    '/contact-embed.html',
-    '/wash-dry-fold-embed.html',
-    '/self-serve-laundry-embed.html',
-    '/commercial-embed.html',
-    '/about-us-embed.html'
+    '/reset-password-embed.html'
   ];
 
   // Apply strict CSP to documentation pages as well (but not examples)
@@ -341,24 +331,23 @@ app.use((req, res, next) => {
                              req.path.endsWith('.html') &&
                              !req.path.includes('/examples/');
 
-  // Apply strict CSP to franchise-host renders (/<slug>/ and
-  // /<slug>/<page> routes served by franchiseController). Enabled
-  // 2026-05-20 after the SEC L-1/L-2 sweep replaced inline-style
-  // mutations in austin-host-mock.js (modal scroll lock + search
-  // filter) and corporate-locations-modal.js with the .wm-noscroll /
-  // .wm-hidden class-toggle utilities. The controller's
-  // FRANCHISE_DATA_INJECTION inline script already carries the
-  // per-request nonce. Pattern: single-segment slug or slug + page,
-  // lowercase + digits + hyphens, no dots (i.e. not a static-file
-  // request like .html or .js).
-  const isFranchiseHostPage = /^\/[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?\/?$/.test(req.path)
+  // Apply strict CSP to clean-URL slug pages: single-segment (/<slug>) or
+  // double-segment (/<slug>/<page>) paths, lowercase + digits + hyphens, no
+  // dots (i.e. not a static-file request like .html or .js). This matcher is
+  // load-bearing for the KEEP surfaces: the crhsent.com clean-URL pages
+  // (the mediator record, /work, /proof, … served by the crhsent host
+  // handler above), the kept affiliate-marketing slug routes (/affiliate,
+  // /wavemax-affiliate), and /scanbag all get the nonce-based strict CSP only
+  // because they match here. Retired franchise slugs now 404, and harmlessly
+  // get strict CSP on the 404 response.
+  const isCleanUrlSlugPage = /^\/[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?\/?$/.test(req.path)
                               && !req.path.startsWith('/api/')
                               && !req.path.startsWith('/assets/')
                               && !req.path.startsWith('/locales/')
                               && !req.path.startsWith('/docs/')
                               && !req.path.startsWith('/dev/');
 
-  const useStrictCSP = strictCSPPages.includes(req.path) || isDocumentationPage || isFranchiseHostPage;
+  const useStrictCSP = strictCSPPages.includes(req.path) || isDocumentationPage || isCleanUrlSlugPage;
 
   // /wavemax/clickjacking-demo.html — the educational clickjacking demonstration
   // page on crhsent.com. Its sole purpose is to load the franchisor's headerless
@@ -579,7 +568,7 @@ app.use(partnerLanding);
 // ---- crhsent.com — first-class app page, mounted AFTER the access gate so the
 // gate fronts the CRHS content (gated when access_gate_enabled=true). Served
 // through the app (not static nginx) for the full security model: nonce-based
-// CSP (the mediator path matches isFranchiseHostPage -> strict), HSTS,
+// CSP (the mediator path matches isCleanUrlSlugPage -> strict), HSTS,
 // frame-ancestors, etc. HTML is nonce-injected via cspHelper; assets sent
 // directly. Path-traversal guarded. ----
 const { readHTMLWithNonce: crhsentReadHTML } = require('./server/utils/cspHelper');
@@ -616,12 +605,6 @@ app.use(async (req, res, next) => {
     return next();
   }
 });
-
-// Franchise self-serve preview endpoints (crhsent.com host only). Deploys DARK —
-// a no-op unless FRANCHISE_PREVIEW_ENABLED=true. Mounted here so it has body +
-// cookie parsing (above) and runs BEFORE the location quarantine (which would
-// otherwise redirect these crhsent /__preview/* paths to the corporate site).
-app.use(require('./server/middleware/franchisePreview'));
 
 // Rate limiting for API endpoints
 // Import centralized rate limiting configuration
@@ -837,57 +820,6 @@ app.get('/monitoring-dashboard.html', (req, res) => {
 });
 
 
-// ─── Austin reference build: server-rendered config ────────────────
-// Provides the Google Places API key + Place ID to the browser without
-// committing them to source control. The browser-direct call to the
-// Places API needs the key in the page; key abuse is bounded by HTTP
-// referrer restrictions configured on the key in Google Cloud Console
-// (rundberglaundry.com, the per-location domains, and localhost). Both values
-// are read from process.env so we can rotate by editing .env + pm2
-// restart, without redeploying or touching public/.
-//
-// The URL deliberately lives under /api/ and has no .js extension —
-// Cloudflare's default cache rules ignore /api/* AND don't auto-cache
-// extensionless paths, so a key rotation hits browsers immediately.
-// The HTML loads it with <script src="..."> + the Content-Type below.
-app.get('/api/austin-tx/places-config', (req, res) => {
-  const apiKey  = (process.env.GOOGLE_PLACES_API_KEY  || '').replace(/['"\\\n\r]/g, '');
-  const placeId = (process.env.GOOGLE_PLACES_LOCATION_PLACE_ID || '').replace(/['"\\\n\r]/g, '');
-  res.set('Content-Type', 'application/javascript; charset=utf-8');
-  // Belt-and-suspenders no-cache: standard Cache-Control + the
-  // Cloudflare-specific cdn-cache-control directive so neither origin
-  // browser cache nor any intermediate CDN layer holds this.
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-  res.set('CDN-Cache-Control', 'no-store');
-  res.set('Cloudflare-CDN-Cache-Control', 'no-store');
-  res.set('Pragma', 'no-cache');
-  res.send(
-    '/* Server-rendered. Reads from process.env at request time. */\n' +
-    '(function () {\n' +
-    '  \'use strict\';\n' +
-    '  window.GOOGLE_PLACES_API_KEY = window.GOOGLE_PLACES_API_KEY || \'' + apiKey + '\';\n' +
-    '  window.LOCATION_PLACE_ID     = window.LOCATION_PLACE_ID     || \'' + placeId + '\';\n' +
-    '})();\n'
-  );
-});
-
-// Legacy URL redirect: /dev/austin-host-mock.html?route=/path → /austin-tx/path/
-// The /dev/ page was the pre-resolver demo; production URLs now live at
-// /<slug>/. Mounted BEFORE the static middleware so the file isn't served
-// instead.
-app.get('/dev/austin-host-mock.html', (req, res, next) => {
-  const r = (req.query.route || '/').toString();
-  // Sanity-check: must start with / and contain only slug-safe chars,
-  // otherwise fall through to static (or just 404).
-  if (!/^\/[a-z0-9/_-]*$/i.test(r)) return next();
-  const tail = r === '/' ? '' : r.replace(/^\/+/, '').replace(/\/+$/, '') + '/';
-  // Preserve any other query params (e.g. ?lang=es), drop the route one.
-  const qs = new URLSearchParams(req.query);
-  qs.delete('route');
-  const queryString = qs.toString();
-  res.redirect(301, `/austin-tx/${tail}${queryString ? '?' + queryString : ''}`);
-});
-
 // Performance: versioned static assets under /assets are immutable. They're
 // ?v=-cache-busted, so the bytes at any URL never change → a long immutable
 // Cache-Control lets Cloudflare serve them as clean edge HITs (~20ms) instead
@@ -972,11 +904,6 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // API Routes with versioning
 const apiV1Router = express.Router();
 
-// Franchise registry listing — drives the /locations/ finder UI on the
-// corporate clone. Mounted under /api/v1/ so the legacy /api → /api/v1
-// rewrite covers it too.
-apiV1Router.get('/franchises', require('./server/controllers/franchiseController').listFranchises);
-
 // Environment endpoint (for checking if in dev/test mode)
 apiV1Router.get('/environment', (req, res) => {
   res.json({
@@ -999,9 +926,6 @@ apiV1Router.use('/orders', orderRoutes);
 apiV1Router.use('/administrators', adminIpGate, administratorRoutes);
 apiV1Router.use('/operators', operatorRoutes);
 apiV1Router.use('/system/config', systemConfigRoutes);
-apiV1Router.use('/location', require('./server/routes/locationRoutes'));  // Per-location reads (reviews, etc.)
-apiV1Router.use('/contact', require('./server/routes/contactRoutes'));  // Per-location contact-form submissions
-apiV1Router.use('/', require('./server/routes/corporateInquiryRoutes'));  // /corporate-contact + /franchise-lead
 apiV1Router.use('/', require('./server/routes/partnerInquiryRoutes'));  // /partner-inquiry
 apiV1Router.use('/', require('./server/routes/affiliateApplicationRoutes'));  // /affiliate-application
 apiV1Router.use('/', require('./server/routes/mapsConfigRoute'));  // /maps-config — Maps API key for corporate pages
@@ -1030,11 +954,6 @@ app.use('/api', (req, res, next) => {
   next();
 }, apiV1Router);
 
-// Corporate-level pages — Phase 5c clone. These live on top-level paths
-// like /franchise, /about/, etc. and are static V3-styled marketing
-// pages with no per-franchise data. Mounted BEFORE the slug router so
-// these top-level slugs don't get picked up as (nonexistent) franchise slugs.
-//
 // Root route: serve the affiliate-program SPA app shell. On the marketing
 // hosts (rundberglaundry.com, atxwashdryfold.com, …) the partnerLanding
 // middleware pre-empts `/` before it reaches here, so this route effectively
@@ -1042,36 +961,6 @@ app.use('/api', (req, res, next) => {
 // non-marketing host — exactly where we want the app served.
 app.get('/', (req, res) => {
   res.redirect(302, '/embed-app-v2.html');
-});
-app.get(['/franchise', '/franchise/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'franchise.html'));
-});
-app.get(['/become-a-franchisee', '/become-a-franchisee/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'become-a-franchisee.html'));
-});
-app.get(['/about', '/about/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'about.html'));
-});
-app.get(['/testimonials', '/testimonials/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'testimonials.html'));
-});
-app.get(['/why-invest-in-wavemax', '/why-invest-in-wavemax/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'why-invest-in-wavemax.html'));
-});
-app.get(['/wavemax-vs-zombiemat', '/wavemax-vs-zombiemat/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'wavemax-vs-zombiemat.html'));
-});
-app.get(['/virtual-tour', '/virtual-tour/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'virtual-tour.html'));
-});
-app.get(['/faq', '/faq/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'faq.html'));
-});
-app.get(['/contact', '/contact/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'contact.html'));
-});
-app.get(['/laundromat-investment-guide', '/laundromat-investment-guide/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'laundromat-investment-guide.html'));
 });
 // Public UT-student affiliate recruitment landing page (rundberglaundry.com/affiliate).
 // Exempted from partnerLanding + the quarantine allowlist so it is fully public.
@@ -1082,13 +971,6 @@ app.get(['/affiliate', '/affiliate/'], (req, res) => {
 app.get(['/wavemax-affiliate', '/wavemax-affiliate/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'wavemax-affiliate.html'));
 });
-
-// Per-franchise dynamic routes — Phase 5a. Mounted AFTER /api/* and the
-// static middleware so unknown slugs fall through to a 404 instead of
-// shadowing real asset paths. The controller's registry-lookup gate is
-// the slug allowlist; anything not in /public/data/franchises/ calls
-// next() and Express returns the standard 404.
-app.use('/', require('./server/routes/franchiseRoutes'));
 
 // Clean admin URL: GET /admin serves the SPA shell pointed at the administrator
 // portal (no visible ?route= in the address bar). IP-gated to the admin allowlist

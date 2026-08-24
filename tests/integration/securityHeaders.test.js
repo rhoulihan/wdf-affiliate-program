@@ -128,4 +128,24 @@ describe('Security Headers (regression — prod-lockdown-2026-05-20)', () => {
       expect(frameSrc).toContain('https://www.google.com');
     });
   });
+
+  // Phase 4b guard: the clean-URL-slug matcher (isCleanUrlSlugPage in
+  // server.js) is what gives the kept single-segment marketing/app slug
+  // routes their nonce-based STRICT CSP. If that matcher is ever removed or
+  // its wiring broken, these pages silently fall back to relaxed CSP
+  // (server.js pushes 'unsafe-inline' into script-src when !useStrictCSP) —
+  // a security + Lighthouse-quality-bar regression. Lock it: script-src must
+  // NOT carry 'unsafe-inline' on /affiliate, /wavemax-affiliate, /scanbag.
+  describe('Strict CSP on kept clean-URL slug pages (Phase 4b)', () => {
+    for (const slug of ['/affiliate', '/wavemax-affiliate', '/scanbag']) {
+      it(`GET ${slug} → script-src has no 'unsafe-inline'`, async () => {
+        const r = await request(app).get(slug);
+        const csp = r.headers['content-security-policy'];
+        expect(csp).toBeDefined();
+        const scriptSrc = csp.split(';').find((d) => d.trim().startsWith('script-src'));
+        expect(scriptSrc).toBeDefined();
+        expect(scriptSrc).not.toContain("'unsafe-inline'");
+      });
+    }
+  });
 });

@@ -2,13 +2,11 @@ const express = require('express');
 const router = express.Router();
 
 /**
- * Expose the browser-restricted Google Maps API key for use by the
- * locations modal on corporate pages. The key is HTTP-referer locked
- * to rundberglaundry.com, so this is safe to surface from the server.
- *
- * Per-franchise host pages inject this same key via server-side
- * template substitution (franchiseController). Corporate pages are
- * static HTML so they fetch it from this endpoint on first modal open.
+ * Expose the browser-restricted Google Maps API key to any page that
+ * embeds a map/locations widget. The key is HTTP-referer locked (e.g.
+ * to rundberglaundry.com), so it is safe to surface from the server;
+ * static pages fetch it from this endpoint at runtime rather than
+ * hardcoding it.
  */
 router.get('/maps-config', (req, res) => {
   res.json({
