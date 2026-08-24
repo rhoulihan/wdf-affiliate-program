@@ -33,7 +33,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const logger = require('./server/utils/logger');
-const brand = require('./server/config/brand');
 
 // Fail-fast secret validation (production only): a missing/short secret must
 // surface at boot, not silently fall back to a dev-default HMAC (session /
@@ -1041,24 +1040,6 @@ app.get(['/scanbag', '/scanbag/'], async (req, res) => {
 // API documentation endpoint
 app.get('/api/docs', (req, res) => {
   res.redirect('/api-docs.html');
-});
-
-// Root endpoint - API server info
-app.get('/', (req, res) => {
-  res.json({
-    name: `${brand.displayName} Affiliate Program API`,
-    version: '1.0.0',
-    status: 'running',
-    endpoints: {
-      health: '/api/health',
-      docs: '/api/docs',
-      auth: '/api/v1/auth',
-      affiliates: '/api/v1/affiliates',
-      customers: '/api/v1/customers',
-      orders: '/api/v1/orders'
-    },
-    timestamp: new Date().toISOString()
-  });
 });
 
 // Per-hostname robots.txt and sitemap.xml. Each managed host serves its
