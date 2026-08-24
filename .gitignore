@@ -168,6 +168,9 @@ dist
 .pnp.*
 .env.backup
 .env.backup*
+.env.bak*
+.env.*.bak
+.env.production
 backup/
 
 # Project-specific temporary files
