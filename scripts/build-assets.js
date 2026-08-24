@@ -8,10 +8,9 @@
  * `npm run build:assets` and commit both. The generated outputs carry a
  * "GENERATED" banner; never edit them by hand.
  *
- * Scope note: only the assets on the rundberglaundry landing critical path are
- * listed (host template + /franchise-default/landing.html). Add more pairs here
- * as other pages get the same treatment — references must be switched to the
- * `.min` filename in the page(s) that load them.
+ * Scope note: only the assets on the embedded-app critical path are listed.
+ * Add more pairs here as other pages get the same treatment — references must
+ * be switched to the `.min` filename in the page(s) that load them.
  */
 'use strict';
 
@@ -24,14 +23,9 @@ const ROOT = path.resolve(__dirname, '..');
 
 // [type, source (relative to repo root), output]
 const ASSETS = [
-  ['css', 'public/assets/css/austin-landing-v3.css',        'public/assets/css/austin-landing-v3.min.css'],
   ['css', 'public/assets/css/wavemax-components.css',       'public/assets/css/wavemax-components.min.css'],
-  ['css', 'public/assets/css/wavemax-mhr-chrome.css',       'public/assets/css/wavemax-mhr-chrome.min.css'],
-  ['js',  'public/assets/js/austin-host-mock.js',           'public/assets/js/austin-host-mock.min.js'],
-  ['js',  'public/assets/js/austin-landing-init.js',        'public/assets/js/austin-landing-init.min.js'],
   ['js',  'public/assets/js/iframe-bridge-v2.js',           'public/assets/js/iframe-bridge-v2.min.js'],
   ['js',  'public/assets/js/parent-iframe-bridge-v3.js',    'public/assets/js/parent-iframe-bridge-v3.min.js'],
-  ['js',  'public/assets/js/franchise-page-helpers.js',     'public/assets/js/franchise-page-helpers.min.js'],
   ['js',  'public/assets/js/embed-app-v2.js',               'public/assets/js/embed-app-v2.min.js'],
 ];
 
