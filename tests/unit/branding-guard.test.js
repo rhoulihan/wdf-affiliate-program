@@ -119,11 +119,12 @@ const INFRA_ALLOW = [
   /wavemaxlaundry-site-audit/gi, /wavemax-promo-prelaunch-audit/gi,
   // Mediator gate URL + its clickjacking-demo content path (functional routes).
   /crhsent\.com\/wavemax/gi, /\/wavemax\/clickjacking-demo\.html/gi,
-  // Ad-funnel affiliate route slug + page filename, and the two franchise
-  // marketing page slugs (functional route/filename literals; pages themselves
-  // are excluded). Slug form only — display copy uses spaced "WaveMAX …".
+  // Ad-funnel affiliate route slug + page filename, and the franchisor
+  // "why-invest-in-wavemax" slug that survives as evidence text in
+  // crhsent/wavemax/security-audit.html (the franchise marketing pages
+  // themselves are deleted). Slug form only — display copy uses spaced "WaveMAX …".
   /\/wavemax-affiliate/gi, /wavemax-affiliate\.html/gi,
-  /why-invest-in-wavemax/gi, /wavemax-vs-zombiemat/gi,
+  /why-invest-in-wavemax/gi,
 ];
 
 function isExcludedPath(p) {
