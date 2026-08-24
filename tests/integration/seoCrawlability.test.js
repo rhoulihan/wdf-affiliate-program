@@ -24,11 +24,11 @@ describe('SEO — robots.txt crawlability of host-page content', () => {
     expect(res.text).toMatch(/Sitemap:\s*https:\/\/rundberglaundry\.com\/sitemap\.xml/);
   });
 
-  it('sitemap.xml for rundberglaundry lists the apex + the self-canonical sub-pages', async () => {
+  it('sitemap.xml for rundberglaundry is apex-only (Austin deep pages retired in Phase 4b)', async () => {
     const res = await request(app).get('/sitemap.xml').set('Host', 'rundberglaundry.com');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<loc>https://rundberglaundry.com/</loc>');
-    expect(res.text).toContain('<loc>https://rundberglaundry.com/austin-tx/wash-dry-fold/</loc>');
+    expect(res.text).not.toContain('/austin-tx/');
   });
 
   it('sitemap.xml for atxwashdryfold is apex-only (its deep WDF page self-canonicals to the apex)', async () => {

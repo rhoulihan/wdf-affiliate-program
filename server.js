@@ -1216,38 +1216,22 @@ app.get('/robots.txt', (req, res) => {
 
 app.get('/sitemap.xml', (req, res) => {
   const host = (req.hostname || 'rundberglaundry.com').toLowerCase().replace(/^www\./, '');
-  const { isManagedHost } = require('./server/config/domainSeoOverrides');
   const now = new Date().toISOString().slice(0, 10);
 
-  // rundberglaundry.com is the primary domain — its sitemap lists every
-  // Austin page so Google indexes the full site. The three sister domains
-  // each target a single query and ship a minimal sitemap (apex only).
-  // A retired or unknown host is locked down (301s at the edge), so its
-  // sitemap simply points at the primary rundberglaundry.com domain.
+  // Phase 4b retired the franchise/Austin deep marketing pages, so every
+  // managed host is now apex-only — each ships a minimal, self-canonical
+  // sitemap listing just its own apex. rundberglaundry.com now serves only a
+  // placeholder page, so it is apex-only like the rest. A retired or unknown
+  // host (301s at the edge) falls back to the primary rundberglaundry.com apex.
+  const managedHosts = [
+    'rundberglaundry.com',
+    'atxwashdryfold.com',
+    'portal.atxwashdryfold.com',
+    'atxwashateria.com',
+    'runberglaundry.com'
+  ];
   const urls = [];
-  if (host === 'rundberglaundry.com') {
-    urls.push(
-      { loc: `https://${host}/`,                                priority: '1.0' },
-      { loc: `https://${host}/austin-tx/wash-dry-fold/`,         priority: '0.9' },
-      { loc: `https://${host}/austin-tx/self-serve-laundry/`,    priority: '0.9' },
-      { loc: `https://${host}/austin-tx/commercial/`,            priority: '0.8' },
-      { loc: `https://${host}/austin-tx/about-us/`,              priority: '0.7' },
-      { loc: `https://${host}/austin-tx/contact/`,               priority: '0.7' }
-    );
-  } else if (host === 'atxwashdryfold.com') {
-    // Apex-only. The deep WDF page (/austin-tx/wash-dry-fold/) self-canonicals
-    // to this apex — the apex *is* this domain's wash-dry-fold landing — so the
-    // sitemap must list only the canonical URL. Listing the deep page made
-    // Search Console report it "Discovered - currently not indexed": its
-    // canonical points away to the apex, so it was never going to index on its own.
-    urls.push({ loc: `https://${host}/`, priority: '1.0' });
-  } else if (host === 'portal.atxwashdryfold.com') {
-    // The affiliate app's own canonical host (migration target for the retired
-    // promo hosts). Self-canonical to the portal apex — the app must not point
-    // its sitemap at the marketing primary domain.
-    urls.push({ loc: `https://${host}/`, priority: '1.0' });
-  } else if (isManagedHost(host)) {
-    // atxwashateria.com, runberglaundry.com — apex only.
+  if (managedHosts.includes(host)) {
     urls.push({ loc: `https://${host}/`, priority: '1.0' });
   } else {
     // Retired or unknown host — falls back to the primary domain.
