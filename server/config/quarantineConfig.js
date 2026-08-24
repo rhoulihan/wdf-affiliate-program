@@ -31,6 +31,7 @@ const ALLOWLIST = [
   /^\/franchise-default\//,         // internal iframe content for default franchise pages
   /^\/data\/franchises\.json$/,     // franchise index (used by clients/sitemap; not per-franchise data)
   /^\/embed-app(-v2)?\.html$/,      // SPA shell
+  /^\/embed-landing\.html$/,        // SPA default landing/login fragment (fetched by the router; not a *-embed.html)
   /^\/admin\/?$/,                   // clean admin URL (IP-gated by adminIpGate; must reach its handler, not redirect to corporate)
   /^\/operator\/?$/,                // clean operator URL (IP-gated by operatorIpGate; must reach its handler)
   /^\/affiliate\/?$/,               // public UT-student affiliate recruitment landing page

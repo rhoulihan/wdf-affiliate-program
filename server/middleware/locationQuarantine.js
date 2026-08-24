@@ -51,6 +51,19 @@ function isCrhsentHost(req) {
   return host === 'crhsent.com';
 }
 
+/**
+ * The atxwashdryfold portal/app domain is CRHS's own property (Phase 4a
+ * migration target). Like crhsent.com it must NEVER be 302'd to the
+ * franchisor's corporate site — the app serves its own content and its own
+ * 404 here. Without this, SPA content fragments that aren't in the allowlist
+ * (e.g. /embed-landing.html) get redirected off-origin and CSP blocks the
+ * cross-origin fetch, breaking the portal login.
+ */
+function isOwnPortalHost(req) {
+  const host = String(req.hostname || '').toLowerCase().replace(/^www\./, '');
+  return host === 'portal.atxwashdryfold.com' || host === 'atxwashdryfold.com';
+}
+
 async function serveCrhsent404(req, res) {
   // Everything is inside the try so a throw (e.g. headers already sent) can't
   // escape this async function and surface as an unhandled rejection — Express
@@ -72,6 +85,9 @@ function locationQuarantine(req, res, next) {
   // A gated/unknown path on crhsent.com 404s from its own domain rather than
   // redirecting to the corporate site.
   if (isCrhsentHost(req)) return serveCrhsent404(req, res);
+  // Our own atxwashdryfold portal — the app serves it (content or its own
+  // 404); never funnel it to the franchisor's corporate site.
+  if (isOwnPortalHost(req)) return next();
   res.redirect(302, buildCorporateRedirect(req.originalUrl));
 }
 

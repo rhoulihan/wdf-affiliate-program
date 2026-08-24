@@ -207,6 +207,34 @@ describe('Location quarantine middleware', () => {
       });
     });
 
+    // ── atxwashdryfold portal — NEVER redirect to corporate (Phase 4a app host) ──
+    // The portal is CRHS's own migration-target host. Like crhsent.com it must
+    // never be 302'd to the franchisor; the app serves it (content or its own
+    // 404). Regression guard for the 2026-08-24 portal-login break (the SPA's
+    // /embed-landing.html fragment was being redirected off-origin → CSP block).
+    describe('atxwashdryfold portal host', () => {
+      it('does not 302 an unknown path to corporate on portal.atxwashdryfold.com', async () => {
+        const response = await request(app)
+          .get('/some-unknown-path')
+          .set('Host', 'portal.atxwashdryfold.com')
+          .redirects(0);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
+      });
+
+      it('does not 302 /embed-landing.html to corporate on the portal', async () => {
+        const response = await request(app)
+          .get('/embed-landing.html')
+          .set('Host', 'portal.atxwashdryfold.com')
+          .redirects(0);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
+      });
+
+      it('allows /embed-landing.html regardless of host (SPA login fragment, now allowlisted)', async () => {
+        const response = await request(app).get('/embed-landing.html').redirects(0);
+        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
+      });
+    });
+
     // ── Redirect: non-Austin franchise slugs ──────────────────────────
     describe('Non-Austin franchise slugs', () => {
       it('redirects /dallas-tx/ to corporate (preserve path)', async () => {
