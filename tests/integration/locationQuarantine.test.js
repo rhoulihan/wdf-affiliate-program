@@ -96,11 +96,6 @@ describe('Location quarantine middleware', () => {
         const response = await request(app).get('/austin-tx/self-serve-laundry/').redirects(0);
         expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
       });
-
-      it('allows /api/austin-tx/places-config', async () => {
-        const response = await request(app).get('/api/austin-tx/places-config').redirects(0);
-        expect(response.status).toBe(200);
-      });
     });
 
     // ── Allowlist: affiliate-program app ──────────────────────────────

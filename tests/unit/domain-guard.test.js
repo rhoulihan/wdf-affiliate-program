@@ -10,21 +10,16 @@ const baseline = new Set(
 );
 // Deferred/excluded trees (4b + non-runtime) — their refs are not this plan's job.
 const EXCLUDED_PREFIXES = [
-  'public/data/', 'public/franchise-default/', 'public/dev/', 'design-explorer/',
-  'public/design-explorer/', 'docs/', 'node_modules/', '.git/', 'crhsent/',
-  'scripts/franchise-build/',
+  'design-explorer/', 'public/design-explorer/',
+  'docs/', 'node_modules/', '.git/', 'crhsent/',
   // test fixtures reference domains for testing (incl. retired-host behavior) — not production refs
   'tests/',
 ];
 const EXCLUDED_FILES = new Set([
-  // excluded/marketing parent pages that host the iframe or name the franchisor
-  'public/franchise-host.html', 'public/franchise.html',
+  // kept marketing parent pages that host the iframe or name the franchisor
   'public/iframe-parent-example.html', 'public/iframe-parent-example-complete.html',
   'public/wavemaxlaundry-embed-code.html', 'public/wavemaxlaundry-embed-code-complete.html',
-  'public/why-invest-in-wavemax.html', 'public/wavemax-vs-zombiemat.html', 'public/wavemax-affiliate.html',
-  'public/about.html', 'public/testimonials.html', 'public/faq.html', 'public/contact.html', 'public/virtual-tour.html',
-  'server/controllers/franchiseController.js', 'server/routes/franchiseRoutes.js',
-  'server/config/domainSeoOverrides.js', 'server/config/franchisePreviewCopy.js',
+  'public/wavemax-affiliate.html',
   // this guard + its baseline
   'tests/unit/domain-guard.test.js',
   // dev-only compose EMAIL_FROM default; gated config — migrate manually

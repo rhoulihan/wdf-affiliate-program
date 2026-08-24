@@ -14,58 +14,27 @@ const baseline = new Set(
 const EXCLUDED_PREFIXES = [
   'crhsent/', 'dc_private/', 'docs/', 'node_modules/', '.git/',
   'design-explorer/', 'tests/unit/design-explorer/',
-  'public/design-explorer/', 'public/franchise-default/', 'public/dev/',
-  'scripts/franchise-build/',
-  // Austin marketing client JS — defers to Phase 4 with its embeds (Q3
-  // consistency). Excludes austin-landing-init.js, austin-about-init.js,
-  // austin-commercial-init.js, austin-contact-init.js, austin-fb-pixel.js,
-  // austin-hibu-phone-swap.js, austin-host-mock*.js, austin-*-init.js, etc.
-  'public/assets/js/austin-',
-  // Franchise-subsystem client JS — franchisor marketing (Phase-4 defer, peers
-  // of the excluded franchise-page-helpers.js). Excludes franchise-hero-rotator.js,
-  // franchise-reviews-slider.js, franchise-page-helpers.js.
-  'public/assets/js/franchise-',
-  // ---- Phase-3 Task-10 deferred public subsystems ----
-  // Franchise multi-tenant data (per-location franchisor records) — the Phase-4
-  // franchise subsystem's data layer, not the affiliate app.
-  'public/data/',
+  'public/design-explorer/',
   // Stylesheets — CSS carries only class-name identifiers and franchisor CDN
   // URLs (Q1 code identifiers, deferred to Phase 4 with the asset rename); no
-  // user-facing display TEXT lives in CSS.
+  // user-facing display TEXT lives in CSS. Includes the kept wavemax-*.css
+  // component/theme sheets used by the affiliate + marketing surfaces.
   'public/assets/css/',
-  // Franchisor content mirror (site-pages copy for the franchise subsystem).
-  'public/content/',
 ];
 const EXCLUDED_FILES = new Set([
   'server/middleware/accessGate.js', 'server/middleware/mediatorGate.js',
   'server/models/AccessGate.js', 'server/models/AccessWhitelist.js',
   'server/models/AccessClick.js', 'server/models/AccessRequest.js',
   'server/models/MediatorAccess.js',
-  'server/controllers/franchiseController.js', 'server/routes/franchiseRoutes.js',
   'server/controllers/conciergeController.js', 'server/services/conciergeFaq.js',
-  'server/config/domainSeoOverrides.js', 'server/config/franchisePreviewCopy.js',
-  // Marketing/franchise + Austin-marketing client JS — referenced only by the
-  // excluded franchisor/Austin pages; de-brand deferred to Phase 4 (controller-
-  // verified). (franchise-hero-rotator.js / franchise-reviews-slider.js /
-  // franchise-page-helpers.js are covered by the 'public/assets/js/franchise-' prefix.)
-  'public/assets/js/corporate-chrome.js', 'public/assets/js/network-reviews-init.js',
-  'public/assets/js/self-serve-laundry-modern.js', 'public/assets/js/self-serve-translations.js',
-  'public/assets/js/seo-config-self-serve.js', 'public/assets/js/seo-config-wash-dry-fold.js',
-  'public/assets/js/wash-dry-fold-translations.js',
-  'public/franchise.html', 'public/franchise-host.html',
-  'public/why-invest-in-wavemax.html', 'public/wavemax-vs-zombiemat.html',
-  'public/wavemax-affiliate.html', 'public/about.html', 'public/testimonials.html',
-  'public/faq.html', 'public/contact.html', 'public/virtual-tour.html',
-  'public/become-a-franchisee.html', 'public/laundromat-investment-guide.html',
+  // KEEP affiliate-recruitment marketing page — legitimately names the WaveMAX
+  // affiliate program in its recruitment copy (retained through Phase 4b).
+  'public/wavemax-affiliate.html',
+  // Kept host-page samples that name the franchisor mark (embed-code examples +
+  // products placeholder).
   'public/wavemaxlaundry-embed-code.html', 'public/wavemaxlaundry-embed-code-complete.html',
   'public/iframe-parent-example.html', 'public/iframe-parent-example-complete.html',
   'public/products-placeholder.html',
-  // Austin marketing embeds — raw/SPA-served SEO surfaces (hardcoded title/meta/
-  // og cannot be server-substituted on the static path). De-brand deferred with
-  // the rest of the Austin reference build (Phase 4 / marketing-content pass).
-  'public/about-us-embed.html', 'public/austin-landing-v3-embed.html',
-  'public/commercial-embed.html', 'public/contact-embed.html',
-  'public/self-serve-laundry-embed.html', 'public/wash-dry-fold-embed.html',
   'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
   'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
   // Phase-4a domain-migration tooling — legitimately references wavemax.
@@ -81,15 +50,9 @@ const EXCLUDED_FILES = new Set([
   // Security blocklist: 'wavemax' must stay in the weak-password list to reject
   // the WaveMAX!2024 default credential — it is a control, not display copy.
   'server/utils/passwordValidator.js',
-  // Franchisor / franchise-preview / GBP / network-reviews / corporate-inquiry
-  // marketing subsystems — not the affiliate app; they name the real WaveMAX
-  // franchisor mark in marketing/legal copy. De-brand deferred to Phase 4
-  // (peers of the already-excluded franchiseController/franchisePreviewCopy).
-  'server/middleware/partnerLanding.js', 'server/models/FranchisePreviewRequest.js',
-  'server/services/corporateInquiryService.js', 'server/services/franchisePreviewEmail.js',
-  'server/services/franchisePreviewPages.js', 'server/services/franchisePreviewRender.js',
-  'server/services/gbpService.js', 'server/services/gbpToLocationData.js',
-  'server/services/networkReviewsService.js', 'scripts/create-franchise-preview.js',
+  // Partner-landing middleware — names the real WaveMAX franchisor mark in
+  // marketing/legal copy; de-brand deferred to Phase 4 (marketing-content pass).
+  'server/middleware/partnerLanding.js',
   'scripts/ops/refresh-hibu.sh', 'tools/flyers/build-flyers.js',
   // Build script whose only marks are the wavemax-*.css asset filenames (Phase-4
   // asset rename). Excluded rather than allowlisting the filename globally, which
@@ -98,33 +61,16 @@ const EXCLUDED_FILES = new Set([
   // Proprietary LICENSE names the CRHS/WaveMAX marks verbatim (legal text) +
   // dev-persona doc — both kept literal.
   'LICENSE', 'init.prompt',
-  // ---- Phase-3 Task-9 test-fixture reconciliation ----
-  // Tests bound to already-excluded, Phase-4-deferred subsystems — they assert on
-  // the real WaveMAX mark that their (excluded) source still emits. De-brand these
-  // together with their subsystems in Phase 4.
-  //   Franchise-preview + GBP (peers of franchiseController/franchisePreview*/gbp*):
-  'tests/integration/franchisePreview.e2e.test.js', 'tests/unit/franchisePreview.test.js',
-  'tests/unit/franchisePreviewEmail.test.js', 'tests/unit/franchisePreviewRender.test.js',
-  'tests/unit/gbpService.test.js', 'tests/unit/gbpToLocationData.test.js',
   //   Partner-landing middleware (excluded partnerLanding.js) + its no-brand guard:
   'tests/unit/partnerLanding.test.js',
   //   crhsent sales page served at /wavemax/ (excluded crhsent/ tree + mediatorGate):
   'tests/integration/crhsentCsp.test.js',
-  //   Austin marketing reference build (peers of the excluded wash-dry-fold-embed.html
-  //   + wavemax-theme.css / wavemax-components.css asset rename, all Phase-4):
-  'tests/e2e/austin-reference/wash-dry-fold.spec.js',
   // Guard-style tests whose /wavemax/i absence-matcher is load-bearing (asserts the
   // page carries NO brand) — allowlisted like i18n-brand-token.test.js above.
   'tests/unit/affiliateApplicationForm.test.js', 'tests/unit/partnerInquiryForm.test.js',
   // Security-control test: asserts 'wavemax' stays in the weak-password blocklist
   // (source passwordValidator.js is excluded for the same reason — a control, not copy).
   'tests/unit/passwordValidator.test.js',
-  // ---- Phase-3 Task-10 corporate-content locales ----
-  // crhsent/corporate-chrome translations — the corporate subsystem's copy
-  // (peers of the excluded corporate-chrome.js + crhsent/ tree). The affiliate
-  // app's common.json locales stay guarded and are already clean.
-  'public/locales/en/corporate.json', 'public/locales/es/corporate.json',
-  'public/locales/pt/corporate.json', 'public/locales/de/corporate.json',
 ]);
 const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 

@@ -18,14 +18,14 @@ describe('Static asset caching — /assets immutable', () => {
   });
 
   it('serves JS under /assets with a 1-year immutable Cache-Control', async () => {
-    const res = await request(app).get('/assets/js/franchise-page-helpers.js');
+    const res = await request(app).get('/assets/js/session-manager.js');
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toMatch(/max-age=31536000/);
     expect(res.headers['cache-control']).toMatch(/immutable/);
   });
 
   it('serves the immutable header even when a ?v= cache-buster is present', async () => {
-    const res = await request(app).get('/assets/js/franchise-page-helpers.js?v=20260524');
+    const res = await request(app).get('/assets/js/session-manager.js?v=20260524');
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toMatch(/immutable/);
   });
@@ -40,17 +40,5 @@ describe('Static asset caching — /assets immutable', () => {
     expect(res.headers['cache-control']).toMatch(/public/);
     expect(res.headers['cache-control']).toMatch(/max-age=31536000/);
     expect(res.headers['cache-control']).toMatch(/immutable/);
-  });
-
-  it('does NOT immutable-cache the franchise host HTML', async () => {
-    // Use the default request host: the rundberglaundry.com family is served the
-    // partner-program landing page by the partnerLanding middleware for non-exempt
-    // paths and never reaches the franchise controller. The franchise HTML is
-    // served identically on any other host, so omit the Host override.
-    const res = await request(app).get('/austin-tx/');
-    expect(res.status).toBe(200);
-    expect(res.headers['cache-control'] || '').not.toMatch(/immutable/);
-    // The HTML keeps its short-lived cache window set by the controller.
-    expect(res.headers['cache-control'] || '').toMatch(/max-age=60/);
   });
 });
