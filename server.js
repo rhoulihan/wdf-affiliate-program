@@ -1180,6 +1180,23 @@ app.use((req, res, next) => {
   next();
 });
 
+// Marketing-host fall-through — keep the store off the API catch-all below.
+// partnerLanding answers every non-exempt GET on these host families, so the
+// only client that reaches here is the store IP, which it deliberately bypasses
+// ("the store sees the real app on every route"). Without this, that bypass
+// lands nowhere and the store gets API JSON instead of a page. Match on HOST,
+// not path: these vhosts may rewrite `location = /` to a path the app no longer
+// serves (the /austin-tx/ tree went in Phase 4b), so the forwarded path is not
+// something we can rely on. /api/* is excluded so real API 404s stay JSON.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path.startsWith('/api/')) return next();
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+    .toLowerCase().split(':')[0].trim();
+  if (!partnerLanding._hosts.includes(host)) return next();
+  return res.redirect(302, '/embed-app-v2.html');
+});
+
 // Catch all other routes and return API error
 app.use('*', (req, res) => {
   res.status(404).json({
