@@ -74,31 +74,24 @@ const EXCLUDED_FILES = new Set([
 const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 
 // Infra identifiers — a line is OK if removing all of these leaves no bare "wavemax".
+// Re-audited 2026-08-24: 13 dead patterns pruned and the franchisor recruitment-link
+// slug removed after its client-JS + email defects were fixed, so this list now
+// shields only genuine infra / legal / functional identifiers. Adding an entry here
+// hides a real "wavemax" from the guard — only do it for a true, verified keep.
 const INFRA_ALLOW = [
-  /wavemax\.promo/gi, /mail\.wavemax/gi, /@wavemax\.promo/gi,
+  /wavemax\.promo/gi, /@wavemax\.promo/gi,
   /wavemaxlaundry\.com/gi, /wavemax-bag-registration/gi,
-  /wavemax\.firebaseapp\.com/gi, /wavemax\.appspot\.com/gi,
   /wavemax_affiliate/gi, /wavemax-affiliate-program/gi,
-  // API/contact domains — appear in a CSP connect-src directive and in
-  // terms-of-service contact copy, never as user-facing brand display copy.
-  // (The Phase-4 asset-filename + CSS-class identifiers that lived here —
-  // logo-wavemax.png, wavemax-embed.css, wavemax-blue, wavemax-affiliate-{container,header}
-  // — are renamed/deleted, so their strip-patterns were pruned.)
-  /api\.wavemax\.com/gi, /support@wavemax\.com/gi, /legal@wavemax\.com/gi,
   // Trademark / proprietary legal notices kept VERBATIM (they name the real
   // franchisor mark + entity; mechanically tokenizing them is legally wrong).
   /WaveMAX is a trademark/gi, /WaveMAX™/gi, /the WaveMAX logo/gi,
   /WaveMAX Franchise, LLC/gi, /WaveMAX WDF Affiliate Portal/gi,
-  // Client-JS infra identifiers (Task 6) — wire-protocol/postMessage source
-  // tag, localStorage key, host-page DOM id, global bridge API name, and the
-  // WordPress embed-page URL slug. These have functional bindings across the
-  // iframe/host boundary (never display copy); renaming is a Phase-4 concern.
+  // Client-JS infra identifiers — postMessage source tag, localStorage key,
+  // host-page DOM id, and the global bridge API name. Functional bindings
+  // across the iframe/host boundary (never display copy).
   /wavemax-embed/gi, /wavemax-language/gi, /wavemax-iframe/gi,
-  /WaveMaxBridgeV3/gi, /wavemax-austin-affiliate-program/gi,
-  // Franchisor CDN asset path (external image URLs on wavemaxlaundry.com's
-  // upload host); appears only in src="…/UploadedImages/WaveMAX/…", never display.
-  /UploadedImages\/WaveMAX\//gi,
-  // ---- Phase-3 Task-8 completion — anchored infra/operational identifiers ----
+  /WaveMaxBridgeV3/gi,
+  // ---- anchored infra/operational identifiers ----
   // MongoDB database name in local/docker connection strings + init.
   /localhost:27017\/wavemax/gi, /mongo:27017\/wavemax/gi,
   /MONGO_INITDB_DATABASE=wavemax/gi, /getSiblingDB\('wavemax'\)/gi,
@@ -108,22 +101,14 @@ const INFRA_ALLOW = [
   /pm2 (?:start|restart|reload|stop|delete|logs) wavemax/gi, /'wavemax' name/gi,
   // Production deploy path on the app servers.
   /\/var\/www\/wavemax\//gi,
-  // Session-cookie name + server.js corporate-origins code identifier.
-  /wavemax\.sid/gi, /wavemaxDomains/g,
-  // JWT issuer/audience claims (token validation depends on these values).
-  /wavemax-api/gi, /wavemax-client/gi,
-  // Winston log service tag (log-aggregation key).
-  /service: 'wavemax-affiliate'/gi,
+  // server.js corporate-origins code identifier.
+  /wavemaxDomains/g,
   // .gitignore audit-doc path prefixes (match real filenames on disk).
   /wavemaxlaundry-site-audit/gi, /wavemax-promo-prelaunch-audit/gi,
   // Mediator gate URL + its clickjacking-demo content path (functional routes).
   /crhsent\.com\/wavemax/gi, /\/wavemax\/clickjacking-demo\.html/gi,
-  // Ad-funnel affiliate route slug + page filename, and the franchisor
-  // "why-invest-in-wavemax" slug that survives as evidence text in
-  // crhsent/wavemax/security-audit.html (the franchise marketing pages
-  // themselves are deleted). Slug form only — display copy uses spaced "WaveMAX …".
+  // Kept affiliate-recruitment route slug + page filename (public/wavemax-affiliate.html).
   /\/wavemax-affiliate/gi, /wavemax-affiliate\.html/gi,
-  /why-invest-in-wavemax/gi,
 ];
 
 function isExcludedPath(p) {

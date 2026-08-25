@@ -148,7 +148,7 @@ describe('Affiliate Login Initialization', () => {
 
   describe('Integration with Email URLs', () => {
     test('should parse email-generated URLs correctly', () => {
-      const emailURL = 'https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate&customer=CUST789012';
+      const emailURL = 'https://rundberglaundry.com/embed-app-v2.html?login=affiliate&customer=CUST789012';
       const url = new URL(emailURL);
 
       expect(url.searchParams.get('login')).toBe('affiliate');

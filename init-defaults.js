@@ -16,7 +16,7 @@ async function initializeDefaultAdmin() {
     }
 
     // Create default administrator account
-    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@wavemaxlaundry.com';
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com';
     const defaultAdmin = new Administrator({
       firstName: 'System',
       lastName: 'Administrator',
@@ -67,7 +67,7 @@ async function initializeDefaultOperator(createdBy) {
     const defaultOperator = new Operator({
       firstName: 'Default',
       lastName: 'Operator',
-      email: 'operator@wavemaxlaundry.com',
+      email: 'operator@crhsent.com',
       username: 'operator1',
       password: 'Operator!2024',
       operatorId: 'OP001',

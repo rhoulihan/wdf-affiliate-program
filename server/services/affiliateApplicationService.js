@@ -36,7 +36,7 @@ async function brandWrap(content) {
    Two emails per submission:
      1. Notification (to RECIPIENT): full application detail
      2. Applicant thank-you (to email): brief confirmation
-   Both are brand-config-driven (WaveMAX Austin), like the welcome email.
+   Both are brand-config-driven (via server/config/brand.js), like the welcome email.
    ===================================================================== */
 
 async function sendAffiliateApplication({ firstName, lastName, email, phone, affiliation, serviceArea, transport, availability, message, source }) {

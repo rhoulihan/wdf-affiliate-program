@@ -172,7 +172,7 @@ exports.sendAdminNotification = async function(options) {
 
     if (!adminEmail) {
       // Fallback to environment variable or default
-      adminEmail = process.env.ADMIN_EMAIL || 'admin@wavemaxlaundry.com';
+      adminEmail = process.env.ADMIN_EMAIL || 'admin@crhsent.com';
     }
 
     // Add priority header if high priority

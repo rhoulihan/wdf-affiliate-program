@@ -77,7 +77,7 @@ describe('Affiliate Customer Filtering Integration Tests', () => {
   describe('Email URL Generation for Customer Filtering', () => {
     test('should generate correct dashboard URL with customer parameter', () => {
       // Test the URL format that should be generated in emails
-      const dashboardURL = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate&customer=${testCustomer.customerId}`;
+      const dashboardURL = `https://rundberglaundry.com/embed-app-v2.html?login=affiliate&customer=${testCustomer.customerId}`;
 
       expect(dashboardURL).toContain(`customer=${testCustomer.customerId}`);
       expect(dashboardURL).toContain('login=affiliate');
@@ -159,7 +159,7 @@ describe('Affiliate Customer Filtering Integration Tests', () => {
   describe('Complete Email-to-Dashboard Flow Simulation', () => {
     test('should handle complete flow from email generation to dashboard access', async () => {
       // Step 1: Simulate email URL generation
-      const dashboardURL = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate&customer=${testCustomer.customerId}`;
+      const dashboardURL = `https://rundberglaundry.com/embed-app-v2.html?login=affiliate&customer=${testCustomer.customerId}`;
 
       // Verify URL contains customer parameter
       expect(dashboardURL).toContain(`customer=${testCustomer.customerId}`);
@@ -200,7 +200,7 @@ describe('Affiliate Customer Filtering Integration Tests', () => {
 
     test('should handle URL parameters correctly throughout the flow', async () => {
       // Simulate the URL structure that would come from email clicking
-      const emailURL = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?login=affiliate&customer=${testCustomer.customerId}`;
+      const emailURL = `https://rundberglaundry.com/embed-app-v2.html?login=affiliate&customer=${testCustomer.customerId}`;
 
       // Parse URL parameters like the frontend would
       const url = new URL(emailURL);

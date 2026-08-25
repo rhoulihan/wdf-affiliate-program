@@ -498,7 +498,7 @@ async function loadAffiliateData(affiliateId) {
       }
 
       // Generate and display landing page link
-      const landingPageLink = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?route=/affiliate-landing&code=${affiliateId}`;
+      const landingPageLink = `${window.EMBED_CONFIG?.baseUrl || window.location.origin}/embed-app-v2.html?route=/affiliate-landing&code=${affiliateId}`;
       const landingPageElement = document.getElementById('landingPageLink');
       if (landingPageElement) landingPageElement.value = landingPageLink;
 
@@ -884,7 +884,7 @@ async function loadSettingsData(affiliateId) {
 
         // Set landing page link
         const landingPageLinkField = document.getElementById('landingPageLink');
-        const landingPageLink = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?route=/affiliate-landing&code=${affiliateId}`;
+        const landingPageLink = `${window.EMBED_CONFIG?.baseUrl || window.location.origin}/embed-app-v2.html?route=/affiliate-landing&code=${affiliateId}`;
         if (landingPageLinkField) landingPageLinkField.value = landingPageLink;
 
         console.log('Settings fields populated');

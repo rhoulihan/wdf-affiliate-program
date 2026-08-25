@@ -36,7 +36,7 @@ async function brandWrap(content) {
    Two emails per submission:
      1. Notification (to RECIPIENT): full inquiry detail
      2. Inquirer thank-you (to email): brief confirmation
-   Both are brand-config-driven (WaveMAX Austin), like the welcome email.
+   Both are brand-config-driven (via server/config/brand.js), like the welcome email.
    ===================================================================== */
 
 async function sendPartnerInquiry({ firstName, lastName, email, phone, businessName, serviceArea, volume, message, source }) {

@@ -128,7 +128,7 @@ function initializeAffiliateSuccess() {
         document.getElementById('affiliateEmail').textContent = affiliateData.email;
 
         // Generate landing page link
-        const landingPageLink = `https://www.wavemaxlaundry.com/austin-tx/wavemax-austin-affiliate-program?route=/affiliate-landing&code=${affiliateData.affiliateId}`;
+        const landingPageLink = `${window.EMBED_CONFIG?.baseUrl || window.location.origin}/embed-app-v2.html?route=/affiliate-landing&code=${affiliateData.affiliateId}`;
         const landingPageInput = document.getElementById('landingPageLink');
         if (landingPageInput) {
           landingPageInput.value = landingPageLink;
