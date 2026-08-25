@@ -1,5 +1,7 @@
 const emailService = require('../utils/emailService');
 const logger = require('../utils/logger');
+const brand = require('../config/brand');
+const { loadTemplate, fillTemplate } = require('./email/template-manager');
 
 const RECIPIENT = process.env.PARTNER_INQUIRY_RECIPIENT || 'pickups@rundberglaundry.com';
 
@@ -17,13 +19,24 @@ function nl2br(value) {
   return escapeHtml(value).replace(/\r?\n/g, '<br>');
 }
 
-const FOOTER = 'Rundberg Laundry · 825 E Rundberg Ln, Austin TX 78753';
+/**
+ * Wrap an email body in the shared branded base-template (logo + [BRAND_NAME]
+ * header + [BRAND_LEGAL] footer) — the same branding the affiliate welcome
+ * email uses. Use `brand.displayName` directly in the body (the content is
+ * inserted after fillTemplate's placeholder pass, so a `[BRAND_NAME]` token in
+ * the body would not resolve).
+ */
+async function brandWrap(content) {
+  const base = await loadTemplate('base-template');
+  return fillTemplate(base, { EMAIL_CONTENT: content, CURRENT_YEAR: String(new Date().getFullYear()) });
+}
 
 /* =====================================================================
    PARTNER INQUIRY (public partner-program interest form)
    Two emails per submission:
      1. Notification (to RECIPIENT): full inquiry detail
      2. Inquirer thank-you (to email): brief confirmation
+   Both are brand-config-driven (WaveMAX Austin), like the welcome email.
    ===================================================================== */
 
 async function sendPartnerInquiry({ firstName, lastName, email, phone, businessName, serviceArea, volume, message, source }) {
@@ -35,10 +48,8 @@ async function sendPartnerInquiry({ firstName, lastName, email, phone, businessN
     ? `<h3>Message</h3>\n    <p style="white-space: pre-wrap;">${nl2br(message)}</p>`
     : '';
 
-  const notificationHtml = `<!doctype html>
-<html>
-  <body style="font-family: Arial, sans-serif; color: #143852;">
-    <h2>New partner inquiry from rundberglaundry.com</h2>
+  const notificationContent = `
+    <h2 style="margin-top:0; color:#143852;">New partner inquiry</h2>
     <table cellpadding="6" cellspacing="0" border="0">
       <tr><td><strong>Name:</strong></td><td>${escapeHtml(fullName)}</td></tr>
       <tr><td><strong>Business:</strong></td><td>${escapeHtml(businessName || '—')}</td></tr>
@@ -50,25 +61,16 @@ async function sendPartnerInquiry({ firstName, lastName, email, phone, businessN
     </table>
     ${messageBlock}
     <hr>
-    <p style="font-size: 12px; color: #6c757d;">Reply to this email to reach ${escapeHtml(firstName)} at ${escapeHtml(email)}.</p>
-    <p style="font-size: 12px; color: #6c757d;">${escapeHtml(FOOTER)}</p>
-  </body>
-</html>`;
-  await emailService.sendEmail(RECIPIENT, subject, notificationHtml);
+    <p style="font-size: 12px; color: #6c757d;">Reply to this email to reach ${escapeHtml(firstName)} at ${escapeHtml(email)}.</p>`;
+  await emailService.sendEmail(RECIPIENT, subject, await brandWrap(notificationContent));
 
   // --- Inquirer thank-you ---
-  const thankYouSubject = 'Thanks for your interest in the Rundberg Laundry partner program';
-  const thankYouHtml = `<!doctype html>
-<html>
-  <body style="font-family: Arial, sans-serif; color: #143852; max-width: 640px; margin: 0 auto;">
-    <h2 style="color: #143852;">Thanks, ${escapeHtml(firstName)}.</h2>
-    <p>We've received your inquiry about the Rundberg Laundry partner program. A member of our team will be in touch with you shortly.</p>
-    <p>If there's anything else you'd like us to know in the meantime, just reply to this email.</p>
-    <hr style="margin-top: 32px; border: 0; border-top: 1px solid #e3e8f0;">
-    <p style="font-size: 12px; color: #6c757d;">${escapeHtml(FOOTER)}</p>
-  </body>
-</html>`;
-  await emailService.sendEmail(email, thankYouSubject, thankYouHtml);
+  const thankYouSubject = `Thanks for your interest in the ${brand.displayName} partner program`;
+  const thankYouContent = `
+    <h2 style="margin-top:0; color:#143852;">Thanks, ${escapeHtml(firstName)}.</h2>
+    <p>We've received your inquiry about the ${escapeHtml(brand.displayName)} partner program. A member of our team will be in touch with you shortly.</p>
+    <p>If there's anything else you'd like us to know in the meantime, just reply to this email.</p>`;
+  await emailService.sendEmail(email, thankYouSubject, await brandWrap(thankYouContent));
 
   logger.info('Partner inquiry received', { email, businessName: businessName || null });
 }
