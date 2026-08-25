@@ -417,7 +417,9 @@ app.use((req, res, next) => {
         // Firebase Phone Auth (PR 7) — the auth helper iframe.
         'https://wavemax-bag-registration.firebaseapp.com'],
     'form-action': ['\'self\''],
-    'frame-ancestors': ['\'self\'', 'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com'],
+    // App is served directly (not iframed by the franchisor) — only same-origin
+    // may frame it, matching the X-Frame-Options: SAMEORIGIN set above.
+    'frame-ancestors': ['\'self\''],
     'base-uri': ['\'self\''],
     'child-src': ['\'none\''],
     'worker-src': ['\'self\''],
@@ -475,15 +477,11 @@ const corsOptions = {
       ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
       : ['http://localhost:3000'];
 
-    // Add corporate site domains to allowed origins
+    // Our own app + per-location domains allowed to call the API.
     const wavemaxDomains = [
-      'https://www.wavemaxlaundry.com',
-      'https://wavemaxlaundry.com',
-      'https://portal.atxwashdryfold.com', // Our own app domain for iframe same-origin
-      // Per-location domains that proxy the Austin franchise content
+      'https://portal.atxwashdryfold.com', // canonical app domain
       'https://atxwashateria.com',
       'https://atxwashdryfold.com',
-      'https://runberglaundry.com',
       'https://rundberglaundry.com'
     ];
 
@@ -838,6 +836,24 @@ app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), {
 
 // Guard /design-explorer/* behind ?k=EXPLORER_TOKEN before static files can serve them
 app.use(require('./server/middleware/explorerGuard'));
+
+// /scanbag-manifest.json — the scan-bag PWA manifest, brand-filled so the installed
+// app name matches the configured brand ({{BRAND_NAME}} resolves from
+// server/config/brand.js). Must precede express.static, which would otherwise serve
+// the raw template with the placeholder unresolved.
+app.get('/scanbag-manifest.json', async (req, res) => {
+  try {
+    const brand = require('./server/config/brand');
+    const raw = await require('fs').promises.readFile(
+      path.join(__dirname, 'public', 'scanbag-manifest.json'), 'utf8');
+    res.type('application/manifest+json')
+      .set('Cache-Control', 'no-cache, no-store, must-revalidate')
+      .send(raw.replace(/\{\{BRAND_NAME\}\}/g, brand.displayName));
+  } catch (err) {
+    logger.error('Error serving /scanbag-manifest.json:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
 
 // Serve static files in all environments
 app.use(express.static(path.join(__dirname, 'public')));

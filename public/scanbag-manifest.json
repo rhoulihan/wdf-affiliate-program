@@ -1,7 +1,7 @@
 {
-  "name": "Laundromat Scan Bag",
+  "name": "{{BRAND_NAME}} Scan Bag",
   "short_name": "Scan Bag",
-  "description": "Scan a Laundromat bag QR code to start or complete an order.",
+  "description": "Scan a {{BRAND_NAME}} bag QR code to start or complete an order.",
   "start_url": "/scanbag",
   "scope": "/scanbag",
   "display": "standalone",

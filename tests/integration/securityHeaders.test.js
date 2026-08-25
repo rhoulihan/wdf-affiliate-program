@@ -88,10 +88,12 @@ describe('Security Headers (regression — prod-lockdown-2026-05-20)', () => {
       expect(r.headers['content-security-policy']).toMatch(/base-uri 'self'/);
     });
 
-    it("CSP frame-ancestors limits embedders to wavemaxlaundry.com + self", async () => {
+    it("CSP frame-ancestors limits embedders to self (app is served directly, not iframed)", async () => {
       const r = await probe();
       const csp = r.headers['content-security-policy'];
-      expect(csp).toContain("frame-ancestors 'self' https://www.wavemaxlaundry.com https://wavemaxlaundry.com");
+      // Exactly 'self' — no franchisor (or other) origin may frame the app.
+      const fa = (csp.match(/frame-ancestors ([^;]*)/) || [])[1] || '';
+      expect(fa.trim()).toBe("'self'");
     });
 
     // Hibu Social retargeting — Meta Pixel (marketing chrome only). The
