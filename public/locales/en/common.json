@@ -292,7 +292,7 @@
     "pricing": {
       "wdf": {
         "title": "WDF Service",
-        "value": "$1.25",
+        "value": "$1.40",
         "unit": "/ lb",
         "description": "Wash, Dry & Fold"
       },
@@ -531,7 +531,7 @@
       "yourCommission": "Your Commission",
       "paymentNote": "Your flat delivery fee is charged once per order, regardless of bag count.",
       "deliveryNote": "1. Delivery: 100% of delivery fees go to you",
-      "commissionNote": "2. Commission: 10% of WDF service (30 lbs × $1.25/lb per bag)",
+      "commissionNote": "2. Commission: 10% of WDF service (30 lbs × $1.40/lb per bag)",
       "totalNote": "3. Total Earnings: Delivery fee + Commission",
       "accountSetup": "Account Setup",
       "username": "Username *",

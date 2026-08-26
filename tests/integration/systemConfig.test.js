@@ -73,7 +73,7 @@ describe('System Config API Tests', () => {
         // Verify WDF rate is included
         const wdfConfig = response.body.find(c => c.key === 'wdf_base_rate_per_pound');
         expect(wdfConfig).toBeDefined();
-        expect(wdfConfig.currentValue).toBe(1.25);
+        expect(wdfConfig.currentValue).toBe(1.40);
         expect(wdfConfig.category).toBe('payment');
       });
 
@@ -108,7 +108,7 @@ describe('System Config API Tests', () => {
           .expect(200);
 
         expect(response.body.key).toBe('wdf_base_rate_per_pound');
-        expect(response.body.currentValue).toBe(1.25);
+        expect(response.body.currentValue).toBe(1.40);
         expect(response.body.isPublic).toBe(true);
       });
 

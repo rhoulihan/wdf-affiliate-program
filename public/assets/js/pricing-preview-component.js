@@ -10,7 +10,7 @@
   'use strict';
 
   // Constants for commission calculation
-  const WDF_RATE = 1.25; // $1.25 per pound
+  const WDF_RATE = 1.40; // $1.40 per pound
   const LBS_PER_BAG = 30; // 30 lbs per bag average
   const COMMISSION_RATE = 0.10; // 10% commission
 

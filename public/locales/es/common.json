@@ -292,7 +292,7 @@
     "pricing": {
       "wdf": {
         "title": "Servicio WDF",
-        "value": "$1.25",
+        "value": "$1.40",
         "unit": "/ lb",
         "description": "Lavar, Secar y Doblar"
       },
@@ -531,7 +531,7 @@
       "yourCommission": "Tu Comisión",
       "paymentNote": "Su tarifa de entrega fija se cobra una vez por pedido, independientemente del número de bolsas.",
       "deliveryNote": "1. Entrega: 100% de las tarifas de entrega son para ti",
-      "commissionNote": "2. Comisión: 10% del servicio WDF (30 lbs × $1.25/lb por bolsa)",
+      "commissionNote": "2. Comisión: 10% del servicio WDF (30 lbs × $1.40/lb por bolsa)",
       "totalNote": "3. Ganancias Totales: Tarifa de entrega + Comisión",
       "accountSetup": "Configuración de Cuenta",
       "username": "Nombre de Usuario *",

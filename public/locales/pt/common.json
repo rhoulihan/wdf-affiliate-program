@@ -292,7 +292,7 @@
     "pricing": {
       "wdf": {
         "title": "Serviço WDF",
-        "value": "$1.25",
+        "value": "$1.40",
         "unit": "/ lb",
         "description": "Lavar, Secar e Dobrar"
       },
@@ -531,7 +531,7 @@
       "yourCommission": "Sua Comissão",
       "paymentNote": "Sua taxa de entrega fixa é cobrada uma vez por pedido, independentemente do número de sacolas.",
       "deliveryNote": "1. Entrega: 100% das taxas de entrega são suas",
-      "commissionNote": "2. Comissão: 10% do serviço WDF (30 lbs × $1.25/lb por sacola)",
+      "commissionNote": "2. Comissão: 10% do serviço WDF (30 lbs × $1.40/lb por sacola)",
       "totalNote": "3. Ganhos Totais: Taxa de entrega + Comissão",
       "accountSetup": "Configuração da Conta",
       "username": "Nome de Usuário *",

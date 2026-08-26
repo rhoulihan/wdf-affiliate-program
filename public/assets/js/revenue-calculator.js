@@ -5,7 +5,7 @@ console.log('Revenue calculator script loaded');
 // Function to initialize the calculator
 async function initializeCalculator() {
   console.log('Initializing revenue calculator...');
-  let wdfRate = 1.25; // Default rate
+  let wdfRate = 1.40; // Default rate
 
   // Calculate earnings function
   function calculateEarnings() {

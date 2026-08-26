@@ -292,7 +292,7 @@
     "pricing": {
       "wdf": {
         "title": "WDF-Service",
-        "value": "$1.25",
+        "value": "$1.40",
         "unit": "/ lb",
         "description": "Waschen, Trocknen & Falten"
       },
@@ -531,7 +531,7 @@
       "yourCommission": "Ihre Provision",
       "paymentNote": "Ihre pauschale Liefergebühr wird einmal pro Bestellung berechnet, unabhängig von der Anzahl der Beutel.",
       "deliveryNote": "1. Lieferung: 100% der Liefergebühren gehören Ihnen",
-      "commissionNote": "2. Provision: 10% des WDF-Service (30 lbs × $1.25/lb pro Tasche)",
+      "commissionNote": "2. Provision: 10% des WDF-Service (30 lbs × $1.40/lb pro Tasche)",
       "totalNote": "3. Gesamteinnahmen: Liefergebühr + Provision",
       "accountSetup": "Kontoeinrichtung",
       "username": "Benutzername *",
