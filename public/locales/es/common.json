@@ -100,7 +100,8 @@
       "emailRequired": "Verifique su correo electrónico para continuar.",
       "enterPhoneFirst": "Ingrese su número de teléfono primero.",
       "enterEmailFirst": "Ingrese su correo electrónico primero.",
-      "phoneUnavailable": "La verificación por teléfono no está disponible temporalmente. Recargue la página e inténtelo de nuevo."
+      "phoneUnavailable": "La verificación por teléfono no está disponible temporalmente. Recargue la página e inténtelo de nuevo.",
+      "smsRequiredNote": "Se requiere la validación por SMS para continuar."
     },
     "emailOptional": "Correo electrónico (opcional)",
     "pickup": {

@@ -100,7 +100,8 @@
       "emailRequired": "Bitte bestätigen Sie Ihre E-Mail, um fortzufahren.",
       "enterPhoneFirst": "Geben Sie zuerst Ihre Telefonnummer ein.",
       "enterEmailFirst": "Geben Sie zuerst Ihre E-Mail ein.",
-      "phoneUnavailable": "Die Telefonverifizierung ist vorübergehend nicht verfügbar. Bitte laden Sie die Seite neu und versuchen Sie es erneut."
+      "phoneUnavailable": "Die Telefonverifizierung ist vorübergehend nicht verfügbar. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
+      "smsRequiredNote": "Zur Fortsetzung ist eine SMS-Bestätigung erforderlich."
     },
     "emailOptional": "E-Mail (optional)",
     "pickup": {

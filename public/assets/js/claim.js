@@ -1069,6 +1069,10 @@
   function updateSubmitState() {
     var submit = document.getElementById('claimSubmit');
     if (submit) submit.disabled = !isVerified();
+    // Show the "SMS validation required" note until the phone is verified; hide it
+    // once verified (or when phone verification isn't required).
+    var smsNote = document.getElementById('sms-required-note');
+    if (smsNote) smsNote.hidden = !(phoneRequired && !phoneIdToken);
   }
 
   function submitRegistration(event) {

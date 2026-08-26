@@ -578,7 +578,7 @@ function initializePageScripts(route) {
         '/affiliate-dashboard': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/pricing-preview-component.js?v=20260623a', '/assets/js/csrf-utils.js', '/assets/js/api-client.js', '/assets/js/affiliate-dashboard-init.js?v=20260623a', '/assets/js/affiliate-dashboard-embed.js', '/assets/js/affiliate-dashboard-i18n.js'],
         // Firebase compat SDK is lazy-loaded on demand by claim.js (only when phone
         // verification is enabled) so its ~170 KB stays off the form's render path.
-        '/claim': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/modal-utils.js', '/assets/js/swirl-spinner.js', '/assets/js/scan-session.js', '/assets/js/claim.js?v=20260622a'],
+        '/claim': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/modal-utils.js', '/assets/js/swirl-spinner.js', '/assets/js/scan-session.js', '/assets/js/claim.js?v=20260826a'],
         '/forgot-password': ['/assets/js/embed-config.js', '/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/modal-utils.js', '/assets/js/csrf-utils.js', '/assets/js/swirl-spinner.js', '/assets/js/api-client.js', '/assets/js/forgot-password-init.js?v=20260613'],
         '/reset-password': ['/assets/js/embed-config.js', '/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/modal-utils.js', '/assets/js/csrf-utils.js', '/assets/js/swirl-spinner.js', '/assets/js/api-client.js', '/assets/js/reset-password-init.js?v=20260613'],
         '/administrator-login': ['/assets/js/i18n.js', '/assets/js/language-switcher.js', '/assets/js/csrf-utils.js', '/assets/js/api-client.js', '/assets/js/administrator-login-init.js'],
