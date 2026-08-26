@@ -266,17 +266,17 @@
   "landing": {
     "header": {
       "title": "Join the {{brandName}} Affiliate Program",
-      "subtitle": "Partner with Austin's premier laundry service and earn recurring commissions while helping your community save time",
+      "subtitle": "Partner with Austin's premier laundry service and earn recurring income while helping your community save time",
       "loginTooltip": "Sign in to your existing affiliate account",
       "registerTooltip": "Create a new affiliate account and start earning"
     },
     "mainHeader": {
       "title": "Join the {{brandName}} Affiliate Program",
-      "subtitle": "Partner with Austin's premier laundry service and earn recurring commissions while helping your community save time"
+      "subtitle": "Partner with Austin's premier laundry service and earn recurring income while helping your community save time"
     },
     "stats": {
       "setFees": "Set Your Own Fees",
-      "commission": "Commission Rate",
+      "commission": "Fees You Keep",
       "startup": "Startup Cost",
       "dashboard": "Dashboard Access"
     },
@@ -337,7 +337,7 @@
         "description": "Your referrals register and schedule pickups"
       },
       "step4": {
-        "title": "Earn Commissions",
+        "title": "Earn on Every Order",
         "description": "Get paid monthly via direct deposit"
       }
     },
@@ -380,7 +380,7 @@
       },
       "recurring": {
         "title": "Earn Recurring Income",
-        "description": "Get 10% commission on every order from customers you refer, for as long as they remain active"
+        "description": "Keep 100% of your delivery fee on every order from customers you refer, for as long as they remain active"
       },
       "tracking": {
         "title": "Track Your Success",
@@ -420,7 +420,6 @@
       "weeklyEarnings": "Weekly earnings",
       "monthlyEarnings": "Monthly earnings",
       "earningsBreakdown": "Earnings breakdown:",
-      "wdfCommission": "WDF commission (10%):",
       "deliveryEarnings": "Delivery fees (100%):",
       "wdfRate": "WDF rate: ${{rate}}/lb",
       "wdfRate.prefix": "WDF rate:",
@@ -430,7 +429,7 @@
       "title": "Frequently Asked Questions",
       "earnings": {
         "question": "How much can I earn?",
-        "answer": "You earn 10% commission on every order. Most active affiliates earn $150-500 per month, with top performers earning more."
+        "answer": "You earn your full delivery fee on every order. Most active affiliates earn $150-500 per month, with top performers earning more."
       },
       "cost": {
         "question": "Is there a cost to join?",
@@ -438,7 +437,7 @@
       },
       "payment": {
         "question": "When do I get paid?",
-        "answer": "Commissions are paid monthly via direct deposit or PayPal, typically by the 10th of each month."
+        "answer": "Earnings are paid monthly via direct deposit or PayPal, typically by the 10th of each month."
       },
       "materials": {
         "question": "What marketing materials do you provide?",
@@ -453,7 +452,7 @@
         "title": "Property Manager, Austin"
       },
       "mike": {
-        "quote": "Easy to track everything through the dashboard. I've referred 15 customers and the commissions keep coming!",
+        "quote": "Easy to track everything through the dashboard. I've referred 15 customers and the earnings keep coming!",
         "name": "Mike T.",
         "title": "Local Business Owner"
       }
@@ -466,7 +465,7 @@
       "title": "Ready to start earning?",
       "customerTitle": "Ready for Fresh, Clean Laundry?",
       "scanBagToJoin": "To get started, ask your delivery provider for a {{brandName}} laundry bag and scan its QR code to create your account.",
-      "description": "Join our affiliate program and start earning commissions by offering laundry services to your customers.",
+      "description": "Join our affiliate program and start earning by offering laundry services to your customers.",
       "inviteOnly": "Affiliates join by invitation — contact {{brandName}} to get started.",
       "login": "Affiliate Login",
       "subtitle": {
@@ -532,8 +531,6 @@
       "yourCommission": "Your Commission",
       "paymentNote": "Your flat delivery fee is charged once per order, regardless of bag count.",
       "deliveryNote": "1. Delivery: 100% of delivery fees go to you",
-      "commissionNote": "2. Commission: 10% of WDF service (30 lbs × $1.40/lb per bag)",
-      "totalNote": "3. Total Earnings: Delivery fee + Commission",
       "accountSetup": "Account Setup",
       "username": "Username *",
       "usernameDesc": "Your unique login identifier",
@@ -562,7 +559,9 @@
       "deliveryFeeDesc": "Your flat delivery fee charged per order",
       "flatFeeTitle": "Flat delivery fee:",
       "flatFeeDesc": "Set your flat delivery fee per order. You keep 100% of it as commission. Set $0 to use {{brandName}} Associates for pickup & delivery.",
-      "addressIncomplete": "Please enter your full address: street, city, state, and a 5-digit ZIP code."
+      "addressIncomplete": "Please enter your full address: street, city, state, and a 5-digit ZIP code.",
+      "yourEarningsPerOrder": "Your earnings per order",
+      "earningsNote": "You keep 100% of your flat delivery fee as your earnings."
     },
     "dashboard": {
       "title": "Affiliate Dashboard",

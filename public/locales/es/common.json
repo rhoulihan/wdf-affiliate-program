@@ -266,17 +266,17 @@
   "landing": {
     "header": {
       "title": "Únete al Programa de Afiliados {{brandName}}",
-      "subtitle": "Asóciate con el servicio de lavandería premier de Austin y gana comisiones recurrentes mientras ayudas a tu comunidad a ahorrar tiempo",
+      "subtitle": "Asóciate con el mejor servicio de lavandería de Austin y genera ingresos recurrentes mientras ayudas a tu comunidad a ahorrar tiempo",
       "loginTooltip": "Inicia sesión en tu cuenta de afiliado existente",
       "registerTooltip": "Crea una nueva cuenta de afiliado y comienza a ganar"
     },
     "mainHeader": {
       "title": "Únete al Programa de Afiliados {{brandName}}",
-      "subtitle": "Asóciate con el principal servicio de lavandería de Austin y gana comisiones recurrentes mientras ayudas a tu comunidad a ahorrar tiempo"
+      "subtitle": "Asóciate con el mejor servicio de lavandería de Austin y genera ingresos recurrentes mientras ayudas a tu comunidad a ahorrar tiempo"
     },
     "stats": {
       "setFees": "Establece Tus Propias Tarifas",
-      "commission": "Tasa de Comisión",
+      "commission": "Tarifas que Conservas",
       "startup": "Costo de Inicio",
       "dashboard": "Acceso al Panel"
     },
@@ -337,7 +337,7 @@
         "description": "Tus referidos se registran y programan recogidas"
       },
       "step4": {
-        "title": "Gana Comisiones",
+        "title": "Gana en Cada Pedido",
         "description": "Recibe pagos mensuales por depósito directo"
       }
     },
@@ -380,7 +380,7 @@
       },
       "recurring": {
         "title": "Gana Ingresos Recurrentes",
-        "description": "Obtén 10% de comisión en cada pedido de los clientes que refieras, mientras permanezcan activos"
+        "description": "Conserva el 100% de tu tarifa de entrega en cada pedido de los clientes que refieras, mientras sigan activos"
       },
       "tracking": {
         "title": "Rastrea Tu Éxito",
@@ -420,7 +420,6 @@
       "weeklyEarnings": "Ganancias semanales",
       "monthlyEarnings": "Ganancias mensuales",
       "earningsBreakdown": "Desglose de ganancias:",
-      "wdfCommission": "Comisión WDF (10%):",
       "deliveryEarnings": "Tarifas de entrega (100%):",
       "wdfRate": "Tarifa WDF: ${{rate}}/lb",
       "wdfRate.prefix": "Tarifa WDF:",
@@ -430,7 +429,7 @@
       "title": "Preguntas Frecuentes",
       "earnings": {
         "question": "¿Cuánto puedo ganar?",
-        "answer": "Ganas 10% de comisión en cada pedido. La mayoría de los afiliados activos ganan $150-500 por mes, con los mejores ganando más."
+        "answer": "Ganas el 100% de tu tarifa de entrega en cada pedido. La mayoría de los afiliados activos ganan entre $150 y $500 al mes, y los mejores ganan más."
       },
       "cost": {
         "question": "¿Hay algún costo para unirse?",
@@ -438,7 +437,7 @@
       },
       "payment": {
         "question": "¿Cuándo me pagan?",
-        "answer": "Las comisiones se pagan mensualmente mediante depósito directo o PayPal, generalmente antes del día 10 de cada mes."
+        "answer": "Las ganancias se pagan mensualmente por depósito directo o PayPal, normalmente antes del día 10 de cada mes."
       },
       "materials": {
         "question": "¿Qué materiales de marketing proporcionan?",
@@ -453,7 +452,7 @@
         "title": "Administradora de Propiedades, Austin"
       },
       "mike": {
-        "quote": "Es fácil rastrear todo a través del panel. ¡He referido a 15 clientes y las comisiones siguen llegando!",
+        "quote": "Fácil de rastrear todo en el panel. He referido a 15 clientes y las ganancias siguen llegando!",
         "name": "Mike T.",
         "title": "Propietario de Negocio Local"
       }
@@ -466,7 +465,7 @@
       "title": "¿Listo para empezar a ganar?",
       "customerTitle": "¿Listo para ropa limpia y fresca?",
       "scanBagToJoin": "Para comenzar, pídele a tu proveedor de entrega una bolsa de lavandería {{brandName}} y escanea su código QR para crear tu cuenta.",
-      "description": "Únete a nuestro programa de afiliados y comienza a ganar comisiones ofreciendo servicios de lavandería a tus clientes.",
+      "description": "Únete a nuestro programa de afiliados y comienza a ganar ofreciendo servicios de lavandería a tus clientes.",
       "inviteOnly": "Los afiliados se unen por invitación — contacte a {{brandName}} para comenzar.",
       "login": "Acceso de Afiliado",
       "subtitle": {
@@ -532,8 +531,6 @@
       "yourCommission": "Tu Comisión",
       "paymentNote": "Su tarifa de entrega fija se cobra una vez por pedido, independientemente del número de bolsas.",
       "deliveryNote": "1. Entrega: 100% de las tarifas de entrega son para ti",
-      "commissionNote": "2. Comisión: 10% del servicio WDF (30 lbs × $1.40/lb por bolsa)",
-      "totalNote": "3. Ganancias Totales: Tarifa de entrega + Comisión",
       "accountSetup": "Configuración de Cuenta",
       "username": "Nombre de Usuario *",
       "usernameDesc": "Su identificador único de inicio de sesión",
@@ -562,7 +559,9 @@
       "deliveryFeeDesc": "Su tarifa de entrega fija cobrada por pedido",
       "flatFeeTitle": "Tarifa de entrega fija:",
       "flatFeeDesc": "Establezca su tarifa de entrega fija por pedido. Usted conserva el 100% como comisión. Ponga $0 para usar {{brandName}} Associates para la recogida y entrega.",
-      "addressIncomplete": "Ingrese su dirección completa: calle, ciudad, estado y un código postal de 5 dígitos."
+      "addressIncomplete": "Ingrese su dirección completa: calle, ciudad, estado y un código postal de 5 dígitos.",
+      "yourEarningsPerOrder": "Tus ganancias por pedido",
+      "earningsNote": "Conservas el 100% de tu tarifa de entrega fija como tus ganancias."
     },
     "dashboard": {
       "title": "Panel de Afiliado",

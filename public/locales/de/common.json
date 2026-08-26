@@ -266,17 +266,17 @@
   "landing": {
     "header": {
       "title": "Werden Sie Teil des {{brandName}} Partnerprogramms",
-      "subtitle": "Partnern Sie mit Austins führendem Wäscheservice und verdienen Sie wiederkehrende Provisionen, während Sie Ihrer Community helfen, Zeit zu sparen",
+      "subtitle": "Werden Sie Partner von Austins erstklassigem Wäscheservice und erzielen Sie wiederkehrende Einnahmen, während Sie Ihrer Gemeinschaft helfen, Zeit zu sparen",
       "loginTooltip": "Melden Sie sich bei Ihrem bestehenden Partnerkonto an",
       "registerTooltip": "Erstellen Sie ein neues Partnerkonto und beginnen Sie zu verdienen"
     },
     "mainHeader": {
       "title": "Werden Sie Teil des {{brandName}} Partnerprogramms",
-      "subtitle": "Partnern Sie mit Austins führendem Wäscheservice und verdienen Sie wiederkehrende Provisionen, während Sie Ihrer Community helfen, Zeit zu sparen"
+      "subtitle": "Werden Sie Partner von Austins erstklassigem Wäscheservice und erzielen Sie wiederkehrende Einnahmen, während Sie Ihrer Gemeinschaft helfen, Zeit zu sparen"
     },
     "stats": {
       "setFees": "Legen Sie Ihre eigenen Gebühren fest",
-      "commission": "Provisionssatz",
+      "commission": "Gebühren, die Sie behalten",
       "startup": "Startkosten",
       "dashboard": "Dashboard-Zugang"
     },
@@ -337,7 +337,7 @@
         "description": "Ihre Empfehlungen registrieren sich und planen Abholungen"
       },
       "step4": {
-        "title": "Provisionen verdienen",
+        "title": "Bei jeder Bestellung verdienen",
         "description": "Erhalten Sie monatliche Zahlungen per Überweisung"
       }
     },
@@ -380,7 +380,7 @@
       },
       "recurring": {
         "title": "Verdienen Sie wiederkehrende Einnahmen",
-        "description": "Erhalten Sie 10% Provision auf jede Bestellung von Kunden, die Sie empfehlen, solange sie aktiv bleiben"
+        "description": "Behalten Sie 100% Ihrer Liefergebühr bei jeder Bestellung von Kunden, die Sie werben, solange diese aktiv bleiben"
       },
       "tracking": {
         "title": "Verfolgen Sie Ihren Erfolg",
@@ -420,7 +420,6 @@
       "weeklyEarnings": "Wöchentliche Einnahmen",
       "monthlyEarnings": "Monatliche Einnahmen",
       "earningsBreakdown": "Einnahmenaufschlüsselung:",
-      "wdfCommission": "WDF-Provision (10%):",
       "deliveryEarnings": "Liefergebühren (100%):",
       "wdfRate": "WDF-Tarif: ${{rate}}/lb",
       "wdfRate.prefix": "WDF-Tarif:",
@@ -430,7 +429,7 @@
       "title": "Häufig gestellte Fragen",
       "earnings": {
         "question": "Wie viel kann ich verdienen?",
-        "answer": "Sie verdienen 10% Provision auf jede Bestellung. Die meisten aktiven Partner verdienen $150-500 pro Monat, Top-Performer verdienen mehr."
+        "answer": "Sie verdienen bei jeder Bestellung Ihre volle Liefergebühr. Die meisten aktiven Partner verdienen 150-500 $ pro Monat, Top-Performer mehr."
       },
       "cost": {
         "question": "Gibt es Kosten für die Teilnahme?",
@@ -438,7 +437,7 @@
       },
       "payment": {
         "question": "Wann werde ich bezahlt?",
-        "answer": "Provisionen werden monatlich per Überweisung oder PayPal ausgezahlt, normalerweise bis zum 10. jedes Monats."
+        "answer": "Die Einnahmen werden monatlich per Direktüberweisung oder PayPal ausgezahlt, in der Regel bis zum 10. jedes Monats."
       },
       "materials": {
         "question": "Welche Marketingmaterialien stellen Sie zur Verfügung?",
@@ -453,7 +452,7 @@
         "title": "Immobilienverwalterin, Austin"
       },
       "mike": {
-        "quote": "Es ist einfach, alles über das Dashboard zu verfolgen. Ich habe 15 Kunden empfohlen und die Provisionen kommen weiter!",
+        "quote": "Alles lässt sich einfach über das Dashboard verfolgen. Ich habe 15 Kunden geworben und die Einnahmen kommen weiter!",
         "name": "Mike T.",
         "title": "Lokaler Geschäftsinhaber"
       }
@@ -466,7 +465,7 @@
       "title": "Bereit, Geld zu verdienen?",
       "customerTitle": "Bereit für frische, saubere Wäsche?",
       "scanBagToJoin": "Um zu starten, fragen Sie Ihren Lieferpartner nach einem {{brandName}}-Wäschesack und scannen Sie dessen QR-Code, um Ihr Konto zu erstellen.",
-      "description": "Treten Sie unserem Partnerprogramm bei und verdienen Sie Provisionen, indem Sie Ihren Kunden Wäscheservice anbieten.",
+      "description": "Nehmen Sie an unserem Partnerprogramm teil und verdienen Sie, indem Sie Ihren Kunden Wäscheservice anbieten.",
       "inviteOnly": "Partner werden nur auf Einladung aufgenommen — kontaktieren Sie {{brandName}}, um zu starten.",
       "login": "Partner-Login",
       "subtitle": {
@@ -532,8 +531,6 @@
       "yourCommission": "Ihre Provision",
       "paymentNote": "Ihre pauschale Liefergebühr wird einmal pro Bestellung berechnet, unabhängig von der Anzahl der Beutel.",
       "deliveryNote": "1. Lieferung: 100% der Liefergebühren gehören Ihnen",
-      "commissionNote": "2. Provision: 10% des WDF-Service (30 lbs × $1.40/lb pro Tasche)",
-      "totalNote": "3. Gesamteinnahmen: Liefergebühr + Provision",
       "accountSetup": "Kontoeinrichtung",
       "username": "Benutzername *",
       "usernameDesc": "Ihre eindeutige Anmeldekennung",
@@ -562,7 +559,9 @@
       "deliveryFeeDesc": "Ihre pauschale Liefergebühr pro Bestellung",
       "flatFeeTitle": "Pauschale Liefergebühr:",
       "flatFeeDesc": "Legen Sie Ihre pauschale Liefergebühr pro Bestellung fest. Sie behalten 100 % als Provision. Setzen Sie $0, um {{brandName}} Associates für Abholung und Lieferung zu nutzen.",
-      "addressIncomplete": "Bitte geben Sie Ihre vollständige Adresse ein: Straße, Stadt, Bundesland und eine 5-stellige PLZ."
+      "addressIncomplete": "Bitte geben Sie Ihre vollständige Adresse ein: Straße, Stadt, Bundesland und eine 5-stellige PLZ.",
+      "yourEarningsPerOrder": "Ihr Verdienst pro Auftrag",
+      "earningsNote": "Sie behalten 100% Ihrer festen Liefergebühr als Ihren Verdienst."
     },
     "dashboard": {
       "title": "Partner-Dashboard",
