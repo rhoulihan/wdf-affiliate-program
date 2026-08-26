@@ -35,7 +35,7 @@ Node.js/Express application managing a laundry service affiliate network. Affili
 - **Payment**: post-weigh Venmo/PayPal/CashApp links generated once at store intake; hourly reminders ×8, then held-at-store escalation (spec §6.5; V1 Paygistix deleted)
 - **Bag-bound relationships**: customers bind to an affiliate by claiming a durable bag QR — *replaced* location-based service-area matching (spec §6.3; service area no longer enforced)
 - **Durable bag QR tracking**: one reusable bag per customer, one order per store intake; order lifecycle `in_progress → processed → ready_for_pickup → picked_up → delivered` (spec §6.4)
-- **Commission system**: 10% WDF + 100% delivery fee, realized at `delivered`
+- **Commission system**: affiliate keeps **100% of their flat delivery fee** per order — **no WDF commission** (money/weight live externally in Cents, Phase 1)
 - **W-9 tax compliance**: encrypted in-app W-9 file upload + admin review — *replaced* the DocuSign flow (spec §6.2)
 - **i18n**: English, Spanish, Portuguese, German
 - **CSP v2 compliant**: Strict Content Security Policy for iframe embedding
@@ -577,19 +577,9 @@ Always maintain all 4 languages when adding user-facing copy. See `docs/guides/i
 
 ### Commission Calculation
 
-Formula: `(WDF amount × 10%) + delivery fee`
+> **Replaced (2026-08-26): there is NO WDF commission.** The affiliate's commission is **100% of their flat delivery fee** per order (the per-order fee they set; `$0` for location affiliates), constant regardless of bag count. Money/weight live externally in Cents (Phase 1); the Order model does **not** compute `affiliateCommission` (see `tests/unit/models.test.js` — `affiliateCommission` is `undefined`). The `(WDF × 10%) + delivery fee` formula below is **historical** — trust this note + the code.
 
-```javascript
-const wdfAmount = actualWeight * baseRate;
-const wdfCommission = wdfAmount * 0.1;
-const affiliateCommission = wdfCommission + totalDeliveryFee;
-
-// Example: 15 lbs @ $1.25/lb = $18.75 WDF
-// Delivery (3 bags): max($25 min, 3 × $5) = $25
-// Commission: ($18.75 × 0.1) + $25 = $26.88
-```
-
-Add-ons and credits are **not** included in commission.
+Affiliate commission = the affiliate's flat delivery fee (kept 100%). No percentage of WDF is taken. Add-ons and credits are not included.
 
 ### Delivery Fee
 
