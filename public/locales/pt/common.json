@@ -478,7 +478,8 @@
     "footer": {
       "administratorLogin": "Login de Administrador",
       "operatorLogin": "Login de Operador",
-      "copyright": "© 2025 CRHS Enterprises, LLC. Todos os direitos reservados."
+      "copyright": "© 2025 CRHS Enterprises, LLC. Todos os direitos reservados.",
+      "fulfillmentPartner": "A WaveMAX Austin é a parceira de execução do programa atxwashdryfold."
     },
     "page": {
       "title": "Programa de Afiliados {{brandName}} Laundry - Austin TX"

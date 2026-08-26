@@ -478,7 +478,8 @@
     "footer": {
       "administratorLogin": "Administrator Login",
       "operatorLogin": "Operator Login",
-      "copyright": "© 2025 CRHS Enterprises, LLC. All rights reserved."
+      "copyright": "© 2025 CRHS Enterprises, LLC. All rights reserved.",
+      "fulfillmentPartner": "WaveMAX Austin is the fulfillment partner for the atxwashdryfold program."
     },
     "page": {
       "title": "{{brandName}} Laundry Affiliate Program - Austin TX"

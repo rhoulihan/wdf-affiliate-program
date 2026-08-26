@@ -1,6 +1,6 @@
 /* Bag labels — 4x6 thermal format (HP KE100), one label per page (spec §6.1).
    Monochrome-friendly: black on white, no colored backgrounds. The colored
-   WaveMAX logo grayscales on the thermal head — expected. No inline styles. */
+   brand logo grayscales on the thermal head — expected. No inline styles. */
 * { box-sizing: border-box; }
 
 html, body {

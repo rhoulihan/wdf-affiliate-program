@@ -478,7 +478,8 @@
     "footer": {
       "administratorLogin": "Administrator-Login",
       "operatorLogin": "Operator-Login",
-      "copyright": "© 2025 CRHS Enterprises, LLC. Alle Rechte vorbehalten."
+      "copyright": "© 2025 CRHS Enterprises, LLC. Alle Rechte vorbehalten.",
+      "fulfillmentPartner": "WaveMAX Austin ist der Erfüllungspartner für das atxwashdryfold-Programm."
     },
     "page": {
       "title": "{{brandName}} Wäscherei Partnerprogramm - Austin TX"

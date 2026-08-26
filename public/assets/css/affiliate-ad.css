@@ -56,7 +56,7 @@ h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:-.02em;margin:0}
 .eyebrow{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;letter-spacing:.02em;
   color:var(--teal-deep);background:var(--teal-soft);border-radius:999px;padding:7px 14px}
 
-/* nav (navy so the white WaveMAX logo reads) */
+/* nav (navy so the white brand logo reads) */
 .nav{position:sticky;top:0;z-index:50;background:var(--navy)}
 .nav-in{display:flex;align-items:center;gap:18px;min-height:66px}
 .nav-logo{height:34px;width:auto;display:block}

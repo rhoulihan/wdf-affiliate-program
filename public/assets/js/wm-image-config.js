@@ -17,7 +17,7 @@
  *   <img data-wm-location-image="austin-tx/hero-3.jpg" alt="...">
  *   ...and the small auto-resolver below rewrites src on DOMContentLoaded.
  *
- * Brand assets (favicons, the WaveMAX logo, anything not tied to a
+ * Brand assets (favicons, the brand logo, anything not tied to a
  * specific franchise location) are served from /assets/images/brand/ and
  * are NOT controlled by this config — they live in the repo and never
  * touch wavemaxlaundry.com.

@@ -79,6 +79,10 @@ const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 // shields only genuine infra / legal / functional identifiers. Adding an entry here
 // hides a real "wavemax" from the guard — only do it for a true, verified keep.
 const INFRA_ALLOW = [
+  // "WaveMAX Austin" is CRHS's business name — the fulfillment partner for the
+  // atxwashdryfold program, and the ONE permitted use of the mark. Bare "WaveMAX"
+  // / "WaveMAX Laundry" (the franchisor's marks) are NOT allowed and still fail.
+  /WaveMAX Austin/gi,
   /wavemax\.promo/gi, /@wavemax\.promo/gi,
   /wavemaxlaundry\.com/gi, /wavemax-bag-registration/gi,
   /wavemax_affiliate/gi, /wavemax-affiliate-program/gi,
