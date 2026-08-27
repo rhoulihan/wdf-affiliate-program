@@ -131,11 +131,6 @@ if (process.env.NODE_ENV !== 'test') {
         } catch (e) { logger.error('Oracle diagnostics init failed:', e.message); }
       }
 
-      // Warm the access-gate whitelist/password cache + start periodic refresh.
-      const gate = require('./server/middleware/accessGate');
-      gate.loadCache().then(() => gate.startCacheRefresh())
-        .catch((e) => logger.error('Access gate cache init failed:', e.message));
-
       // Initialize system configuration defaults
       try {
         const SystemConfig = require('./server/models/SystemConfig');
@@ -333,12 +328,10 @@ app.use((req, res, next) => {
   // Apply strict CSP to clean-URL slug pages: single-segment (/<slug>) or
   // double-segment (/<slug>/<page>) paths, lowercase + digits + hyphens, no
   // dots (i.e. not a static-file request like .html or .js). This matcher is
-  // load-bearing for the KEEP surfaces: the crhsent.com clean-URL pages
-  // (the mediator record, /work, /proof, … served by the crhsent host
-  // handler above), the kept affiliate-marketing slug routes (/affiliate,
-  // /wavemax-affiliate), and /scanbag all get the nonce-based strict CSP only
-  // because they match here. Retired franchise slugs now 404, and harmlessly
-  // get strict CSP on the 404 response.
+  // load-bearing for the KEEP surfaces: the kept affiliate-marketing slug
+  // routes (/affiliate, /wavemax-affiliate) and /scanbag all get the
+  // nonce-based strict CSP only because they match here. Retired franchise
+  // slugs now 404, and harmlessly get strict CSP on the 404 response.
   const isCleanUrlSlugPage = /^\/[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?\/?$/.test(req.path)
                               && !req.path.startsWith('/api/')
                               && !req.path.startsWith('/assets/')
@@ -347,15 +340,6 @@ app.use((req, res, next) => {
                               && !req.path.startsWith('/dev/');
 
   const useStrictCSP = strictCSPPages.includes(req.path) || isDocumentationPage || isCleanUrlSlugPage;
-
-  // /wavemax/clickjacking-demo.html — the educational clickjacking demonstration
-  // page on crhsent.com. Its sole purpose is to load the franchisor's headerless
-  // wavemaxlaundry.com pages in an iframe (the entire point of the demo is to
-  // show that exactly this works because the franchisor's site doesn't set
-  // X-Frame-Options / CSP frame-ancestors). Standard frame-src doesn't include
-  // those origins; adding them here for this one route, not globally, keeps the
-  // strict frame-src on every other page intact.
-  const isClickjackingDemo = req.path === '/wavemax/clickjacking-demo.html';
 
   // All embed pages now use nonces since embed-app.html was converted to CSP-compliant redirect to embed-app-v2.html
   const skipNonce = false;
@@ -405,17 +389,11 @@ app.use((req, res, next) => {
     'font-src': ['\'self\'', 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://fonts.gstatic.com'],
     'object-src': ['\'none\''],
     'media-src': ['\'self\''],
-    'frame-src': isClickjackingDemo
-      ? ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
-        // Firebase Phone Auth (PR 7) — the auth helper iframe.
-        'https://wavemax-bag-registration.firebaseapp.com',
-        // Educational clickjacking demo only — see isClickjackingDemo comment above.
-        'https://www.wavemaxlaundry.com', 'https://wavemaxlaundry.com', 'https://rundberglaundry.com']
-      : ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
-        // reCAPTCHA v2 challenge iframe (fallback when Enterprise can't init).
-        'https://www.recaptcha.net',
-        // Firebase Phone Auth (PR 7) — the auth helper iframe.
-        'https://wavemax-bag-registration.firebaseapp.com'],
+    'frame-src': ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
+      // reCAPTCHA v2 challenge iframe (fallback when Enterprise can't init).
+      'https://www.recaptcha.net',
+      // Firebase Phone Auth (PR 7) — the auth helper iframe.
+      'https://wavemax-bag-registration.firebaseapp.com'],
     'form-action': ['\'self\''],
     // App is served directly (not iframed by the franchisor) — only same-origin
     // may frame it, matching the X-Frame-Options: SAMEORIGIN set above.
@@ -466,9 +444,6 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', cspHeader);
   next();
 });
-
-// NOTE: the crhsent.com host handler is mounted further down — AFTER the access
-// gate — so the gate can password-protect the CRHS content. See below.
 
 // CORS setup
 const corsOptions = {
@@ -544,64 +519,15 @@ app.use(sanitizeRequest); // Sanitize all inputs for XSS prevention
 // Compression for all responses
 app.use(compression());
 
-// Access gate — password-protects ALL web traffic to the Express-served
-// domains unless the client IP is whitelisted. No-op unless
-// ACCESS_GATE_ENABLED=true, so it deploys dark; mounted here so it fronts
-// every route and has body+cookie parsing (above) for the password POST,
-// but runs before the API rate limiter and session creation.
-const accessGate = require('./server/middleware/accessGate');
-app.use(accessGate);
-
 // Partner-program landing page for the Austin per-location domains
 // (rundberglaundry.com + the runberg/atxwashateria/atxwashdryfold aliases).
 // Indexable public recruitment page for the pickup/delivery partner program;
 // runs before the location quarantine and content routes so it covers every
 // marketing path and prevents any other host handler from leaking onto these
 // domains. Exempt paths (API, .well-known, assets, locales, app surfaces,
-// favicon/robots/sitemap) pass through. crhsent.com is unaffected (gated above).
+// favicon/robots/sitemap) pass through.
 const partnerLanding = require('./server/middleware/partnerLanding');
 app.use(partnerLanding);
-
-// ---- crhsent.com — first-class app page, mounted AFTER the access gate so the
-// gate fronts the CRHS content (gated when access_gate_enabled=true). Served
-// through the app (not static nginx) for the full security model: nonce-based
-// CSP (the mediator path matches isCleanUrlSlugPage -> strict), HSTS,
-// frame-ancestors, etc. HTML is nonce-injected via cspHelper; assets sent
-// directly. Path-traversal guarded. ----
-const { readHTMLWithNonce: crhsentReadHTML } = require('./server/utils/cspHelper');
-const CRHSENT_ROOT = path.join(__dirname, 'crhsent');
-
-// mediatorGate — password + IP-binding gate fronting crhsent.com/wavemax (the
-// documented-record package prepared for the mediator). Deploys DARK (no-op
-// unless MEDIATOR_GATE_ENABLED=true); mounted here so it has body + cookie
-// parsing and runs BEFORE the crhsent host handler that would otherwise serve
-// the mediator's public content ungated.
-app.use(require('./server/middleware/mediatorGate'));
-
-app.use(async (req, res, next) => {
-  const host = (req.hostname || '').toLowerCase().replace(/^www\./, '');
-  if (host !== 'crhsent.com') return next();
-  try {
-    const rel = decodeURIComponent(req.path);
-    let full = path.normalize(path.join(CRHSENT_ROOT, rel));
-    if (full !== CRHSENT_ROOT && !full.startsWith(CRHSENT_ROOT + path.sep)) {
-      return res.status(403).end();
-    }
-    // Clean URLs: any path without a file extension maps to its folder's
-    // index.html, so "/", "/work" and "/work/" all serve the same page.
-    if (!path.extname(full)) {
-      full = path.join(full, 'index.html');
-    }
-    if (full.endsWith('.html')) {
-      const html = await crhsentReadHTML(full, res.locals.cspNonce);
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      return res.type('html').send(html);
-    }
-    return res.sendFile(full, (err) => { if (err) next(); });
-  } catch (e) {
-    return next();
-  }
-});
 
 // Rate limiting for API endpoints
 // Import centralized rate limiting configuration

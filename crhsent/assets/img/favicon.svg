@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="CRHS Enterprises">
-  <rect width="32" height="32" fill="#141414"/>
-  <path d="M3 29 L29 3" stroke="#c8102e" stroke-width="5.5" stroke-linecap="square"/>
-  <path d="M22 3 L29 3 L29 10 Z" fill="#c8102e"/>
-  <rect x="3" y="3" width="6" height="6" fill="#f7f5f0"/>
-</svg>

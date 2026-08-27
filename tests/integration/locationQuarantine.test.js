@@ -396,39 +396,6 @@ describe('Location quarantine middleware', () => {
       });
     });
 
-    // ── crhsent.com — NEVER redirect to corporate ─────────────────────
-    // crhsent.com is its own property (CRHS Enterprises). A gated/unknown
-    // path on crhsent.com must serve a 404 FROM crhsent.com, never a 302 to
-    // www.wavemaxlaundry.com. (Sending crhsent traffic to the franchisor's
-    // domain is wrong on every axis — brand, SEO, and it looked broken.)
-    describe('crhsent.com host', () => {
-      it('serves a 404 (not a 302 to corporate) for an unknown path', async () => {
-        const response = await request(app)
-          .get('/some-unknown-crhsent-page')
-          .set('Host', 'crhsent.com')
-          .redirects(0);
-        expect(response.status).toBe(404);
-        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
-      });
-
-      it('serves a 404 for an unknown path on www.crhsent.com too', async () => {
-        const response = await request(app)
-          .get('/some-unknown-crhsent-page')
-          .set('Host', 'www.crhsent.com')
-          .redirects(0);
-        expect(response.status).toBe(404);
-        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
-      });
-
-      it('never redirects a suspicious path on crhsent.com to corporate', async () => {
-        const response = await request(app)
-          .get('/wp-login.php')
-          .set('Host', 'crhsent.com')
-          .redirects(0);
-        expect(response.headers.location || '').not.toContain('wavemaxlaundry.com');
-      });
-    });
-
     // ── Redirect: unknown paths ───────────────────────────────────────
     describe('Unknown paths', () => {
       it('redirects an unknown path to corporate (preserve path)', async () => {

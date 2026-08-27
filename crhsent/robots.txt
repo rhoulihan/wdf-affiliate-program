@@ -1,5 +1,0 @@
-# CRHS Enterprises — crhsent.com
-User-agent: *
-Allow: /
-
-Sitemap: https://crhsent.com/sitemap.xml

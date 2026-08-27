@@ -12,7 +12,7 @@ const baseline = new Set(
 
 // Whole-file/tree exclusions (spec §7 + Phase-4 deferrals + generated + docs).
 const EXCLUDED_PREFIXES = [
-  'crhsent/', 'dc_private/', 'docs/', 'node_modules/', '.git/',
+  'dc_private/', 'docs/', 'node_modules/', '.git/',
   'design-explorer/', 'tests/unit/design-explorer/',
   'public/design-explorer/',
   // Stylesheets — CSS carries only class-name identifiers, franchisor CDN
@@ -21,7 +21,6 @@ const EXCLUDED_PREFIXES = [
   'public/assets/css/',
 ];
 const EXCLUDED_FILES = new Set([
-  'server/middleware/accessGate.js', 'server/middleware/mediatorGate.js',
   'server/models/AccessGate.js', 'server/models/AccessWhitelist.js',
   'server/models/AccessClick.js', 'server/models/AccessRequest.js',
   'server/models/MediatorAccess.js',
@@ -34,8 +33,7 @@ const EXCLUDED_FILES = new Set([
   // Asserts the ABSENCE of the franchisor host in the affiliate email dispatcher,
   // so it must name it. See affiliate-email-franchisor-urls-2026-08-24.
   'tests/unit/affiliateEmailUrls.test.js',
-  'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/accessGate.test.js',
-  'tests/unit/mediatorGate.test.js', 'tests/unit/branding-guard.test.js',
+  'tests/unit/wavemaxAffiliatePage.test.js', 'tests/unit/branding-guard.test.js',
   // Phase-4a domain-migration tooling — legitimately references wavemax.
   'tests/unit/domain-guard.test.js', 'tests/fixtures/domain-guard-baseline.json',
   'tests/integration/domainMigration.test.js',
@@ -62,8 +60,6 @@ const EXCLUDED_FILES = new Set([
   'LICENSE', 'init.prompt',
   //   Partner-landing middleware (excluded partnerLanding.js) + its no-brand guard:
   'tests/unit/partnerLanding.test.js',
-  //   crhsent sales page served at /wavemax/ (excluded crhsent/ tree + mediatorGate):
-  'tests/integration/crhsentCsp.test.js',
   // Guard-style tests whose /wavemax/i absence-matcher is load-bearing (asserts the
   // page carries NO brand) — allowlisted like i18n-brand-token.test.js above.
   'tests/unit/affiliateApplicationForm.test.js', 'tests/unit/partnerInquiryForm.test.js',

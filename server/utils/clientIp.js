@@ -21,7 +21,7 @@
  * is the proper long-term fix — tracked separately.)
  *
  * This is the canonical resolver that the per-request IP controls
- * (adminIpGate, operatorIpGate, accessGate, partnerLanding, locationQuarantine,
+ * (adminIpGate, operatorIpGate, partnerLanding, locationQuarantine,
  * codeAttemptLockout, …) should migrate onto — they currently each inline a
  * near-identical version. (Consolidation tracked as a later audit workstream.)
  */
