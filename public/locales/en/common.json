@@ -1696,7 +1696,9 @@
       "errNetwork": "Network error — please try again, or email pickups@rundberglaundry.com."
     },
     "footer": {
-      "copy": "© 2025 CRHS Enterprises, LLC. All rights reserved."
+      "copy": "© 2025 CRHS Enterprises, LLC. All rights reserved.",
+      "fulfillmentPartner": "WaveMAX Austin is the fulfillment partner for the atxwashdryfold program.",
+      "storeInfo": "For more information about the store, visit"
     }
   }
 }
