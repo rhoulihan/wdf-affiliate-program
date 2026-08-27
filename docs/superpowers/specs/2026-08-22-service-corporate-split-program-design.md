@@ -1,7 +1,7 @@
 # Service / Corporate Split → De-brand → Domain Migration — Program Design
 
 **Date:** 2026-08-22
-**Status:** Design — awaiting review
+**Status:** In execution — Phases 1–2 built (`crhs-web-core`, `crhs-corporate`); §3.B/§3.E/§4 amended 2026-08-27 per the [split catch-up gap analysis](../plans/2026-08-27-split-catchup-gap-analysis.md) (franchise marketing retired in Phase-4b; corporate scope = crhsent.com; monorepo stays the service app).
 **Author:** CRHS (Rick Houlihan) + Claude
 **Type:** Program spec (decomposes into four phased sub-projects, each of which gets its own detailed spec + implementation plan).
 
@@ -30,7 +30,7 @@ Sequenced (locked):
 
 1. **`crhs-web-core`** (package `@crhs/web-core`) — shared security + infrastructure core. Consumed by both apps as a versioned dependency (published from its own repo, or a workspace package). See §3.C.
 2. **`wdf-affiliate-program`** (existing repo, becomes service-only) — the WDF affiliate SERVICE. Own service-only `server.js`; PM2 `wavemax`, port 3000; hosts = app/API/embed domains.
-3. **`crhs-corporate`** (new repo) — corporate/marketing content + the corporate gates + franchise-host rendering. Own `server.js`; PM2 `crhs-corporate`, port 3001; hosts = `crhsent.com` + the Austin marketing/per-location domains.
+3. **`crhs-corporate`** (new repo) — corporate content (`crhsent.com`) + the corporate gates (`accessGate`/`mediatorGate`). Own `server.js`; PM2 `crhs-corporate`, port 3001; host = `crhsent.com`. *(Amended 2026-08-27: franchise-host rendering and the Austin marketing/per-location domains were retired in Phase-4b — see §3.B.)*
 
 Both apps depend on `@crhs/web-core`; both talk to the **shared** MongoDB.
 
@@ -56,16 +56,14 @@ Both apps depend on `@crhs/web-core`; both talk to the **shared** MongoDB.
 
 ### B. CORPORATE repo (`crhs-corporate`)
 
+> **Amended 2026-08-27 (Decision A — see the [split catch-up gap analysis](../plans/2026-08-27-split-catchup-gap-analysis.md)).** Phase 2 built `crhs-corporate` **crhsent.com-only**, and Phase-4b (`0df8d96d`, ~−63k lines, deployed) then **retired** the entire WaveMAX franchise/Austin marketing system from the monorepo. None of it was ever copied into `crhs-corporate`; it is **permanently retired** and needs no migration. Corporate's scope is now **crhsent.com only**. The one kept recruitment piece (`affiliateApplication*` + `affiliate-inquiry.js` + `public/affiliate.html`, §3.D) **stays in the service app** for now (revisit if corporate expands).
+
+**In `crhs-corporate` today (crhsent.com only):**
 - **`crhsent/` (whole tree):** corporate site (`index/about/work/capabilities/contact/owners/404`) + `crhsent/wavemax/*` (mediator+sales, clickjacking-demo, load-order-demo, security-audit) + assets/fonts/robots/sitemap.
-- **marketing HTML in public/:** franchise, become-a-franchisee, about, testimonials, why-invest-in-wavemax, wavemax-vs-zombiemat, virtual-tour, faq, contact, laundromat-investment-guide, wavemax-affiliate, franchise-host + `franchise-default/*`, the franchise `-embed.html` fragments (austin-landing-v3, about-us, self-serve-laundry, wash-dry-fold, commercial, contact), partner-program, integration examples.
-- **franchise host rendering:** `franchiseRoutes`, `franchiseController`, `franchisePreviewRender`, `franchisePreview` middleware, `franchiseRegistryService`, `equipmentProfileService`, `gbpService`, `gbpToLocationData`, `franchisePreviewPages/Email`, config `locationData`, `domainSeoOverrides`, `franchisePreviewCopy`, model `FranchisePreviewRequest`, `scripts/franchise-build/*`.
-- **corporate gates + models:** `accessGate` (+ `AccessGate/AccessRequest/AccessWhitelist/AccessClick`), `mediatorGate` (+ `MediatorAccess`), `explorerGuard`, `partnerLanding`.
-- **corporate intake/AI:** `corporateInquiryRoutes/Controller/Service`, `affiliateApplicationRoutes/Controller/Service` + `affiliate-inquiry.js` + `public/affiliate.html` (the UT-student recruitment lead form), partner/contact routes+controllers, `conciergeController` (+ `conciergeFaq`), review services (google/network).
-- **design-explorer/ (whole tree)** + generated `public/design-explorer/*`.
-- **corporate JS:** `corporate-*`, `site-page-loader`, `austin-*`, `franchise-*`, self-serve/wash-dry-fold marketing scripts, `lead-capture-form`, `partner-inquiry`, `network-reviews-init`, `faq-accordion`, `wm-image-config`.
-- **data/content:** `public/data/franchises*`, `public/content/site-pages.json`, marketing SEO assets (`flyers/`, brand logos, location imagery).
+- **corporate gates + models:** `accessGate` (+ `AccessGate/AccessRequest/AccessWhitelist/AccessClick`), `mediatorGate` (+ `MediatorAccess`).
 - **locales:** `{en,es,pt,de}/corporate.json`.
-- **the per-host `robots.txt`/`sitemap.xml` generation** for the marketing domains (moves with the corporate app).
+
+**Retired in Phase-4b (historical — pre-retirement design only; NOT in corporate, NOT to be migrated):** the marketing HTML in `public/` (franchise, become-a-franchisee, about, testimonials, why-invest-in-wavemax, wavemax-vs-zombiemat, virtual-tour, faq, contact, laundromat-investment-guide, wavemax-affiliate, franchise-host + `franchise-default/*`, the franchise `-embed.html` fragments, partner-program, integration examples); franchise host rendering (`franchiseRoutes/Controller`, `franchisePreviewRender`, `franchisePreview`, `franchiseRegistryService`, `equipmentProfileService`, `gbpService`, `gbpToLocationData`, `franchisePreviewPages/Email`, `locationData`, `domainSeoOverrides`, `franchisePreviewCopy`, `FranchisePreviewRequest`, `scripts/franchise-build/*`); the `explorerGuard` and `partnerLanding` gates; corporate intake/AI (`corporateInquiryRoutes/Controller/Service`, partner/contact routes+controllers, `conciergeController` + `conciergeFaq`, google/network review services); `design-explorer/` (whole tree) + generated `public/design-explorer/*`; the corporate/franchise marketing JS (`corporate-*`, `site-page-loader`, `austin-*`, `franchise-*`, self-serve/wash-dry-fold scripts, `lead-capture-form`, `partner-inquiry`, `network-reviews-init`, `faq-accordion`, `wm-image-config`); `public/data/franchises*`, `public/content/site-pages.json`, marketing SEO assets (`flyers/`, brand logos, location imagery); and the per-host `robots.txt`/`sitemap.xml` generation for the marketing domains.
 
 ### C. `@crhs/web-core` (shared package)
 
@@ -110,6 +108,8 @@ Non-gate authZ for completeness: `auth.js`/`rbac.js`/`authorizationHelpers.js` (
 
 **Cross-surface coupling resolved:** today `mediatorGate` (corporate) imports `adminIpGate` (service). Post-split the **factory** lives in web-core and each app instantiates its own IP gates from it — no cross-repo import.
 
+> **Amended 2026-08-27 (Decision A):** the `franchisePreview`, `explorerGuard`, and `partnerLanding` rows above are **retired** (Phase-4b) — those gates and their content no longer exist in the monorepo and were never migrated to corporate. Only `accessGate` and `mediatorGate` remain corporate-destined. `locationQuarantine` is likewise superseded by nginx `server_name` host routing.
+
 ---
 
 ## 4. Deployment topology
@@ -118,7 +118,7 @@ Non-gate authZ for completeness: `auth.js`/`rbac.js`/`authorizationHelpers.js` (
 
 **Target:**
 - **Two PM2 apps** per box: `wavemax` (service) :3000, `crhs-corporate` :3001. Service keeps `instances: max`; corporate is mostly static → fewer instances.
-- **nginx `server_name` blocks** own host routing (moved out of app code): `crhsent.com` + Austin marketing/per-location domains + WaveMAX marketing hosts → :3001; app/API/embed hosts (`affiliate.*`, the app domain) → :3000.
+- **nginx `server_name` blocks** own host routing (moved out of app code): `crhsent.com` → :3001 (corporate); app/API/embed hosts (`affiliate.*`, the app domain, and the Austin per-location domains) → :3000 (service). *(Amended 2026-08-27: the WaveMAX/Austin marketing hosts formerly routed to :3001 were retired in Phase-4b — corporate serves only `crhsent.com`; the per-location domains now serve the service app's partner landing / portal. See §3.B.)*
 - **Shared MongoDB** (one URI). Each app's `ensure-indexes` provisions **only its own** models; `SystemConfig.initializeDefaults()` is owned by one app (service) and read by both; corporate owns `Access*`/`MediatorAccess`/`FranchisePreviewRequest` indexes.
 - **Shared secrets** (`SESSION_SECRET`/`JWT_SECRET` HMAC, `ENCRYPTION_KEY`, `MONGODB_URI`, email creds, `STORE_IP_ADDRESS`/`ADMIN_ALLOWLIST`, `CORPORATE_SITE_URL`) must match across both `.env` files; corporate adds `ACCESS_GATE_*`/`MEDIATOR_GATE_*`/`FRANCHISE_PREVIEW_ENABLED`/`PARTNER_PREVIEW_ALLOWLIST`/`GOOGLE_PLACES_*`/Turnstile; service adds Firebase/rate-limit/admin/operator.
 - **Two checkouts** (`/var/www/wavemax/...`, `/var/www/crhs-corporate/...`), independent `git pull`s. `build:assets` list partitioned per repo; `/assets` + `/locales` cross-origin CORS behavior preserved on whichever origin owns each (embedded absolute `rundberglaundry.com/assets/...` URLs must be re-pointed or both apps serve an identical `/assets` tree — resolved in Phase 4).
@@ -170,7 +170,7 @@ Per `2026-08-22-debrand-brand-config-design.md`, now applied to the smaller serv
 
 - Corporate repo name (`crhs-corporate`?), core repo/package name.
 - `@crhs/web-core` distribution: own git repo + npm-style install, or a monorepo workspace? (Leaning: own repo, install via git URL / private registry.)
-- Gray-zone final calls (§3.D), esp. the `affiliateApplication` recruitment form.
+- Gray-zone final calls (§3.D). **Resolved 2026-08-27 (Decision A):** the `affiliateApplication` recruitment form stays in the **service** app for now (revisit if/when corporate expands).
 - Where `@crhs/web-core` is published (private registry vs git dependency).
 - Phase-4 specifics (domain, email addresses, DB/Firebase renames) — deferred to the Phase-4 spec.
 
