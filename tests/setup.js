@@ -19,6 +19,10 @@ process.env.TZ = 'America/Chicago';
 process.env.EMAIL_PROVIDER = 'console';
 process.env.EMAIL_FROM = 'test@wavemax.promo';
 process.env.BASE_URL = 'https://wavemax.promo';
+// The logger now comes from @crhs/web-core, which tags the Winston `service`
+// field from LOG_SERVICE_NAME (a generic default when unset). Pin it to this
+// app's historical tag so the test process matches production.
+process.env.LOG_SERVICE_NAME = 'crhs-portal';
 
 // Get MongoDB URI and append test database name
 const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wavemax_affiliate';

@@ -7,8 +7,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
-const helmet = require('helmet');
 const morgan = require('morgan');
+// Shared security & infrastructure core. Provides the security-header
+// middleware and the CSP directive builder consumed below (byte-identical
+// extractions of the former inline blocks). See docs/refactor.
+const webCore = require('@crhs/web-core');
 // Rate limiting is now handled by centralized middleware
 const compression = require('compression');
 
@@ -214,234 +217,64 @@ app.use((req, res, next) => {
 const cspNonceMiddleware = require('./server/middleware/cspNonce');
 app.use(cspNonceMiddleware);
 
-// Security headers with iframe embedding support
-app.use(helmet({
-  // Disable helmet's CSP - we'll implement it manually to support nonces
-  contentSecurityPolicy: false,
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  },
-  xssFilter: true,
-  noSniff: true,
-  // 'strict-origin-when-cross-origin' is the modern default — sends full
-  // URL on same-origin, origin only on cross-origin HTTPS→HTTPS, nothing
-  // on HTTPS→HTTP downgrade. Tighter than the previous 'same-origin' which
-  // sent full URL (including query) to internal log sinks on same-origin
-  // navigation. APP-002 / prod-lockdown-2026-05-20.
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-  // Remove frameguard to use CSP frame-ancestors instead
-  frameguard: false,
-  // Additional security headers
-  permittedCrossDomainPolicies: false,
-  hidePoweredBy: true,
-  ieNoOpen: true,
-  dnsPrefetchControl: { allow: false }
-}));
+// Security headers with iframe embedding support — Helmet baseline + the
+// custom header block (Permissions-Policy, X-Permitted-Cross-Domain-Policies,
+// X-Frame-Options, COOP, /logout Clear-Site-Data, and the per-path CORP/CORS
+// overrides for the parent-iframe bridge + /assets + /locales) now come from
+// @crhs/web-core (byte-identical extraction; regression-locked by
+// tests/integration/securityHeaders.test.js). Composed as one middleware:
+// helmet runs first, then the custom setHeader() block — same order as before.
+app.use(webCore.securityHeadersMiddleware());
 
-// Add custom security headers not covered by helmet
+// Manual CSP implementation with nonce support — the directive template and
+// the document-page / clean-URL-slug strict predicates now come from
+// @crhs/web-core's buildCspDirectives / isStrictCspPath / serializeCspDirectives
+// (byte-identical extraction; parity pinned by web-core's
+// cspMonorepoParity.test.js and this app's webCoreConsumptionGolden.test.js).
+//
+// The strict-page allowlist stays LOCAL to this app (it's the app's own set,
+// distinct from corporate's). web-core's isStrictCspPath falls back to its
+// built-in documentation-page + franchise-slug predicates, which reproduce the
+// former inline `isDocumentationPage` / `isCleanUrlSlugPage` regexes verbatim.
+//
+// The Phase-4 override args reproduce THIS app's inline CSP exactly: drop the
+// retired-host self-origins, add the portal origin to img/connect/frame, and
+// tighten frame-ancestors to 'self'. isClickjackingDemo is hard-false (this
+// app has no clickjacking-demo route).
+const APP_STRICT_CSP_PAGES = [
+  '/terms-and-conditions-embed.html',
+  '/privacy-policy.html',
+  '/operator-scan-embed.html',
+  '/affiliate-success-embed.html',
+  '/affiliate-landing-embed.html',
+  '/embed-landing.html',
+  '/embed-app-v2.html',
+  '/admin',
+  '/operator',
+  '/operator-login-embed.html',
+  '/affiliate-register-embed.html',
+  '/affiliate-login-embed.html',
+  '/affiliate-dashboard-embed.html',
+  '/customer-login-embed.html',
+  '/customer-dashboard-embed.html',
+  '/forgot-password-embed.html',
+  '/reset-password-embed.html'
+];
 app.use((req, res, next) => {
-  // Permissions Policy (previously Feature Policy)
-  res.setHeader('Permissions-Policy',
-    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=()'
-  );
-
-  // X-Permitted-Cross-Domain-Policies
-  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
-
-  // X-Frame-Options — belt-and-suspenders alongside the CSP
-  // frame-ancestors directive (modern browsers honor frame-ancestors and
-  // ignore XFO, but XFO catches older browsers + legacy security
-  // scanners and observability tools that grade this control literally).
-  // SAMEORIGIN matches the CSP frame-ancestors allowlist semantics for
-  // the routes that aren't explicitly listed by the franchisor for
-  // embedding (wavemaxlaundry.com is already whitelisted via the CSP
-  // frame-ancestors directive, which a browser will prefer over XFO).
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-
-  // Cross-Origin-Opener-Policy. 'same-origin-allow-popups' keeps
-  // opener-isolation against reverse window.opener abuse from cross-origin
-  // CHILD pages while still allowing same-origin popups to retain a
-  // reference. APP-003 / prod-lockdown-2026-05-20. (OAuth popup flow was
-  // removed; this MAY be tightened to 'same-origin' in a follow-up.)
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-
-  // Clear-Site-Data header for logout endpoints
-  if (req.path.includes('/logout')) {
-    res.setHeader('Clear-Site-Data', '"cache", "cookies", "storage"');
-  }
-
-  // Override CORS and resource policy for parent bridge script. Franchise
-  // host pages on wavemaxlaundry.com (or any other parent domain) load
-  // the bridge from rundberglaundry.com and need cross-origin permission.
-  if (req.path === '/assets/js/parent-iframe-bridge-v3.js') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  }
-
-  // Allow public static assets (images, CSS, JS, fonts, locales) to be
-  // embedded by pages on other origins. LOCATION_DATA holds absolute URLs
-  // pointing at rundberglaundry.com's /assets/ tree; without this the per-
-  // location domains (atxwashateria.com, etc.) fail with
-  // ERR_BLOCKED_BY_RESPONSE.NotSameOrigin even when the request itself
-  // returns 200. Helmet's default Cross-Origin-Resource-Policy is
-  // 'same-origin' so we override here for the asset path tree.
-  if (req.path.startsWith('/assets/') || req.path.startsWith('/locales/')) {
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  }
-
-  next();
-});
-
-// Manual CSP implementation with nonce support
-app.use((req, res, next) => {
-  const nonce = res.locals.cspNonce;
-
-  // Check if this is a migrated page that should use strict CSP
-  const strictCSPPages = [
-    '/terms-and-conditions-embed.html',
-    '/privacy-policy.html',
-    '/operator-scan-embed.html',
-    '/affiliate-success-embed.html',
-    '/affiliate-landing-embed.html',
-    '/embed-landing.html',
-    '/embed-app-v2.html',
-    '/admin',
-    '/operator',
-    '/operator-login-embed.html',
-    '/affiliate-register-embed.html',
-    '/affiliate-login-embed.html',
-    '/affiliate-dashboard-embed.html',
-    '/customer-login-embed.html',
-    '/customer-dashboard-embed.html',
-    '/forgot-password-embed.html',
-    '/reset-password-embed.html'
-  ];
-
-  // Apply strict CSP to documentation pages as well (but not examples)
-  const isDocumentationPage = req.path.startsWith('/docs/') &&
-                             req.path.endsWith('.html') &&
-                             !req.path.includes('/examples/');
-
-  // Apply strict CSP to clean-URL slug pages: single-segment (/<slug>) or
-  // double-segment (/<slug>/<page>) paths, lowercase + digits + hyphens, no
-  // dots (i.e. not a static-file request like .html or .js). This matcher is
-  // load-bearing for the KEEP surfaces: the kept affiliate-marketing slug
-  // routes (/affiliate, /wavemax-affiliate) and /scanbag all get the
-  // nonce-based strict CSP only because they match here. Retired franchise
-  // slugs now 404, and harmlessly get strict CSP on the 404 response.
-  const isCleanUrlSlugPage = /^\/[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?\/?$/.test(req.path)
-                              && !req.path.startsWith('/api/')
-                              && !req.path.startsWith('/assets/')
-                              && !req.path.startsWith('/locales/')
-                              && !req.path.startsWith('/docs/')
-                              && !req.path.startsWith('/dev/');
-
-  const useStrictCSP = strictCSPPages.includes(req.path) || isDocumentationPage || isCleanUrlSlugPage;
-
-  // All embed pages now use nonces since embed-app.html was converted to CSP-compliant redirect to embed-app-v2.html
-  const skipNonce = false;
-
-  // Build CSP directives
-  const directives = {
-    'default-src': ['\'self\''],
-    'script-src': [
-      '\'self\'',
-      'https://cdnjs.cloudflare.com',
-      'https://cdn.jsdelivr.net',
-      'https://code.jquery.com',
-      'https://www.local-marketing-reports.com',
-      'https://static.cloudflareinsights.com',
-      // Google Maps JS API loader + bootstrap (locations modal)
-      'https://maps.googleapis.com',
-      // Hibu Social retargeting — Meta Pixel loader (connect.facebook.net/
-      // en_US/fbevents.js), injected by public/assets/js/austin-fb-pixel.js.
-      // Marketing chrome only (franchise-host.html), never the app pages.
-      'https://connect.facebook.net',
-      // Cloudflare Turnstile (franchise self-serve preview modal on crhsent.com):
-      // loads its api.js + challenge widget from this origin. Lazy-loaded by the
-      // modal, so it only costs weight when a franchisee opens the preview form.
-      'https://challenges.cloudflare.com',
-      // Firebase Phone Auth (PR 7) — the reCAPTCHA Enterprise widget + Firebase
-      // helpers load at runtime from Google origins even though the Firebase SDK
-      // itself is self-hosted (vendored). Registration page only.
-      'https://www.gstatic.com',
-      'https://www.google.com',
-      'https://apis.google.com'
-    ],
-    'style-src': [
-      '\'self\'',
-      'https://cdnjs.cloudflare.com',
-      'https://cdn.jsdelivr.net',
-      'https://fonts.googleapis.com',
-      'https://stackpath.bootstrapcdn.com'
-    ],
-    'img-src': ['\'self\'', 'data:', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://*.tile.openstreetmap.org', 'https://tile.openstreetmap.org', 'https://cdnjs.cloudflare.com', 'https://flagcdn.com', 'https://secure.walibu.com', 'https://upload.wikimedia.org', 'https://*.googleusercontent.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://www.facebook.com'],
-    'connect-src': ['\'self\'', 'https://atxwashateria.com', 'https://atxwashdryfold.com', 'https://portal.atxwashdryfold.com', 'https://runberglaundry.com', 'https://rundberglaundry.com', 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com', 'https://stackpath.bootstrapcdn.com', 'https://router.project-osrm.org', 'https://graphhopper.com', 'https://api.openrouteservice.org', 'https://valhalla1.openstreetmap.de', 'https://nominatim.openstreetmap.org', 'https://www.local-marketing-reports.com', 'https://places.googleapis.com', 'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://connect.facebook.net', 'https://www.facebook.com',
-      // Firebase Phone Auth (PR 7) — Identity Toolkit + secure-token endpoints,
-      // plus the reCAPTCHA origins the v2 fallback fetches from (www.google.com
-      // /recaptcha/... and gstatic). Without www.google.com here the reCAPTCHA
-      // verification XHRs are CSP-blocked and signInWithPhoneNumber hangs.
-      'https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://www.googleapis.com',
-      'https://www.google.com', 'https://www.gstatic.com', 'https://www.recaptcha.net'],
-    'font-src': ['\'self\'', 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://fonts.gstatic.com'],
-    'object-src': ['\'none\''],
-    'media-src': ['\'self\''],
-    'frame-src': ['\'self\'', 'https://portal.atxwashdryfold.com', 'https://www.google.com', 'https://maps.google.com', 'https://my.matterport.com', 'https://challenges.cloudflare.com',
-      // reCAPTCHA v2 challenge iframe (fallback when Enterprise can't init).
-      'https://www.recaptcha.net',
-      // Firebase Phone Auth (PR 7) — the auth helper iframe.
-      'https://wavemax-bag-registration.firebaseapp.com'],
-    'form-action': ['\'self\''],
-    // App is served directly (not iframed by the franchisor) — only same-origin
-    // may frame it, matching the X-Frame-Options: SAMEORIGIN set above.
-    'frame-ancestors': ['\'self\''],
-    'base-uri': ['\'self\''],
-    'child-src': ['\'none\''],
-    'worker-src': ['\'self\''],
-    'manifest-src': ['\'self\'']
-  };
-
-  // CSP3 quirk: when a nonce is present in a directive, `'unsafe-inline'`
-  // is silently ignored for that directive — even for JS-driven inline
-  // style mutations like `el.style.display = 'block'`. The language
-  // switcher dropdown toggles inline display, and the self-hosted Hibu
-  // analytics loader rewrites body.innerHTML which forces the browser to
-  // re-evaluate every inline `style="..."` attribute against style-src.
-  // Both legitimately need inline styles. We keep the strict script-src
-  // (that's the XSS-relevant directive) but always allow 'unsafe-inline'
-  // on style-src — the CSS-injection threat model is materially weaker
-  // than JS injection, and gating styles by class-toggle would require
-  // forking Hibu's script.
-  if (!skipNonce && nonce) {
-    directives['script-src'].push(`'nonce-${nonce}'`);
-    // Intentionally NOT adding the nonce to style-src: the CSP3 quirk
-    // above would then silently kill 'unsafe-inline' for styles.
-  }
-  directives['style-src'].push('\'unsafe-inline\'');
-
-  // Add unsafe-inline for non-migrated pages (script-src only — style-src
-  // is already permissive above).
-  if (!useStrictCSP) {
-    directives['script-src'].push('\'unsafe-inline\'');
-  }
-
-  // Add upgrade-insecure-requests in production
-  if (process.env.NODE_ENV === 'production') {
-    directives['upgrade-insecure-requests'] = [];
-  }
-
-  // Build CSP header string
-  const cspHeader = Object.entries(directives)
-    .map(([key, values]) => {
-      if (values.length === 0) return key;
-      return `${key} ${values.join(' ')}`;
-    })
-    .join('; ');
-
-  res.setHeader('Content-Security-Policy', cspHeader);
+  const useStrictCSP = webCore.isStrictCspPath(req.path, { strictCSPPages: APP_STRICT_CSP_PAGES });
+  const directives = webCore.buildCspDirectives({
+    path: req.path,
+    nonce: res.locals.cspNonce,
+    useStrictCSP,
+    isClickjackingDemo: false,
+    imgSrcSelfOrigins: [],
+    connectSrcSelfOrigins: [],
+    imgSrcExtra: ['https://portal.atxwashdryfold.com'],
+    connectSrcExtra: ['https://portal.atxwashdryfold.com'],
+    frameSrcExtra: ['https://portal.atxwashdryfold.com'],
+    frameAncestors: ['\'self\'']
+  });
+  res.setHeader('Content-Security-Policy', webCore.serializeCspDirectives(directives));
   next();
 });
 

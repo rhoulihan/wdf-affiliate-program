@@ -46,6 +46,7 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
+    "@crhs/web-core": "file:../crhs-web-core",
     "axios": "^1.9.0",
     "compression": "^1.8.1",
     "connect-mongo": "^5.1.0",
