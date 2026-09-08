@@ -728,13 +728,25 @@ app.use('/api', (req, res, next) => {
   next();
 }, apiV1Router);
 
-// Root route: serve the affiliate-program SPA app shell. On the marketing
-// hosts (rundberglaundry.com, atxwashdryfold.com, …) the partnerLanding
-// middleware pre-empts `/` before it reaches here, so this route effectively
-// fires only for the app host (portal.atxwashdryfold.com) and any
-// non-marketing host — exactly where we want the app served.
-app.get('/', (req, res) => {
-  res.redirect(302, '/embed-app-v2.html');
+// Root route: portal.atxwashdryfold.com/ lands on the affiliate login. Serve the
+// affiliate-program SPA shell with window.__DEFAULT_ROUTE='/affiliate-login' injected
+// (clean address bar, mirrors the /admin and /operator handlers). PUBLIC — the affiliate
+// login credentials are the gate. On the marketing hosts (rundberglaundry.com,
+// atxwashdryfold.com, …) partnerLanding pre-empts `/` before it reaches here, so this
+// fires only for the app host (portal.atxwashdryfold.com) and any non-marketing host.
+const { readHTMLWithNonce: adminReadHTML } = require('./server/utils/cspHelper');
+app.get('/', async (req, res) => {
+  try {
+    const nonce = res.locals.cspNonce;
+    let html = await adminReadHTML(path.join(__dirname, 'public', 'embed-app-v2.html'), nonce);
+    const inject = `<script nonce="${nonce}">window.__DEFAULT_ROUTE='/affiliate-login';</script>`;
+    html = html.replace('</head>', `${inject}</head>`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.type('html').send(html);
+  } catch (err) {
+    logger.error('Error serving / (affiliate-login shell):', err);
+    res.status(500).send('Internal Server Error');
+  }
 });
 // Public UT-student affiliate recruitment landing page (rundberglaundry.com/affiliate).
 // Exempted from partnerLanding + the quarantine allowlist so it is fully public.
@@ -751,7 +763,6 @@ app.get(['/wavemax-affiliate', '/wavemax-affiliate/'], (req, res) => {
 // (stealth 404 otherwise). The injected window.__DEFAULT_ROUTE is read by
 // embed-app-v2.js getRouteFromUrl(); SessionManager then routes an authenticated
 // admin to the dashboard and everyone else to the login page.
-const { readHTMLWithNonce: adminReadHTML } = require('./server/utils/cspHelper');
 app.get(['/admin', '/admin/'], adminIpGate, async (req, res) => {
   try {
     const nonce = res.locals.cspNonce;
