@@ -53,3 +53,40 @@ Split is already live (both boxes: `wavemax` :3000 service + `crhs-corporate` :3
 
 ## Post-Friday / deferred
 - Repo archival/private (litigation-hold: preserve, don't delete; commit history is cited evidence)
+
+## Plan 1 — web-core topology + v0.2.0 + gates G1/G2 (spec 2026-09-09-crhs-content-separation-design.md §7.1, §7.2, §5.2, §8.3.2)
+
+Baseline recorded 2026-09-09: affiliate mongoose split `same: false` (app 8.24.1 / core 8.24.4);
+corporate `same: true` but `driver same: false`; web-core 0.1.2; corporate installed copy 0.1.1, lock 0.1.0;
+corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68 passed.
+
+### Release R1 — topology (@crhs/web-core v0.1.3)
+- [ ] Task 3 web-core: cursor-retry + diagnostics resolve the driver through mongoose
+- [ ] Task 4 web-core: 4 deps → peerDependencies + devDependencies, drop `mongodb`, v0.1.3, `tests/packageTopology.test.js`
+- [ ] Task 5 affiliate: `.npmrc install-links=true`, lock regen, `tests/integration/webCoreInstanceIdentity.test.js`
+- [ ] Task 6 affiliate: `tests/setup.js` split guard + `tests/helpers/assertSingleMongoose.js`
+- [ ] Task 7 corporate: declare the 4 deps, rewrite `server.js:20-22`, README, lock regen, `tests/models.test.js` identity
+- [ ] Task 8 cross-repo verification sweep; Task 9 hand-off (no box change)
+- [ ] Task 11 Deploy A (HUMAN-CONFIRM): rsync web-core → `npm install --install-links` in both consumers → identity probe → `pm2 reload` — oci1, verify, oci2
+
+### Gates
+- [ ] Task 10 — G2 corporate `/health` above `buildSessionMiddleware` (200 / no-store / NO set-cookie)
+- [ ] Task 12 — G1 (HUMAN-CONFIRM) CF monitor be6953d2… `header.Host` → `["portal.atxwashdryfold.com"]`, +180s pool healthy, probes land in the portal access log
+
+### Release R2 — @crhs/web-core v0.2.0
+- [ ] B3a auditLogger LOG_DIR (13-16)   - [ ] B3b CORS env-only (17-20)   - [ ] B3c CSP profiles + goldens (21-26)
+- [ ] B3d session `{middleware,store}` + maxAge fixer + collectionName + 'app.sid' (27-31)
+- [ ] B3e SystemConfig registerDefaults + 3 core keys (32-36)
+- [ ] B3f rateLimiting mechanism-only + store prefix/TTL/sweep + 3 dead limiters deleted (37-42)
+- [ ] B3h csrf `createCsrf({tables})` (43-46)   - [ ] B3i-1 move `isInRange` into ipGate.js (47-52)
+- [ ] B3i-2 delete storeIPs + previewUnlockCookie, index 26, corporate smoke 26 (53)
+- [ ] Task 54 cut v0.2.0   - [ ] Task 55 Deploy B (HUMAN-CONFIRM) — the single point v0.2.0 reaches the boxes
+- [ ] Tasks 56-57 post-deploy slice verification   - [ ] Task 58 Plan 1 exit gate
+
+Carve-outs recorded (Global Constraint 16): web-core `securityHeaders.js:83-88`, `assets/js/*bridge*`, `assets/legal/*`
+are NOT deleted in Plan 1 (the portal still serves `public/assets/js/parent-iframe-bridge-v3.js` cross-origin).
+Spec PRs B3g / B3j / B3k (email brand params + `validateMailConfig()` + `assets/js/i18n.js`) and the repo-wide
+`tests/brandNeutral.test.js` are DEFERRED to @crhs/web-core v0.2.1, shipping with Plan 2's Phase 0a.
+Affiliate PR B7 (rateLimiting/store adoption, codeAttemptLockout, the `rate_limits` reset fix, the ops script)
+is Plan 4. Corporate `collectionName: 'sessions_corporate'` + `SESSION_COOKIE_NAME=crhsent.sid` move to Plan 2 0a.
+No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays unset so live collection names are unchanged).
