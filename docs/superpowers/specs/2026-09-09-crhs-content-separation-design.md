@@ -1,0 +1,2548 @@
+# CRHS Web Platform — Content / Affiliate / Web-Core Separation (Items A + B) — Design
+
+**Status:** Design approved by Rick Houlihan 2026-09-09. Spec pending human review; implementation plan follows approval.
+**Repos:** `wavemax-affiliate-program` (affiliate app, pm2 `wavemax`, :3000) · `crhs-corporate` (content app, pm2 `crhs-corporate`, :3001) · `crhs-web-core` (`@crhs/web-core`, shared primitives)
+**Supersedes/《pairs with》:** the 2026-08-23 Phase-4a domain-migration spec; the Tier-1/2/3 service-corporate split.
+
+## Abstract
+
+Today one Node process (`wavemax`, :3000) is simultaneously the affiliate application *and* the origin for four CRHS marketing hostnames, while a second process (`crhs-corporate`, :3001) serves crhsent.com, and both consume a shared library (`@crhs/web-core`) that still carries app-specific policy and duplicated implementations of modules each app also keeps inline. This design separates the platform into three units with no duplicated functionality: the affiliate app answers **only** `portal.atxwashdryfold.com` plus its API; `crhs-corporate` becomes a **multi-host content app** owning every CRHS marketing hostname; and `@crhs/web-core` is reduced to genuinely shared primitives that are the single source for everything both apps run. **Item A** performs the content extraction and host cutover; **Item B** removes the duplication. The cutover is phased and per-host reversible, with a dark deploy, a rollback path retained through Phase 1, and an explicit validation gate proving every service is consistent and functional afterwards.
+
+---
+
+## Table of contents
+
+- **1. Goal, scope, non-goals + 2. Current state + 3. Target architecture**
+- **4. Decision register**
+- **5. Item A — corporate becomes the multi-host content app**
+- **6. Item A — the affiliate app becomes portal-only**
+- **7. Item B — web-core primitives and the end of duplicated functionality**
+- **8. Edge and infrastructure + 9. Cutover sequence**
+- **10. Validation gate + 11. Test migration, i18n, Lighthouse**
+- **12. Risk register + 13. Litigation-sensitive residue + 14. Open questions + 15. Global constraints**
+- **Appendix A — Draft-stage assumptions and open questions**
+
+---
+
+## 1. Goal, scope, non-goals + 2. Current state + 3. Target architecture
+
+### 1. Goal, scope, non-goals
+
+#### 1.1 Goal
+
+Separate the CRHS web platform into **three units with one owner per concern**, then prove the cutover left every service consistent and functional:
+
+| Unit | Repo | Process | Port | Sole responsibility after the split |
+|---|---|---|---|---|
+| **Affiliate app (portal)** | `wdf-affiliate-program` (checkout `/var/www/wavemax/wavemax-affiliate-program`) | pm2 `wavemax` (ecosystem name `laundromat` overridden by `PM2_APP_NAME`, `ecosystem.config.js:4`) | `:3000` | `portal.atxwashdryfold.com` only: SPA shell, `/api/v1`, bag/claim/operator/admin/scanbag/monitoring, legal pages |
+| **Content app** | `crhs-corporate` (`/var/www/crhs-corporate`) | pm2 `crhs-corporate` (2 cluster workers, 512M, `ecosystem.config.js:9-17`) | `:3001` | Multi-host content: `crhsent.com` (existing, gated) + the four marketing hosts (public partner page, `/affiliate`, intake forms, SEO files, legacy-URL 301s) |
+| **Shared core** | `@crhs/web-core` (`/var/www/crhs-web-core`, rsync-delivered, `file:` dep) | library | — | Primitives only; the single source for every module both apps run |
+
+Three properties define "done":
+
+1. **Clean separation.** The `:3000` process answers exactly one `Host` (`portal.atxwashdryfold.com`; `localhost` in dev) and contains zero marketing content, zero marketing host literals and zero franchisor literals. The `:3001` process answers exactly five apex hosts and contains no bag/claim/operator/admin surface. Host-level redirects (www→apex, unknown-host refusal) live in nginx and nowhere else.
+2. **No duplicated functionality.** Every module in the §2.4 duplication inventory exists in exactly one place (web-core), consumed by both apps through a single mongoose/driver instance; the 12 duplicate affiliate test suites are gone; the two apps write to disjoint `sessions*` and `ratelimit_*` collections.
+3. **Validated cutover.** Each marketing host is flipped one at a time behind the Cloudflare LB, verified per host and per box against the validation gate (external through Cloudflare **and** on-box via `curl --resolve`), with a per-host rollback (`proxy_pass` back to `:3000`) that stays valid for at least one week because the affiliate app keeps `partnerLanding` until Phase 2.
+
+#### 1.2 In scope
+
+**Item A — content extraction and host separation** (BINDING D1, D2a, D4a–D12a, D5 pending counsel):
+
+- Move out of the affiliate app: `partnerLanding` + the store fall-through (`server.js:362-363`, `:958-965`), `locationQuarantine`/`quarantineConfig` (`server.js:488`, `:538`; `server/config/quarantineConfig.js:13-14`), the three marketing pages (`public/partner-program.html`, `public/affiliate.html`, `public/wavemax-affiliate.html`) with their 3 stylesheets, 10 fonts (272 KB), OG images and the `austin-tx` hero, the two intake APIs (`server.js:703-704`) and `/api/v1/maps-config` (`:705`), per-host robots/sitemap variants (`:835-870`, `:872-907`), marketing origins in CORS/`allowedHosts` (`:289-294`, `:174-182`), design-explorer + `/api/concierge` + `@anthropic-ai/sdk` (`:597`, `:618`, `:644`; `package.json:48`), the iframe bridges (`public/assets/js/{iframe-bridge-v2,parent-iframe-bridge-v3}.js`), the `partner.*` (109 keys) and embed-landing-only `landing.*` locale keys in all four locales, `embed-landing.html` and its scripts, the 64-directory / 450 MB franchise photo tree (`public/assets/images/locations/*` minus `austin-tx`), the dead `RETIRED_HOSTS` code (`server.js:207-214`), `server/config/storeIPs.js`, the `/docs` server (`server.js:621-624`), `products-placeholder.html`, `wm-image-config.js`, `faq-accordion.js`, `equipmentProfileService.js`, `turnstile.js`, the Access*/MediatorAccess models (seed scripts move to corporate).
+- Build in corporate: host→content-root map, host-scoped middleware, marketing content root with 4-locale i18n, intake endpoints with Reply-To, per-host SEO files, `/assets` (incl. `logo.png`; `logo-wavemax.png` → 410), the B7 legacy-URL 301 set, `/wavemax-affiliate` → 301 `/affiliate`, the store-IP → portal 302, `/health` above session, strict marketing CSP via a web-core profile, gate-mail fix, `.env` additions.
+- Edge: nginx retarget of the three marketing vhosts + new explicit `runberglaundry.com` vhost to `snippets/proxy-node-content.conf` (`:3001`) with the `/austin-tx` rewrites deleted in the same edit; `default_server return 444`; CF monitor `Host` → `portal.atxwashdryfold.com`; zone purges after each flip; Mailcow recipient/alias alignment.
+- Portal hygiene: `EMBED_PAGES['/']` → `/affiliate-login-embed.html` (D4a), gtag id and `$1.40/lb` config-driven (D10a), portal `robots.txt` = `Disallow: /` and no sitemap (D12a), `security.txt:2` de-franchised, `ops.js:44,65` → `BASE_URL`, `allowedHosts`/default redirect → portal, CORS → portal only, `FRONTEND_URL` folded into the portal origin, `EXPEDITER_TOKEN` rotated after the flip.
+- Litigation residue named in the approved design is removed as part of the above (franchisor redirect target, franchisor-trusting CORS/CSP/postMessage origins, `security.txt` franchise statement, `wavemax-affiliate.html`, the photo tree, corporate's `"WaveMAX"` gate From, web-core's stale §12.2 legal copies, corporate's `wavemax.sid` cookie).
+
+**Item B — de-duplication against web-core** (BINDING D13b–D21b, topology option (c)): install topology (`.npmrc install-links=true` in the affiliate; web-core `peerDependencies` for mongoose/express-session/connect-mongo/express-rate-limit kept as devDependencies; direct `mongodb` dropped or peered in lockstep; corporate declares the four explicitly; both lockfiles regenerated and committed), core fixes (auditLogger `LOG_DIR`, CORS env-only, CSP profile/host parameter + `frameAncestors`, session `{ middleware, store }` + maxAge fixer, `SystemConfig.registerDefaults` + 3 generic seeds + de-branded `L175`, rate-limit `collectionPrefix`/`LIMITER_NAMES`/`sweepExpired`/opt-in TTL index, session `collectionName`, email brand-by-parameter, CSRF tables out, `storeIPs`/`previewUnlockCookie`/3 dead limiters/legal copies/host literals deleted), then module-by-module adoption in the affiliate (move-then-delete, one PR each, ≤ 500-line diffs) and deletion of the 12 duplicate suites.
+
+#### 1.3 Non-goals and deferred items
+
+| Item | Disposition | Reason |
+|---|---|---|
+| Resurrecting `wavemax.promo` | **Out of scope — stays DNS-dark by decision** (authoritative NS returns NODATA for the apex, NXDOMAIN for `www`/`affiliate`). No redirect owner is built at any layer. The app's dead `RETIRED_HOSTS` middleware, its three `allowedHosts` entries and the wavemax assertions in `tests/integration/domainMigration.test.js` are deleted. | Nothing can deliver a request to any redirect; keeping code for an unreachable path violates the one-owner rule. |
+| Portal high availability (`portal.atxwashdryfold.com` on the CF LB vs a single-origin record) | Deferred | Independent of the flip; the LB pool `wavemax-oci` stays as-is. |
+| Reprinting bag labels printed before 2026-08-23 (payload `https://rundberglaundry.com/embed-app-v2.html?route=/claim&bag=<token>`, `server/modules/bags/labelSheetService.js:89,95`) | Deferred | The content app's B7 301 is **permanent** and covers every printed label; reprinting is a store-ops choice, not a cutover dependency. |
+| Items C/D (any further web-core productisation / platform-baseline extraction) | Out of scope except where an Item B module move requires a core API change listed in §1.2 | Keeps Item B to "delete duplicates", not "build a product". |
+| Retro-fitting `data-i18n` to `affiliate.html`, `wavemax-affiliate.html` (retired anyway) and the standalone legal pages (zero `data-i18n` today) | Content backlog, not a cutover gate | The four-locale rule applies to copy **added or changed** by this work (`partner.*` move, error strings, canonical/contact edits), all of which ship in all four locales in the same commit. |
+| Moving mailboxes off `rundberglaundry.com`/`wavemax.promo` onto `crhsent.com` identities | Out of scope for code; the `support@/privacy@/legal@/affiliates@rundberglaundry.com` aliases (DONE 2026-09-09) are the bridge; re-pointing the `pickups@` goto is an OPEN human action (§2.6) | Mail-directory changes are Mailcow-side, not repo-side. |
+| Changing `crhsent.com` content, the access gate or the mediator gate beyond the fixes named in §3.2 | Out of scope | The corporate site's own behaviour is unchanged; only its hosting model widens. |
+| A new content service / third process | Rejected (BINDING D1) | — |
+
+---
+
+### 2. Current state
+
+#### 2.1 Processes, hosts and edge (verified on both boxes 2026-09-08/09)
+
+Both OCI boxes (`oci1` 161.153.71.201, `oci2` 144.24.4.202) run the same two pm2 apps against one Oracle ADB (`MONGODB_URI` identical in both `.env` files; corporate `.env.example:20-22` says so explicitly) and share one Cloudflare LB pool.
+
+| Host (as received by nginx) | `sites-enabled` file | Upstream today | Notes |
+|---|---|---|---|
+| `portal.atxwashdryfold.com` | `portal.atxwashdryfold.com` (mtime 2026-09-08) | `snippets/proxy-node-app.conf` → `:3000` | Only `:443` block; no `location = /` rewrite (removed 2026-09-08); bare `/` reaches `app.get('/')` `server.js:738-750`. Own CF LB. |
+| `rundberglaundry.com` (`www.` → nginx 301 apex, `$request_uri` kept) | `rundberglaundry.com` (mtime 2026-05-23) | `:3000` | Carries `location = / { rewrite ^ /austin-tx/ last; }` (dead target, masked by `partnerLanding` answering by host). **CF monitor sends this Host.** |
+| `atxwashdryfold.com` (+www) | `atxwashdryfold.com` | `:3000` | Rewrite target `/austin-tx/wash-dry-fold/`. Public partner page host (`partnerLanding.js:32`). |
+| `atxwashateria.com` (+www) | `atxwashateria.com` | `:3000` | Rewrite `/austin-tx/`. Its `www.` `:443` block is the **implicit default server** (first `listen 443` in include order) → any unknown Host 301s to `https://atxwashateria.com$request_uri`. |
+| `runberglaundry.com` | **none** | falls to the implicit default → 301 `atxwashateria.com` | Listed in `partnerLanding.js:26` and the CSP, but no vhost on either box. |
+| `crhsent.com` (+www → nginx 301) | `crhsent.com` (mtime 2026-08-23) | inline `proxy_pass` → `:3001` | The template for the post-flip marketing vhosts. |
+| `wavemax.promo` (+www, affiliate.) | vhost moved to `/etc/nginx/removed-2026-08-26/` | **no DNS A/AAAA/CNAME** | `curl` fails at resolution (exit 6). The app's `RETIRED_HOSTS` 301 (`server.js:207-214`) has never been reachable in production. |
+| `mail.*` | inside each vhost | `https://localhost:8443` (staged Mailcow docker-proxy) | Inert — MX/A for `mail.*` point at Ultahost 158.62.198.7. |
+| unknown Host / direct IP | — | implicit default (see `atxwashateria.com`) | No `default_server` directive exists anywhere (`nginx.conf`, `sites-enabled`, `conf.d`). |
+
+`conf.d/wavemax-gate.conf` is a functional no-op (`geo $allowed { default 1; }` since 2026-05-19; its `$public_path` map enumerates Phase-4b-deleted paths).
+
+**Cloudflare (verified live 2026-09-09):** monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` = HTTPS `GET /health`, `expected_codes 200`, `expected_body` **empty**, `follow_redirects false`, header `Host: rundberglaundry.com`; pool `wavemax-oci` = oci1 + oci2. Consequence today: because `partnerLanding` is mounted at `server.js:363` and `/health` at `server.js:418`, the monitor receives the 200 "Coming soon" HTML, not the app's JSON — it validates "Express on :3000 answers", nothing more. A fresh **account-owned** token is at `~/.cf_api_token` (has Account Load Balancing Monitors & Pools; lacks Zone Load Balancers Read; Cache Purge untested).
+
+**Mail:** Mailcow on Ultahost 158.62.198.7 (6 domains, 15 mailboxes, 23 alias rows, 1 `sender_acl` row). Affiliate `.env` (both boxes): `EMAIL_USER=EMAIL_FROM=no-reply@crhsent.com`, `EMAIL_HOST=158.62.198.7`; no `PARTNER_INQUIRY_RECIPIENT` / `AFFILIATE_APPLICATION_RECIPIENT` / `ALERT_EMAIL` / `EMAIL_TLS_SERVERNAME` set. Corporate `.env` (both boxes): `EMAIL_USER=EMAIL_FROM=no-reply@wavemax.promo` (its `.env.example:42-44` says `no-reply@crhsent.com` — prod drifts from the example); gate mail sends as `"WaveMAX" <admin@rundberglaundry.com>` (`server/middleware/accessGate.js:54`) and works only because of the single `sender_acl` row `no-reply@wavemax.promo → admin@rundberglaundry.com`.
+
+#### 2.2 What the `:3000` process serves beyond the app
+
+One middleware makes the affiliate process the origin for eight marketing host names, and roughly twelve host-aware blocks in `server.js` exist only because of it:
+
+| Concern | Location | Effect |
+|---|---|---|
+| Marketing catch-all | `server/middleware/partnerLanding.js` — hosts `:24-29`, public hosts `:32`, in-memory page `:36-42` (silent stub fallback), inline "Coming soon" hold page `:47-65`, `isStore` `:73-76`, `isPreview` `:81-88` (admin IP `70.114.167.145` hardcoded `:82`), `isExempt` `:90-113`, store bypass `:119`; mounted `server.js:362-363` **before** rate-limit, `/health` and session | Serves `partner-program.html` publicly on `atxwashdryfold.com`, the noindex hold page on the other three families, and passes the SPA/API/assets/legal paths through to the app on every marketing host |
+| Store-IP fall-through | `server.js:958-965` | 302 store-IP requests on marketing hosts to `/embed-app-v2.html` |
+| Location quarantine | `server/middleware/locationQuarantine.js`; `server/config/quarantineConfig.js:13-14` (`CORPORATE_SITE_URL` default **`https://www.wavemaxlaundry.com`**), allowlist `:19-58`, suspicious patterns `:77-118`; `server.js:488`, `:538`; env `QUARANTINE_NON_AUSTIN` (memory says `true` in prod; not re-verified) | 302s unrecognised-host/unknown-path requests to the **franchisor** |
+| HTTPS-upgrade host list | `server.js:172-199` (`allowedHosts` `:174-182` = rundberglaundry + www, portal, 3× wavemax.promo, localhost; unknown host → `https://rundberglaundry.com${req.url}` `:193`) | prod-only; practically dead (nginx `:80` and CF Always-HTTPS upgrade first) |
+| Retired-host 301 | `server.js:207-214` | dead (§2.1) |
+| CORS | `server.js:282-328` (`wavemaxDomains` `:289-294` = portal + atxwashateria + atxwashdryfold + rundberglaundry, `credentials:true`; no `www.` variants, no runberglaundry) | credentialed CORS for marketing origins |
+| Per-host `robots.txt` / `sitemap.xml` | `server.js:835-870` (AI-bot block list `:848-856`, stale iframe rationale `:857-861`, `Disallow /api/ /admin/ /monitoring/` `:864-866`); `server.js:872-907` (`managedHosts` `:881-887`) | SEO files for five hosts from one process |
+| Recruitment routes | `server.js:753-759` (`/affiliate`, `/wavemax-affiliate` — plain `res.sendFile`, no nonce injection) | public pages, exempt from `partnerLanding` (`:103-104`) and quarantine (`quarantineConfig.js:37-38`) |
+| Marketing pages + assets | `public/partner-program.html` (canonical `https://rundberglaundry.com/` `:10,18` while served publicly on atxwashdryfold; fulfillment-partner links `:68,109,259,323`), `public/affiliate.html` (canonical `:10,17`), `public/wavemax-affiliate.html`; `public/assets/css/{partner-program,affiliate,affiliate-ad}.css`; `public/assets/fonts/*` (10 woff2, 272 KB, marketing-only); `affiliate-og.png`, `affiliate-ad-og.png` (554 KB, also the default `BRAND_OG_IMAGE_PATH` at `server/config/brand.js:30`); `public/assets/images/locations/*` (456 files, 450 MB, 64 franchise directories; only `austin-tx` is referenced); flyers | All served `immutable, max-age=1y` from the portal origin too (`server.js:588-594`, `:618`) |
+| Intake APIs | `server/routes/{partnerInquiry,affiliateApplication}Routes.js` + controllers + services (email relay only; recipient defaults `pickups@rundberglaundry.com` `partnerInquiryService.js:6`, `admin@crhsent.com` `affiliateApplicationService.js:6`); mounted `server.js:703-704`; `GET /api/v1/maps-config` (`:705`, zero consumers) | `POST /api/v1/partner-inquiry`, `POST /api/v1/affiliate-application` |
+| Design explorer + concierge | `public/design-explorer/` (5 tracked files + gitignored 144-state render), `server/middleware/explorerGuard.js` (`?k=EXPLORER_TOKEN`, replaces the CSP with `unsafe-inline` `:28-38`), `server.js:597`, `:618`; `POST /api/concierge` `server.js:644` (`conciergeController`, `conciergeFaq.js:21-45` hardcodes franchisor NAP), `@anthropic-ai/sdk` `package.json:48`, env `EXPLORER_TOKEN`/`ANTHROPIC_API_KEY` | May-2026 franchisor-facing review deliverable |
+| i18n namespaces | `public/locales/{en,es,pt,de}/common.json` — `partner.*` 109 keys/locale (en `:1578-1702`; `errGeneric/errNetwork` name `pickups@rundberglaundry.com` `:1696-1697`), `landing.*` 121 keys/locale | consumed only by `partner-program.html`/`partner-inquiry.js` and `embed-landing.html`/`affiliate-landing-embed.html` |
+| SPA landing | `public/embed-landing.html` (loads `https://rundberglaundry.com/assets/js/{embed-navigation,revenue-calculator}.js` `:314,317` — already CSP-blocked on portal), `EMBED_PAGES['/']` `embed-app-v2.js:41` | recruitment copy inside the transactional app |
+| Docs server | `server/routes/docsRoutes.js`, `server.js:621-624` (`SHOW_DOCS`, `.env.example:120` = true) | serves the whole `docs/` tree with nonce injection from the app origin |
+| Iframe bridges | `public/assets/js/iframe-bridge-v2.js:19-27` (franchisor origins), `parent-iframe-bridge-v3.js:35-41,67`; `scripts/build-assets.js:26-27` | loaded by no `public/*.html`; justify web-core `securityHeaders.js:83-94` CORP carve-outs |
+| Dead models/scripts | `server/models/{AccessClick,AccessGate,AccessRequest,AccessWhitelist,MediatorAccess}.js`; `scripts/seed-access-gate.js`, `scripts/whitelist-access-ip.js`; `scripts/ensure-indexes.js:34-36` provisions `mediatoraccess` | corporate owns these at runtime |
+
+#### 2.3 web-core and its two consumers
+
+`@crhs/web-core` v0.1.2 (`package.json:3`): `main` = `src/index.js`, 28 lazy getters (`src/index.js:37-72`; pinned by `crhs-corporate/tests/webcore.smoke.test.js:10`), `files: ["src","assets"]` (`package.json:14`), direct dependencies include `mongoose ^8.15.0` **and** `mongodb ^6.21.0` (`package.json:25-26` — mongoose 8.24.x pins `mongodb ~6.20.0`, so the driver is split in every consumer).
+
+| Consumer | Install topology | Keys used at runtime | Count |
+|---|---|---|---|
+| **Affiliate** | no `.npmrc`; `node_modules/@crhs/web-core` is a **symlink** to `../../../crhs-web-core` (lock `package-lock.json:700-703` `"link": true`); web-core's own `node_modules` supplies a second mongoose (8.24.4 vs app 8.24.1) — split is real locally but **dormant** (no DB-touching key consumed). On-box installs use `npm install --install-links` (copy), so local ≠ box. | 4 direct: `securityHeadersMiddleware` (`server.js:227`), `isStrictCspPath` (`:264`), `buildCspDirectives` (`:265`), `serializeCspDirectives` (`:277`). 10 via 5-line shims: `csrf` (`server/config/csrf-config.js`), `cspNonce`, `ipGate` (`server/middleware/`), `geocodingService` (`server/services/`), `controllerHelpers`, `clientIp`, `encryption`, `logger`, `validateSecrets`, `cspHelper` (32-line wrapper) (`server/utils/`). | **14** |
+| **Corporate** | `.npmrc install-links=true` → real copy (installed **0.1.1**, lock records **0.1.0** `package-lock.json:534-536`, source 0.1.2; box copy 0.1.0 per memory); one hoisted mongoose 8.24.4 (`tests/models.test.js:88-95` guards `Model.base === wc.SystemConfig.base`); mongoose is **not declared** (`server.js:20-22`, `package.json:15-21`) yet required directly (`server/db.js:7`, `scripts/ensure-indexes.js:31`). | `server.js`: `cspNonce` `:38`, `securityHeadersMiddleware` `:42`, `buildCspDirectives` `:50`, `isStrictCspPath` `:53`, `serializeCspDirectives` `:56`, `corsConfig` `:61`, `buildSessionMiddleware` `:65`, `sanitization` `:72-73`, `rateLimiting` `:77`, `errorHandler` `:90`, `logger` `:100,102`. `server/`: `cspHelper` (`crhsentHandler.js:8`), `encryption`/`logger`/`clientIp`/`email.transport`/`SystemConfig` (`accessGate.js:36-44`), `ipGate`/`clientIp`/`logger` (`mediatorGate.js:21`), `logger` (`db.js:8`, `ensure-indexes.js:32`). | **17** runtime (+ `assetsDir` in the smoke test only = **18**) |
+
+Keys consumed by **neither** app at runtime: `storeIPs`, `previewUnlockCookie`, `auditLogger` (only by web-core's own `csrf-config.js:13`), `rateLimitMongoStore` (only via `rateLimiting`), `mongoCursorRetry`, `mongoOracleDiagnostics`, `assetsDir`.
+
+#### 2.4 Duplication inventory
+
+Affiliate inline copies vs web-core (each pair verified by diff):
+
+| Module | Affiliate | web-core | Divergence |
+|---|---|---|---|
+| SystemConfig | `server/models/SystemConfig.js` (450; seeded at boot `server.js:139-140`) | `src/models/SystemConfig.js` | 3 text lines; core `L175` seeds **"WaveMAX Associates"** into the shared collection if it ever runs; 24 of 27 defaults are affiliate-domain; both register `mongoose.model('SystemConfig')` (`:449`) |
+| rateLimiting | `server/middleware/rateLimiting.js` (356) | `src/middleware/rateLimiting.js` | 1 comment line; 12 named limiters each; 3 dead everywhere (`emailVerification`, `fileUpload`, `adminOperation`) |
+| rateLimitMongoStore | `server/middleware/rateLimitMongoStore.js` (134; also `services/codeAttemptLockout.js:19,49`) | `src/middleware/rateLimitMongoStore.js` | byte-identical; collection `ratelimit_<name>` with no prefix (`:36`); per-boot TTL `createIndex` swallowed on ADB (`:58-62`) |
+| Session | `server.js:374-481` (cookie `__Host-portal.sid` `:408-411`, `/health` before session `:418-424`, store handle → `installOracleDiagnostics` `:129-132`, maxAge fixer `:453-481`) | `src/config/sessionStore.js` (`buildSessionMiddleware`; default cookie base `wavemax.sid` `:22`; returns middleware only `:94-124`; no `collectionName`) | cookie name, unreachable store handle, missing fixer |
+| errorHandler / sanitization | `server/middleware/{errorHandler,sanitization}.js` | `src/middleware/*` | comment + newline |
+| auditLogger | `server/utils/auditLogger.js` | `src/utils/auditLogger.js` | byte-identical; both write `__dirname`-relative `logs/` (`:17,23`) — **live defect:** the app's `CSRF_VALIDATION_FAILED` events land in `node_modules/@crhs/web-core/logs/` on the boxes |
+| mongoCursorRetry / mongoOracleDiagnostics | `server/utils/*` (`server.js:59`, `:123-132`) | `src/utils/*` | byte-identical; core's copy would patch the wrong (6.21.0) driver |
+| storeIPs | `server/config/storeIPs.js` (144) | `src/config/storeIPs.js` | comment; zero live consumers after Item A |
+| brand | `server/config/brand.js` (31; 14 require sites) | `src/config/brand.js` (not exported) | byte-identical |
+| CSRF tables | 5-line shim | `src/config/csrf-config.js:57-190` — every entry is an affiliate route | policy in core |
+| CORS | `server.js:282-328` | `src/security/corsConfig.js:15-24` — **franchisor + wavemax.promo + marketing hosts**, `credentials:true` | diverged by design; corporate grants credentialed CORS to the franchisor today |
+| Email transport / template-manager | `server/services/email/{transport,template-manager}.js` (`TEMPLATE_ROOT` hardcoded `:18`) | `src/email/*` (superset: `EMAIL_FROM_NAME`, `EMAIL_TEMPLATE_ROOT`; defaults `BASE_URL`/`EMAIL_FROM` to rundberglaundry `template-manager.js:67`, `transport.js:73`) | neither sets `Reply-To` |
+| Duplicate test suites | `tests/unit/{systemConfig,rateLimitMongoStore,rateLimitKeyGen,sanitization,errorHandler,auditLogger,storeIPs,mongoCursorRetry,mongoOracleDiagnostics,logger,brand-config,emailTransport}.test.js` | matching core suites | 12 files |
+
+Cross-repo duplicates outside the module list: `logo.png` (md5 `7f5332b8…`, 5137 B) in both `public/assets/images/brand/` and `crhs-corporate/content/assets/images/brand/`; `assets/js/i18n.js` byte-identical between web-core and the app; Access*/MediatorAccess models in both repos; web-core `assets/legal/*` (3 files, served by nobody, still carrying the §12.2 franchise text the app stripped in `e51984ea`/`43996e1c`/`43f6dfc8`).
+
+#### 2.5 Shared-database coupling (one `MONGODB_URI`)
+
+| Collection | Writers today | Notes |
+|---|---|---|
+| `ratelimit_api` | **both** (`server.js:367-371`; corporate `server.js:77`) | one per-IP bucket for the portal API and `crhsent.com/api/*` |
+| `ratelimit_contact_burst`, `ratelimit_contact_hourly` | affiliate (intake routes); corporate after D2a | would be shared during Phase 1 without a prefix |
+| `ratelimit_{auth,pwreset,register,sensitive,admin_login,concierge,bag-resolve,claim-resolve,email-verify,scan_actions,bag_codes}` | affiliate | `codeAttemptLockout.js:49` hand-builds the name |
+| `rate_limits` | nobody writes it | `administratorRoutes.js:207-208`, `systemHealthService.js:105`, `scripts/admin/reset-rate-limits.js:36` reset a collection the store never uses — silent no-op |
+| `sessions` | **both** (affiliate `server.js:380-403`; corporate via `buildSessionMiddleware`, no `collectionName`), one shared `SESSION_SECRET` (corporate `.env.example:9-13`) | 4 workers × `deleteMany` every 2 min |
+| `systemconfigs` | affiliate seeds (incl. `access_gate_enabled`, `SystemConfig.js:404`); corporate only reads it (`accessGate.js:44,67`) | in neither `ensure-indexes`; corporate's `db.js:25` does not pass `autoIndex:false` |
+| `accessgates`, `accesswhitelists`, `accessclicks`, `accessrequests`, `mediatoraccess` | corporate | affiliate still carries the models, two seed scripts and duplicate `mediatoraccess` provisioning |
+
+#### 2.6 Live defects the audit surfaced, and their status
+
+| # | Defect | Evidence | Status |
+|---|---|---|---|
+| L1 | `portal.atxwashdryfold.com` absent from Firebase Authorized Domains while `PHONE_VERIFICATION_ENABLED=true` → registration hard-blocked at the SMS step on every post-8/23 label | live `getProjectConfig` read 2026-09-08; `claim.js:862-880`; `customerRegistrationService.js:158-164` | **DONE 2026-09-09** (domain added) |
+| L2 | `support@`, `privacy@`, `legal@`, `affiliates@rundberglaundry.com` did not exist (no catch-all) — CCPA/deletion/dispute-notice contacts bounced | `privacy-policy.html:119,129,150,183`; `terms-and-conditions.html:139,164`; Mailcow alias table | **DONE 2026-09-09** (aliases → `admin@crhsent.com`) |
+| L3 | Both stored CF API tokens invalid; monitor unreadable | CF codes 1000/10000 | **DONE 2026-09-09** (fresh account-owned token at `~/.cf_api_token`) |
+| L4 | CF monitor definition unknown → `default_server 444` safety unproven | — | **VERIFIED 2026-09-09** (Host `rundberglaundry.com`, body empty, no follow) — 444 is safe; two gates remain: **G1** repoint Host → portal, **G2** corporate `/health` above session |
+| L5 | `pickups@rundberglaundry.com` (the alias target of `pickups@atxwashdryfold.com`) has no login since 2026-07-31; two Aug-29 partner leads delivered but unread | Postfix + `sasl_log` | **OPEN — human action:** re-point the alias goto to an actively-read mailbox |
+| L6 | `security@crhsent.com` (`public/.well-known/security.txt:4`) is not among the 15 mailboxes / 23 aliases in the Mailcow directory dump | followups[3] directory listing | **OPEN — human action:** create alias → `admin@crhsent.com` (or change the Contact line) before the per-host `security.txt` ships |
+| L7 | `wavemax.promo` DNS-dark; `RETIRED_HOSTS` code and tests assert unreachable behaviour | §2.1 | **DECIDED dark**; deletion in scope |
+| L8 | Corporate `/health` (`server.js:80`) sits after `buildSessionMiddleware` (`:65`) with `saveUninitialized:true` (`sessionStore.js:98`) → ~11 probe sessions/s into ADB once a monitored host reaches `:3001` (2026-05-25 incident class) | — | **G2 — Phase-0 gate** |
+| L9 | After the flip, pool health would be decided by `:3001` alone; a crash-looping `wavemax` stays in rotation | monitor Host = rundberglaundry.com | **G1 — Phase-0 gate** |
+| L10 | Intake notifications say "Reply to this email to reach <lead>" but set no `Reply-To` (`transport.js:70`; core `transport.js:74`) | `partnerInquiryService.js:64`, `affiliateApplicationService.js:65` | in scope (D2a) |
+| L11 | Corporate gate mail: From `"WaveMAX" <admin@rundberglaundry.com>` (`accessGate.js:54`), bare mark at `:161,250,345`, relative logo `<img src="/assets/…">` in an outbound email (`:250`); on-box `EMAIL_USER=no-reply@wavemax.promo` vs `.env.example` | — | in scope (B14) |
+| L12 | `dispatcher/ops.js:44,65` hardcode `https://rundberglaundry.com/monitoring-dashboard.html`; alerts default to `admin@rundberglaundry.com` (last login 2026-08-10) | — | in scope (BASE_URL + `ALERT_EMAIL=admin@crhsent.com`) |
+| L13 | `FRONTEND_URL=https://rundberglaundry.com` on both boxes → `passwordResetService.js:78` reset links point at the marketing host | on-box `.env` | in scope (Phase-0b env sweep, confirm-first) |
+| L14 | `auditLogger` writes into the web-core install dir (§2.4) | `csrf-config.js:13` | in scope (Item B, `LOG_DIR`) |
+| L15 | `rate_limits` admin reset is a no-op (§2.5) | — | in scope |
+| L16 | `https://crhsent.com/assets/images/brand/logo.png` → 404 live despite `bc86055`; corporate on-box web-core copy 0.1.0 (eager index) | probe 2026-09-08 | in scope (B15 reinstall; verify handler) |
+| L17 | `tests/crhsent-parity.test.js` red (ENOENT `:29`) | — | in scope (B12) |
+| L18 | `/austin-tx` rewrites still in three vhosts; `runberglaundry.com` has no vhost; no `default_server` | `nginx -T` | in scope (nginx edit) |
+| L19 | `locationQuarantine` 302s foreign hosts to the franchisor; `security.txt:2` names a franchise license; 450 MB franchisor photos and `docs/` (`SHOW_DOCS`) publicly served from the portal | §2.2 | in scope (delete; 444) |
+| L20 | `EXPEDITER_TOKEN` rides in `?k=` on every board reload of the store display URL (`.env.example:184`; `order-expediter-init.js:12`) → would transit the content host's nginx log after the flip | — | in scope (device re-point before flip; token rotation after) |
+| L21 | Affiliate `package-lock.json` says `link: true` while boxes install with `--install-links` → every deploy dirties the lock and `git reset --hard` discards it; `npm ci` would fail | `package-lock.json:700-703` | in scope (topology option (c)) |
+
+---
+
+### 3. Target architecture
+
+#### 3.0 Unit map
+
+```
+                       ┌──────────────────────────── Cloudflare ────────────────────────────┐
+                       │ 6 zones · LB pool wavemax-oci (oci1 161.153.71.201, oci2 144.24.4.202)│
+                       │ monitor be6953d2…: HTTPS GET /health, Host: portal.atxwashdryfold.com │
+                       └──────────────┬───────────────────────────────────┬─────────────────┘
+                                      │                                   │
+     ┌────────────────────────── nginx :443 (identical on both boxes) ───────────────────────┐
+     │ portal.atxwashdryfold.com ─ proxy-node-app.conf ─────────────▶ :3000                  │
+     │ atxwashdryfold.com | rundberglaundry.com |                                            │
+     │ runberglaundry.com | atxwashateria.com ─ proxy-node-content.conf ──▶ :3001            │
+     │ crhsent.com ─ inline proxy ──────────────────────────────────▶ :3001                  │
+     │ www.<any> ─ return 301 https://<apex>$request_uri   ·   default_server ─ return 444   │
+     └───────────────────────────────────────────────────────────────────────────────────────┘
+                 │                                          │
+      ┌──────────▼──────────┐                   ┌───────────▼───────────┐
+      │ wavemax  (:3000)    │                   │ crhs-corporate (:3001)│
+      │ portal only         │                   │ host → content root   │
+      │ SPA · /api/v1 ·     │                   │ crhsent (gated)       │
+      │ legal · scanbag ·   │                   │ 4 marketing hosts     │
+      │ admin · operator    │                   │ (public, strict CSP)  │
+      └──────────┬──────────┘                   └───────────┬───────────┘
+                 │  @crhs/web-core (primitives; one copy per consumer, install-links)  │
+                 └───────────────┬───────────────────────────────────────┬───────────┘
+                                 ▼                                       ▼
+                    Oracle ADB (one MONGODB_URI; disjoint         Mailcow 158.62.198.7 :587
+                    sessions*/ratelimit_* per app; §3.6)          (EMAIL_USER owns EMAIL_FROM)
+```
+
+#### 3.1 Affiliate app — `wdf-affiliate-program` (pm2 `wavemax`, `:3000`)
+
+**Hosts:** `portal.atxwashdryfold.com` only (plus `localhost:3000` when `NODE_ENV !== 'production'`). Any other `Host` → **404** (JSON under `/api/*`, plain 404 otherwise) via a `hostGuard` mounted first in `server.js` — during Phase 1 only, `partnerLanding` stays in front of it as the rollback path; `hostGuard` takes over in Phase 2 (D11a).
+
+**Owns (unchanged unless noted):**
+
+- SPA shell at `/`, `/embed-app-v2.html`, `/admin` (`adminIpGate`), `/operator` (`operatorIpGate`) (`server.js:738-750`, `embedRoutes.js:9`, `:766-778`, `:790-802`); router `public/assets/js/embed-app-v2.js` with `EMBED_PAGES['/']` and `'/landing'` → `/affiliate-login-embed.html`, unknown-route and logout fallback → `/affiliate-login` (`:330`, `:889`) (D4a).
+- `/api/v1/*` mounts (`server.js:691-702, 706-707`): auth, affiliates, affiliate-invites, customers (incl. `claim/:bagToken`), bags, scan, expediter, addons, orders, administrators, operators, system/config, firebase-config, brand; legacy `/api` rewrite (`:724-729`).
+- Models (15 minus the 5 Access*/MediatorAccess), `modules/{bags,onboarding,orders,scan}`, services minus `partnerInquiryService`, `affiliateApplicationService`, `conciergeFaq`, `equipmentProfileService`; email dispatchers + `server/templates/emails/**` (all four locale variants); `/scanbag` PWA (`:808-820`, manifest `:603-615`); `/monitoring` + `server/monitoring/connectivity-monitor.js`; favicon; sensitive-probe 404s (`:520-535`) and WP-scanner block (`:922-948`).
+- **Legal pages** (D3a): `public/{terms-and-conditions,privacy-policy,refund-policy,terms-and-conditions-embed}.html` served nonce-injected at the clean URLs (`server.js:913-919`) with `{{BRAND_NAME}}` resolved; canonicals `https://portal.atxwashdryfold.com/<page>`; the two T&C documents consolidated to one contact address, `admin@crhsent.com` (today `terms-and-conditions.html:139,164` says `legal@rundberglaundry.com`, `terms-and-conditions-embed.html:216,222` says `admin@crhsent.com`).
+- `public/.well-known/security.txt` with line 2 replaced by `# Operated by CRHS Enterprises, LLC.` and `Policy:` → `https://portal.atxwashdryfold.com/privacy-policy`.
+- `robots.txt` = exactly `User-agent: *\nDisallow: /\n` on every path; `/sitemap.xml` → 404 (D12a).
+- Brand config stays app-owned (`server/config/brand.js`; `BRAND_DISPLAY_NAME=WaveMAX Austin`); `brand.js:30` default `ogImagePath` → `/assets/images/brand/logo.png` (the ad OG image leaves).
+- App policy that leaves web-core: `CSRF_CONFIG` + `shouldEnforceCsrf` + their 47-test suite (D20b); the named limiters it mounts (`auth`, `pwreset`, `register`, `sensitive`, `admin_login`, `bag-resolve`, `claim-resolve`, `email-verify`, `scan_actions`, `bag_codes`) declared via `wc.rateLimiting.createCustomLimiter` (D17b); its 24 domain `SystemConfig` defaults registered through `wc.SystemConfig.registerDefaults(list)` (D15b); the Oracle diagnostics attached to the `store` returned by `wc.buildSessionMiddleware({ cookieName: 'portal.sid', collectionName: 'sessions', … })` (D18a); `installCursorRetry` from core before `mongoose.connect` (D19a).
+- A single `appUrl(pathAndQuery)` helper defaulting to `https://portal.atxwashdryfold.com` and failing fast in production when `BASE_URL` is unset, replacing every `|| 'https://rundberglaundry.com'` fallback (`template-manager.js:46`, `dispatcher/affiliate.js:14`, `admin.js:103`, `operator.js:105,221,342`, `customer.js:108,110-111,614`, `labelSheetService.js:89`, `inviteService.js:27`) and the `ops.js:44,65` literal; `passwordResetService.js:78` uses `appUrl('/embed-app-v2.html?route=/reset-password&token=…')` so `FRONTEND_URL` is retired.
+- `affiliate-landing-embed.html`: gtag id from `SystemConfig` key `google_ads_conversion_id` (empty default → tag not rendered) and the `$1.40/lb` literal (`:59`) from `wdf_base_rate_per_pound` (D10a); meta CSP `connect-src` (`:8`) removed.
+- The only surviving absolute app→content link: the not-found fallback `public/assets/js/affiliate-landing-init.js:37` → `https://atxwashdryfold.com/`.
+
+**Does NOT own (removed or never re-added):** any marketing `Host`; `partnerLanding` and the store fall-through; `locationQuarantine`/`quarantineConfig`; `allowedHosts` marketing/wavemax entries (`server.js:174-182`; list becomes `['portal.atxwashdryfold.com']`, default redirect `:193` → portal); `RETIRED_HOSTS`; marketing origins in CORS (`CORS_ORIGIN=https://portal.atxwashdryfold.com` only, via web-core's env-only `corsConfig`); per-host robots/sitemap; `/affiliate`, `/wavemax-affiliate`, `/partner-program.html`; the three marketing pages, their CSS, the 10 fonts, OG images, flyers, `locations/*` (all 65 directories incl. `austin-tx` — the hero moves with the partner page); intake APIs and `/api/v1/maps-config`; design-explorer, `explorerGuard`, `/api/concierge`, `conciergeFaq`, `@anthropic-ai/sdk`, `build:explorer`; iframe bridges and `scripts/build-assets.js:26-27`; `embed-landing.html`, `embed-landing.css`, `embed-navigation.js`, `revenue-calculator.js`, `embed-landing-init.js`, `pageScripts` `embed-app-v2.js:569-570`; `partner.*` and embed-landing-only `landing.*` keys (removed from all four locales in one commit); `docsRoutes.js` + `SHOW_DOCS`; `products-placeholder.html`, `wm-image-config.js`, `faq-accordion.js`; `equipmentProfileService.js`, `turnstile.js`; Access*/MediatorAccess models and `scripts/{seed-access-gate,whitelist-access-ip}.js`; `server/config/storeIPs.js`; dead `APP_STRICT_CSP_PAGES` entries (`server.js:258-259`); `/api/docs` (`:827-829`); duplicate `/environment` (`:709-714`); `scripts/ops/refresh-hibu.sh` + its cron; the 12 duplicate test suites and every inline web-core duplicate in §2.4 (kept as 5-line shims only until call sites import core directly).
+
+**Environment (both boxes, confirm-first):** keep `BASE_URL=https://portal.atxwashdryfold.com`, `BRAND_DISPLAY_NAME=WaveMAX Austin`, `STORE_IP_ADDRESS`/`ADDITIONAL_STORE_IPS`/`STORE_IP_RANGES` (read by `operatorIpGate.js:23-31`, `adminIpGate.js:25-34`), `ADMIN_ALLOWLIST`, Firebase block, `LOG_DIR=logs`, `LOG_SERVICE_NAME=crhs-portal`; set `CORS_ORIGIN=https://portal.atxwashdryfold.com`, `ALERT_EMAIL=admin@crhsent.com`, `RATE_LIMIT_COLLECTION_PREFIX=ratelimit_` (explicit, keeps live names); delete `FRONTEND_URL`, `QUARANTINE_NON_AUSTIN`, `CORPORATE_SITE_URL`, `PARTNER_PREVIEW_ALLOWLIST`, `EXPLORER_TOKEN`, `ANTHROPIC_API_KEY`, `SHOW_DOCS`, `PARTNER_INQUIRY_RECIPIENT`, `AFFILIATE_APPLICATION_RECIPIENT`, and every `wavemax.promo` value (`CORS_ORIGIN`, `OAUTH_CALLBACK_URI`, `BACKEND_URL`, `DOCUSIGN_REDIRECT_URI`); rotate `EXPEDITER_TOKEN` after the flip; `.env.example` updated in the same commits.
+
+**Acceptance criteria (end state, both boxes):**
+
+- `curl -s -o /dev/null -w '%{http_code}' -H 'Host: portal.atxwashdryfold.com' http://127.0.0.1:3000/` → `200`; same with `Host: rundberglaundry.com`, `atxwashdryfold.com`, `atxwashateria.com`, `runberglaundry.com`, `crhsent.com`, `161.153.71.201` → `404` (Phase 2).
+- `GET /robots.txt` → `User-agent: *\nDisallow: /\n`; `GET /sitemap.xml` → 404; `GET /health` → 200 JSON with **no** `Set-Cookie`.
+- `grep -rnE 'rundberglaundry|atxwash|runberglaundry|wavemaxlaundry|wavemax\.promo' server.js server/ public/ --include=*.{js,html,json}` returns only `affiliate-landing-init.js:37` (`https://atxwashdryfold.com/`) and the `portal.atxwashdryfold.com` literals; `grep -rn 'wavemaxlaundry' tests/` returns only negative assertions.
+- `du -sh public/assets/images/locations` → directory absent; `git ls-files | wc -l` drops by ≥ 456.
+- `node -e "const m=require('mongoose');const wc=require('@crhs/web-core');console.log(wc.SystemConfig.base===m, require('@crhs/web-core/package.json').version)"` → `true 0.1.3` (or the released core version).
+- Legal clean URLs (`/terms-of-service`, `/terms-and-conditions`, `/privacy-policy`, `/refund-policy`) → 200, nonce present, zero unresolved `{{BRAND_NAME}}`, one contact address across both T&C documents.
+- `npm test` green without `--forceExit`; `madge --circular server/` → 0; no `server/**` file > 800 lines (`server.js` ≤ 800 after Item A).
+- Lighthouse mobile + desktop on `https://portal.atxwashdryfold.com/` and each legal clean URL: no regression from the prior measured state (`docs/development/LIGHTHOUSE-QUALITY-BAR.md`).
+
+#### 3.2 Content app — `crhs-corporate` (pm2 `crhs-corporate`, `:3001`)
+
+**Hosts and content roots** (`www.` never reaches Express — nginx collapses it; the map still strips `www.` defensively as `crhsentHandler.js:20` does today):
+
+| Host | Content root | Mode |
+|---|---|---|
+| `crhsent.com` | `content/` (existing 49-file tree, unchanged location) | gated: session → `accessGate` → `mediatorGate` |
+| `atxwashdryfold.com` (**canonical**) | `content-atxwashdryfold/` | public marketing |
+| `rundberglaundry.com` | `content-atxwashdryfold/` | public marketing (same bytes; `rel=canonical` → atxwashdryfold) |
+| `runberglaundry.com` | `content-atxwashdryfold/` | public marketing |
+| `atxwashateria.com` | `content-atxwashdryfold/` | public marketing |
+| anything else | — | 404 via `wc.errorHandler` (defense in depth behind nginx 444) |
+
+`server/crhsentHandler.js` becomes `server/contentHandler.js` taking `{ hostRoots }` and keeps its traversal guard (`:25-27`), extension-less → `index.html` (`:30-32`), nonce injection for `.html` (`:33-36`). New per-root cache policy: `.html` `no-cache, no-store, must-revalidate` (as today); `/assets/*` `public, max-age=31536000, immutable`; `/locales/*` `public, max-age=3600` + `Access-Control-Allow-Origin: *`.
+
+**Middleware order (marketing hosts skip everything marked ⊘):**
+
+```
+trust proxy 1 → wc.cspNonce → wc.securityHeadersMiddleware()
+→ CSP: marketing hosts → wc.buildCspDirectives({ profile: 'marketing', useStrictCSP: true, frameAncestors: ["'self'"], … })
+       crhsent.com     → today's call (server.js:50-55) + frameAncestors ["'self'"], imgSrcSelfOrigins: [], connectSrcSelfOrigins: []
+→ GET /health → 200 {"status":"ok"}          (BEFORE session; no Set-Cookie)              [G2]
+→ legacyPortalRedirects   (marketing hosts, GET/HEAD; B7 table below)
+→ GET|HEAD /wavemax-affiliate, /wavemax-affiliate/ → 301 /affiliate                      (D5, pending counsel)
+→ storeIpRedirect         (marketing hosts, GET/HEAD; STORE_IP_* → 302 portal + originalUrl) (D7)
+→ cors(wc.corsConfig) ⊘ · cookieParser · express.json/urlencoded
+→ wc.buildSessionMiddleware({ cookieName: 'crhsent.sid', collectionName: 'sessions_crhsent', ttlSeconds: 600, … }).middleware ⊘
+→ wc.sanitization.mongoSanitize() · sanitizeRequest
+→ /api/ apiLimiter ⊘  (crhsent only)
+→ POST /api/partner-inquiry, POST /api/affiliate-application   (marketing hosts only; own contact limiters)
+→ /robots.txt · /sitemap.xml · /.well-known/security.txt · /favicon.ico  (per host)
+→ accessGate ⊘ → mediatorGate ⊘
+→ contentHandler({ hostRoots })
+→ wc.errorHandler.errorHandler
+```
+
+"Marketing host" = `req.hostname` (www-stripped) ∈ `{atxwashdryfold.com, rundberglaundry.com, runberglaundry.com, atxwashateria.com}`; the predicate is one function used by every ⊘ wrapper so a host cannot be half-scoped.
+
+**Marketing routes per host (exact):**
+
+| Path | Response |
+|---|---|
+| `/` | `content-atxwashdryfold/index.html` = the moved `partner-program.html`, atxwashdryfold theme, nonce-injected; `<link rel=canonical href="https://atxwashdryfold.com/">`, `og:url` likewise (today `:10,18` name rundberglaundry); the only "WaveMAX Austin" references are the exclusive-fulfillment-partner mentions (`:68,109,259,323` audited against D8); `<meta name="csp-nonce">` filled |
+| `/affiliate`, `/affiliate/` | `content-atxwashdryfold/affiliate/index.html` = the moved `affiliate.html`; canonical/`og:url` → `https://atxwashdryfold.com/affiliate` |
+| `/wavemax-affiliate`, `/wavemax-affiliate/` | `301 /affiliate` (relative, same host) |
+| `POST /api/partner-inquiry` | express-validator rules ported from `partnerInquiryRoutes.js:11-48`; limiters `contact_burst` + `contact_hourly` declared in corporate via `createCustomLimiter` (collections `ratelimit_crhsent_contact_burst`, `…_hourly`); two mails via `wc.email.transport.sendEmail`: notification to `PARTNER_INQUIRY_RECIPIENT` with `replyTo` = lead, thank-you to the lead; JSON `{ success: true }` |
+| `POST /api/affiliate-application` | same shape; recipient `AFFILIATE_APPLICATION_RECIPIENT`; `replyTo` = applicant |
+| `/robots.txt` | the 9-agent AI-bot block list from `server.js:848-856` + `User-agent: *\nAllow: /\nDisallow: /api/\n`; on `atxwashdryfold.com` append `Sitemap: https://atxwashdryfold.com/sitemap.xml`; no `Content-Signal`; `Cache-Control: public, max-age=3600` |
+| `/sitemap.xml` | `atxwashdryfold.com`: `https://atxwashdryfold.com/` and `https://atxwashdryfold.com/affiliate`; the three non-canonical hosts: 404 |
+| `/.well-known/security.txt` | per host: `# RFC 9116 — Security Disclosure Policy for <host>` / `# Operated by CRHS Enterprises, LLC.` / `Contact: mailto:security@crhsent.com` / `Expires: 2027-05-20T00:00:00.000Z` / `Preferred-Languages: en` / `Canonical: https://<host>/.well-known/security.txt` / `Policy: https://portal.atxwashdryfold.com/privacy-policy` |
+| `/favicon.ico` | the app's current favicon bytes copied into the marketing root |
+| `/locales/{en,es,pt,de}/common.json` | the 109 `partner.*` keys per locale (`errGeneric`/`errNetwork` → `pickups@atxwashdryfold.com`), served with `ACAO *`; parity test cloned from `tests/unit/i18n-brand-token.test.js:13-18` + `scripts/check-i18n-parity.js` |
+| `/assets/js/{i18n.js,language-switcher.js}` | served from `wc.assetsDir/js` (single source; the host check at `i18n.js:15` removed so both branches read `/locales`) |
+| `/assets/js/{partner-inquiry.js,affiliate-inquiry.js}` | moved; `fetch('/api/partner-inquiry')` / `fetch('/api/affiliate-application')` (relative); fallback addresses `pickups@atxwashdryfold.com` / `admin@crhsent.com` |
+| `/assets/css/{partner-program,affiliate}.css`, `/assets/fonts/*` (10 woff2), `/assets/images/locations/austin-tx/hero-1.webp`, `/assets/images/affiliate-og.png` | moved; immutable 1y |
+| `/assets/images/brand/logo.png` | the WaveMAX Austin wordmark (md5 `7f5332b8…`, 5137 B) — `200 image/png` on every marketing root and on `crhsent.com` (fixes L16) |
+| `/assets/images/brand/logo-wavemax.png` | **`410 Gone`** on every host; never a redirect (DMCA remediation `c48785ca`) |
+| `/embed-app-v2.html` (any query), `/admin`, `/admin/`, `/operator`, `/operator/`, `/operator-scan-embed.html`, `/scanbag`, `/scanbag/`, `/scanbag-manifest.json`, `/scanbag-sw.js`, `/monitoring-dashboard.html`, `GET /api/v1/customers/verify-email/*` | **B7:** GET/HEAD → `res.redirect(301, 'https://portal.atxwashdryfold.com' + req.originalUrl)` — byte-preserved query (bag token, `?k=`, `route=/claim` untouched). No other `/api/*` and no `/assets/*` path is ever redirected. |
+| any path, client IP ∈ `STORE_IP_ADDRESS` ∪ `ADDITIONAL_STORE_IPS` ∪ `STORE_IP_RANGES` (matched with `wc.ipGate.parseList/entryMatches` on `wc.clientIp`) | GET/HEAD → `302 https://portal.atxwashdryfold.com` + `req.originalUrl` (evaluated after the B7 301s; never on `/health`) |
+| `/health` | `200 {"status":"ok"}`, no cookie, no session document |
+| anything else | 404 |
+
+**No hold page, no preview allowlist:** `PARTNER_PREVIEW_ALLOWLIST`, the hardcoded `70.114.167.145`, the inline "Coming soon" HTML and its Google-Maps iframe do not exist in the content app; the `frame-src` Google entries are therefore not required by any marketing page.
+
+**CSP marketing profile** (delivered by web-core, §3.3; every value verified against the three pages' actual resource needs): `default-src 'self'; script-src 'self' 'nonce-<n>'; style-src 'self' 'unsafe-inline'` (no style nonce — the 14 `style="--rot:…"` attributes in `partner-program.html:100-103,180,201-234,258` depend on it); `img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; child-src 'none'; worker-src 'self'; manifest-src 'self'` + `upgrade-insecure-requests` in production. No `'unsafe-inline'` in `script-src` on `/` or any marketing path.
+
+**crhsent.com fixes carried in the same unit:** `accessGate.js` sends From `"CRHS Enterprises" <no-reply@crhsent.com>` (the `EMAIL_FROM` identity — no `GATE_FROM` override, no `sender_acl` dependency), subject/body without the bare "WaveMAX" mark (`:161,250,345`), logo `<img src="${BASE_URL}/assets/images/brand/logo.png">`; `content/owners/index.html:30` alt text de-branded; `access_gate_enabled` seeded by corporate's own boot via `wc.SystemConfig.registerDefaults([...])` and the Access*/`whitelist-access-ip` seed scripts live under `crhs-corporate/scripts/`; `mediatoraccess` provisioned only by corporate's `ensure-indexes.js`; `server/db.js` passes `autoIndex: false` and calls `wc.mongoCursorRetry.installCursorRetry()` before `mongoose.connect` (D19a).
+
+**Does NOT own:** legal pages (no marketing page links to them today; if one ever does, it links absolutely to the portal clean URL); any `/api/v1` surface; bag/claim/operator/admin/scanbag/monitoring; the brand definition (env only: `BRAND_DISPLAY_NAME`); `wavemax.promo`; www→apex and unknown-host refusal (nginx); CSP/session/rate-limit/email mechanism (web-core); the affiliate's `SESSION_SECRET`/cookie/collections.
+
+**Environment (`/var/www/crhs-corporate/.env`, both boxes, confirm-first; `.env.example` updated first):**
+
+```
+PORT=3001                                   # ecosystem.config.js
+MONGODB_URI=<shared ADB>                    # unchanged
+SESSION_SECRET=<corporate value>            # see openQuestions: may now diverge from the affiliate
+SESSION_COOKIE_NAME=crhsent.sid             # D14b
+RATE_LIMIT_COLLECTION_PREFIX=ratelimit_crhsent_
+LOG_DIR=/var/www/crhs-corporate/logs
+LOG_SERVICE_NAME=crhs-corporate
+BRAND_DISPLAY_NAME=WaveMAX Austin           # intake From-name + [BRAND_NAME]
+BASE_URL=https://atxwashdryfold.com         # [BRAND_LOGO] → content-served logo.png (200 asserted in the gate)
+EMAIL_PROVIDER=smtp
+EMAIL_HOST=158.62.198.7
+EMAIL_PORT=587
+EMAIL_USER=no-reply@crhsent.com             # must own EMAIL_FROM (2026-08-24 553 rule)
+EMAIL_FROM=no-reply@crhsent.com
+EMAIL_TLS_SERVERNAME=mail.crhsent.com
+EMAIL_TEMPLATE_ROOT=/var/www/crhs-corporate/server/templates/emails   # corporate-owned copy of base-template.html
+PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com
+AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com
+STORE_IP_ADDRESS=<same as affiliate>        # D7 safety net
+ADDITIONAL_STORE_IPS=<same>
+STORE_IP_RANGES=<same>
+ADMIN_ALLOWLIST / MEDIATOR_* / ACCESS_* …   # unchanged (crhsent gates)
+```
+Removed from the on-box file: `FRONTEND_URL`, the stale `BASE_URL=https://rundberglaundry.com`, every `wavemax.promo` value in `CORS_ORIGIN`/`EMAIL_*`/`DEFAULT_ADMIN_EMAIL`.
+
+New dependencies: `express-validator`, plus the four explicit peers (`mongoose ^8.15.0`, `express-session ^1.18.1`, `connect-mongo ^5.1.0`, `express-rate-limit 7.1.4`); `server.js:20-22` comment rewritten to state that a range-compatible declared mongoose is what guarantees one instance.
+
+**Acceptance criteria (on-box per host, then externally through Cloudflare):**
+
+- For each `H` in the four marketing apexes: `curl -s -o /dev/null -w '%{http_code} %{content_type}' -H "Host: $H" http://127.0.0.1:3001/` → `200 text/html`; response contains `rel="canonical" href="https://atxwashdryfold.com/"`, exactly the fulfillment-partner mention set, `<meta name="csp-nonce" content="<non-empty>">`; `Content-Security-Policy` contains `'nonce-` in `script-src`, **no** `'unsafe-inline'` in `script-src`, `frame-ancestors 'self'`, and none of `wavemaxlaundry.com`, `wavemax.promo`, `cdnjs`, `jsdelivr`, `local-marketing-reports`, `facebook`, `challenges.cloudflare.com`, `gstatic`, `googleapis`.
+- `/affiliate` → 200 with canonical `https://atxwashdryfold.com/affiliate`; `/wavemax-affiliate` → `301` `Location: /affiliate`.
+- `/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef` → `301` `Location: https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef` (byte-identical query) on every marketing host; same for `/admin`, `/operator`, `/scanbag`, `/scanbag-manifest.json`, `/scanbag-sw.js`, `/operator-scan-embed.html`, `/monitoring-dashboard.html`, `/api/v1/customers/verify-email/x`; `POST /api/v1/anything` → 404 (never 301); `/assets/css/partner-program.css` → 200 (never 301).
+- `-H 'CF-Connecting-IP: <STORE_IP_ADDRESS>'` on `/` → `302 https://portal.atxwashdryfold.com/`; on `/health` → 200 JSON.
+- `/health` → 200 with no `Set-Cookie`; `db.sessions_crhsent.countDocuments()` unchanged after 100 probes.
+- `/robots.txt` valid (Lighthouse SEO 100), `/sitemap.xml` 200 only on atxwashdryfold, `/.well-known/security.txt` 200 per host with the host in `Canonical:`, `/assets/images/brand/logo.png` → `200 image/png` 5137 B, `/assets/images/brand/logo-wavemax.png` → `410`.
+- `POST /api/partner-inquiry` with a valid body → mail delivered to `pickups@atxwashdryfold.com` carrying `Reply-To: <lead>`, From `"WaveMAX Austin" <no-reply@crhsent.com>`, logo `https://atxwashdryfold.com/assets/images/brand/logo.png`; same for `/api/affiliate-application` → `admin@crhsent.com`.
+- `Host: crhsent.com` behaviour unchanged (gate flow, `/wavemax` mediator gate) except the fixed From/subject/logo; cookie name `__Host-crhsent.sid`.
+- `/locales/<lang>/common.json` for all four locales → 200 with identical key sets; `npm run check:i18n` equivalent green.
+- pm2 log on boot shows `Access gate cache loaded:` (not `…load failed`), and `node -e "…AccessGate.base===wc.SystemConfig.base"` → `true`.
+- Lighthouse mobile + desktop on `https://atxwashdryfold.com/` and `https://atxwashdryfold.com/affiliate`: all four categories at or above the pages' last measured scores on the old origin (`/affiliate` was 100/100/100/100).
+- Corporate suite green: `crhsent-parity` fixed or deleted, `content-manifest` per root, `server.integration` host guard rewritten (unknown host → 404, marketing host → 200), `webcore.smoke` key count updated.
+
+#### 3.3 Shared core — `@crhs/web-core`
+
+**Owns (primitives, parameterised, zero host/brand literals):** `logger` (honours `LOG_DIR`, `LOG_SERVICE_NAME`), `auditLogger` (honours `LOG_DIR` — fixes L14), `encryption`, `clientIp`, `controllerHelpers`, `validateSecrets`, `cspNonce`, `cspHelper`, `buildCspDirectives`/`isStrictCspPath`/`serializeCspDirectives` with a `profile` (`'default' | 'marketing'`) / host parameter that can trim the hard-coded third-party origins and a `frameAncestors` override — the default output stays **byte-identical** so `tests/integration/webCoreConsumptionGolden.test.js:23-57` and corporate's `server.integration.test.js:30-45` pass until the one-time authorised re-capture (D16a) removes the marketing hosts from `img-src`/`connect-src` (`cspDirectives.js:194-195`), the franchisor `frame-ancestors` default (`:139`), the `wavemax.promo` self-origins (`:134-135`), and the six deleted franchise pages from `strictCSPPages` (`:35-40`); `securityHeadersMiddleware` (CORP carve-outs `securityHeaders.js:83-94` reviewed after the bridges are deleted); `corsConfig` (env-only: `CORS_ORIGIN` + `CORS_EXTRA_ORIGINS`, no literals); `ipGate`; the `doubleCsrf` primitive taking tables as a parameter; `sanitization`; `errorHandler`; `rateLimiting` = `createCustomLimiter` + `apiLimiter` + key generators + `MongoRateLimitStore({ collectionPrefix })` (env `RATE_LIMIT_COLLECTION_PREFIX`, default `'ratelimit_'`), exported `LIMITER_NAMES`, `sweepExpired(prefix)`, opt-in TTL `createIndex`, `store.collectionName` (consumed by `codeAttemptLockout.js:49`); `buildSessionMiddleware(opts)` returning `{ middleware, store }` with `cookieName` (brand-neutral default base), `collectionName`, and the post-session maxAge fixer; `SystemConfig` model seeding only `maintenance_mode`, `access_gate_enabled`, `system_timezone` with `registerDefaults(list)` and the `L175` string de-branded; `email` transport/template-manager taking `displayName`/`fromName`/`logoPath`/`templateRoot` by parameter, supporting `replyTo`, with no rundberglaundry defaults; `mongoCursorRetry` (patching `mongoose.mongo.Collection` — the driver mongoose actually uses) and `mongoOracleDiagnostics`; `geocodingService`; `assets/js/{i18n.js,language-switcher.js,css-async.js}` as the single served copy for both apps.
+
+**Does NOT own (deleted or moved out):** `storeIPs`, `previewUnlockCookie`, `emailVerificationLimiter`/`fileUploadLimiter`/`adminOperationLimiter`, the app-specific named limiters (`concierge`, `contactForm*`, `adminLogin`, `registration`, `sensitiveOperation`), `CSRF_CONFIG` route tables + `tests/config/csrfConfig.test.js`, the 24 affiliate-domain `SystemConfig` defaults, `assets/legal/*`, `assets/js/{iframe-bridge-v2,parent-iframe-bridge-v3}.js`, `src/config/brand.js` (brand is per-app; core email takes it by parameter — D13b), every host literal in `cspDirectives.js`, `corsConfig.js`, `template-manager.js:67`, `transport.js:73`.
+
+**Dependency topology (option (c)):** `package.json` moves `mongoose`, `express-session`, `connect-mongo`, `express-rate-limit` to `peerDependencies` (kept in `devDependencies` for the 541-test suite), drops the direct `mongodb` dependency (or peers it `~6.20.0` in lockstep), bumps to 0.1.3+; consumers own the pins; a range mismatch fails loudly at install (`ERESOLVE`) instead of nesting a silent second copy. `src/index.js` keeps its lazy-getter shape (never spread); the key count changes and both smoke tests are updated in the same release.
+
+**Delivery:** every core change = version bump → `npm test` in core → `rsync -a --delete --exclude node_modules --exclude .git ~/GitHub/crhs-web-core/ ubuntu@<box>:/var/www/crhs-web-core/` → `npm install --install-links` in **both** consumer dirs → `pm2 reload` → per-app identity check. Each app logs the installed core version at boot.
+
+**Acceptance criteria:** `npm test` in core green; `grep -rnE 'rundberglaundry|atxwash|runberglaundry|wavemaxlaundry|wavemax' src/` → zero hits (assets excluded only for the neutralised `i18n.js`); `ls assets/legal` → absent; `Object.keys(require('@crhs/web-core'))` matches the new smoke list in both consumers; `npm ls mongoose` in each consumer shows exactly one copy, `npm ls mongodb` shows exactly one copy; `require('@crhs/web-core').mongoCursorRetry` patches the same `Collection.prototype` mongoose uses (identity test in core).
+
+#### 3.4 Edge — nginx, Cloudflare, Mailcow
+
+**nginx (both boxes; config lives on the boxes, not in git; confirm-first):**
+
+- New `/etc/nginx/snippets/proxy-node-content.conf` (sibling of `proxy-node-app.conf`, which keeps `proxy_pass http://localhost:3000` and is included only by the portal vhost after the flip):
+
+```nginx
+# marketing hosts → crhs-corporate (:3001)
+location / {
+    proxy_pass http://localhost:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Original-URI $request_uri;
+}
+```
+
+- In `sites-enabled/rundberglaundry.com`, `atxwashdryfold.com`, `atxwashateria.com` apex `:443` blocks: replace `include snippets/proxy-node-app.conf;` with `include snippets/proxy-node-content.conf;` **and delete** `location = / { rewrite ^ /austin-tx/… last; }` in the same edit; leave the `www.` 301 blocks, the `:80` ACME/301 blocks and the `mail.` blocks untouched. Remove the `if ($access_allowed = 0) return 503;` lines together with `conf.d/wavemax-gate.conf` in the same hygiene pass (both are no-ops).
+- New `sites-enabled/runberglaundry.com`: same five-block shape as `atxwashateria.com` (`:80` ACME + 301 https; `www.` → `301 https://runberglaundry.com$request_uri` on `:80` and `:443`; apex `:443` → `include snippets/proxy-node-content.conf;`), same certificate directives as the other vhosts (one CF origin cert, 12 SANs, covers it).
+- New `sites-enabled/00-default`:
+
+```nginx
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_certificate     <same path as sites-enabled/portal.atxwashdryfold.com>;
+    ssl_certificate_key <same path>;
+    return 444;
+}
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+```
+
+- `sites-enabled/portal.atxwashdryfold.com` and `crhsent.com`: unchanged.
+- Owns: TLS termination behind Cloudflare, `www.`→apex (`$request_uri` preserved, verified), unknown-Host refusal, host→port selection. Does not own: any path-level rewrite or redirect (all `/austin-tx` rewrites gone; B7 lives in the content app).
+
+**Cloudflare:** DNS records, zones, the LB pool and `__cflb` unchanged; **G1:** monitor `be6953d2…` header `Host` → `portal.atxwashdryfold.com` (path `/health`, `expected_codes 200`, `expected_body` empty, `follow_redirects false` retained) so pool health follows the portal (`:3000`) and finally exercises the JSON route; "Manage robots.txt" stays OFF on all zones; after each host flip purge that zone's cache (`/assets/*` is immutable 1y and the content app ships different bytes at the same URLs); no `wavemax.promo` record is created. Owns: LB/health, edge cache, TLS to clients. Does not own: redirects (no Redirect Rules are introduced).
+
+**Mailcow (158.62.198.7):** both apps submit on 587 with `servername mail.crhsent.com` as `no-reply@crhsent.com`; recipients `pickups@atxwashdryfold.com` (existing alias; goto re-point is L5) and `admin@crhsent.com`; the four `@rundberglaundry.com` bridge aliases (done) keep legal/customer copy deliverable; `security@crhsent.com` alias (L6) created before the per-host `security.txt` ships; the `no-reply@wavemax.promo → admin@rundberglaundry.com` `sender_acl` row becomes unused once the gate From is fixed. Owns: mail identities and delivery. Does not own: any web routing.
+
+#### 3.5 Request flow per host
+
+```
+[A] portal.atxwashdryfold.com                                   (unchanged path; only :3000 keeps this vhost)
+  client ─TLS─▶ Cloudflare (zone atxwashdryfold.com, LB → wavemax-oci)
+         ────▶ nginx :443 server_name portal.atxwashdryfold.com ─ include proxy-node-app.conf ─▶ :3000
+         ────▶ wavemax: hostGuard(portal) → cspNonce → securityHeaders → CSP(app, strict pages)
+               → GET /health (before session, no cookie) → session(portal.sid → `sessions`) → CSRF(app tables)
+               → /api/v1/* | SPA shell (/, /embed-app-v2.html) | /admin | /operator | /scanbag | /monitoring | legal clean URLs
+               → 404 (JSON under /api, else plain)
+
+[B] atxwashdryfold.com · rundberglaundry.com · runberglaundry.com · atxwashateria.com
+  client ─TLS─▶ Cloudflare (that host's zone, same pool)
+         ────▶ nginx :443 server_name <apex>  (www.<apex> → 301 https://<apex>$request_uri)  ─ include proxy-node-content.conf ─▶ :3001
+         ────▶ crhs-corporate: cspNonce → securityHeaders → CSP(marketing profile, strict, frame-ancestors 'self')
+               → GET /health (no session)
+               → legacyPortalRedirects (B7 set) ─301─▶ https://portal.atxwashdryfold.com + originalUrl
+               → /wavemax-affiliate ─301─▶ /affiliate
+               → storeIpRedirect (STORE_IP_*) ─302─▶ https://portal.atxwashdryfold.com + originalUrl
+               → [session / accessGate / mediatorGate / apiLimiter SKIPPED]
+               → POST /api/partner-inquiry | /api/affiliate-application ─SMTP─▶ Mailcow (Reply-To = lead)
+               → /robots.txt | /sitemap.xml | /.well-known/security.txt | /favicon.ico
+               → contentHandler(content-atxwashdryfold/): '/', '/affiliate', /assets/*, /locales/*
+               → 404
+
+[C] crhsent.com  (www → nginx 301 apex)
+  client ─TLS─▶ Cloudflare ────▶ nginx :443 server_name crhsent.com ─ inline proxy ─▶ :3001
+         ────▶ crhs-corporate: cspNonce → securityHeaders → CSP(default profile + frame-ancestors 'self')
+               → GET /health → session(crhsent.sid → `sessions_crhsent`) → sanitize → /api apiLimiter(ratelimit_crhsent_api)
+               → accessGate → mediatorGate → contentHandler(content/) → 404
+
+[D] unknown Host · direct IP · any host without a vhost
+  client ────▶ nginx :443 default_server ─▶ return 444   (never reaches :3000 or :3001)
+  wavemax.promo: no DNS answer — fails at resolution; no layer is involved.
+
+[E] health monitoring
+  Cloudflare monitor ─HTTPS GET /health, Host: portal.atxwashdryfold.com─▶ nginx portal vhost ─▶ :3000 ─▶ 200 {"status":"UP",…}
+  (crhsent.com and the marketing hosts share the pool; their liveness is verified by the per-host smoke matrix, not the monitor)
+
+[F] outbound mail (both apps)
+  app ─SMTP 587 STARTTLS, servername mail.crhsent.com, auth no-reply@crhsent.com─▶ Mailcow 158.62.198.7
+  wavemax:        app links via appUrl() → https://portal.atxwashdryfold.com/…; logo https://portal…/assets/images/brand/logo.png
+  crhs-corporate: intake → pickups@atxwashdryfold.com | admin@crhsent.com, Reply-To lead; logo https://atxwashdryfold.com/assets/images/brand/logo.png
+```
+
+#### 3.6 Shared-database layout after the split (one `MONGODB_URI`, disjoint ownership)
+
+| Collection(s) | Writer / owner | Readers | Index & sweep owner |
+|---|---|---|---|
+| `bags`, `orders`, `customers`, `operators`, `affiliates`, `administrators`, `affiliateinvites`, `addons`, `transactions`, `refreshtokens`, `tokenblacklists` | affiliate | affiliate | `wavemax scripts/ensure-indexes.js` (`Affiliate`, `Administrator`, `Transaction` added to the list) |
+| `systemconfigs` | affiliate seeds its 24 domain keys + the 3 generic; corporate seeds `access_gate_enabled` (+ the 3 generic, idempotent) | both | affiliate `ensure-indexes.js` (schema indexes `SystemConfig.js:446-447`); corporate connects with `autoIndex:false` |
+| `sessions` (cookie `portal.sid`) | affiliate | affiliate | affiliate (`autoRemove:'interval'`) |
+| `sessions_crhsent` (cookie `crhsent.sid`) | corporate | corporate | corporate |
+| `ratelimit_<name>` | affiliate | affiliate | affiliate `ensure-indexes.js` → `wc.rateLimiting.sweepExpired('ratelimit_')`; admin reset iterates `LIMITER_NAMES` × prefix (fixes L15) |
+| `ratelimit_crhsent_<name>` (`api`, `contact_burst`, `contact_hourly`) | corporate | corporate | corporate `ensure-indexes.js` → `sweepExpired('ratelimit_crhsent_')` |
+| `accessgates`, `accesswhitelists`, `accessclicks`, `accessrequests`, `mediatoraccess` | corporate | corporate | corporate `ensure-indexes.js:34-40` (affiliate entries removed) |
+| `rate_limits` | nobody | nobody | dropped; the three reset paths rewritten or deleted |
+
+Acceptance: `db.getCollectionNames()` contains no collection written by both processes; `db.sessions_crhsent.getIndexes()` and `db.ratelimit_crhsent_api.getIndexes()` exist only after corporate's first boot; a 15-minute `ratelimit_api` bucket exhausted from `crhsent.com/api/*` no longer affects `portal.atxwashdryfold.com/api/v1/*`.
+
+#### 3.7 Boundary rules (apply to every later section)
+
+1. A unit never reads another unit's `Host`; host→unit selection is nginx's job, and each app 404s (portal) or refuses (content, via the map) anything it does not own.
+2. Path-level redirects live in the app that owns the host (B7, `/wavemax-affiliate`, store-IP 302 in corporate); host-level redirects live in nginx (www→apex) or nowhere (`wavemax.promo`).
+3. Any module needed by both apps exists once, in web-core, parameterised; policy (routes, limiters, brand, domain defaults) lives in the app that applies it.
+4. Every user-facing copy change ships in `en/es/pt/de` in the same commit; every moved page is Lighthouse-measured mobile + desktop on its new origin before its host flip is called done.
+5. Production `.env` and nginx edits are confirm-first; deploys are `git pull --ff-only` (or `reset --hard origin/main`) + `npm install --install-links` + `pm2 reload`, one box at a time behind the LB.
+
+---
+
+## 4. Decision register
+
+This register is the closed list of design decisions the implementation plan executes. Every row is settled at the 2026-09-09 sign-off; an implementation PR may not re-open a row — a change of mind is a new row. Columns: **Chosen** names the option letter from the scope synthesis (`decisions.json`) where one exists; **Decided by** is one of `HUMAN` (Rick set the outcome in the binding constraints), `REC` (the synthesizer's recommendation, ratified by Rick), `OVERRIDE` (Rick chose against the recommendation), or `PENDING COUNSEL`; **Binding note** records where the binding constraints narrow, extend, or reverse the recommendation.
+
+### 4.1 D1–D21 (from the scope synthesis)
+
+| ID | Decision | Chosen | Decided by | One-line rationale | Binding note / override |
+|---|---|---|---|---|---|
+| D1 | Where the four CRHS marketing hosts live after the split | (a) `crhs-corporate` (`/mnt/c/Users/rickh/GitHub/crhs-corporate`, pm2 `crhs-corporate`, :3001) becomes a multi-host content app: host → content-root map replacing the single-host guard at `server/crhsentHandler.js:20-21`; the four marketing hosts map to ONE `atxwashdryfold` content root; marketing hosts skip session/accessGate/mediatorGate/apiLimiter | HUMAN (matches REC) | `crhsentHandler` already takes a content root, corporate already runs the web-core security/email/rate-limit stack and has a :3001 nginx template; a second process would be a third deploy target and third web-core consumer to hold in lockstep | No new service. Corporate's `/health` (`server.js:80`) must move above `buildSessionMiddleware` (`server.js:65`) — see D27. |
+| D2 | Home of the two lead-capture APIs | (a) Move `POST /api/partner-inquiry` and `POST /api/affiliate-application` to corporate as email relays (no models); recipients set explicitly in corporate env (`PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com`, `AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com`); add `Reply-To` = lead's address | REC | Both services are email-only (`server/services/partnerInquiryService.js:1-4,65,73`; `affiliateApplicationService.js:1-4,66,74`), so moving them lets the portal CORS list collapse to its own origin and keeps `connect-src 'self'` on the marketing pages; keeping them cross-origin would grant credentialed CORS to public marketing origins | Binding adds: fix the Reply-To defect (neither `server/services/email/transport.js:70` nor web-core `src/email/transport.js:74` sets it while the bodies say "Reply to this email"); align `partnerInquiryService.js:6`, `public/assets/js/partner-inquiry.js:101,106`, and `public/locales/{en,es,pt,de}/common.json:1696-1697` to the displayed address `pickups@atxwashdryfold.com` (`public/partner-program.html:35,260,321`); corporate env `EMAIL_FROM` owned by `EMAIL_USER` (2026-08-24 553 rule). The pickups goto re-point is open — §4.5 item 1. |
+| D3 | Ownership of terms / privacy / refund / T&C-embed | (a) Portal owns the single legally reviewed, de-branded source (`public/*.html`, commits `43f6dfc8` / `43996e1c` / `e51984ea`); web-core's stale copies (`crhs-web-core/assets/legal/{privacy-policy,refund-policy,terms-and-conditions}.html`, still carrying the stripped §12.2 franchise text) are deleted; the two T&C documents' contact addresses are consolidated to one | REC | The app needs T&C/privacy at registration; the current text lives in `public/`; a shared legal primitive would put legally sensitive text in a package nobody serves | Binding refines (a): marketing pages do not link to legal pages today, so no absolute-link retrofit on the content app — only the portal register-form consent links matter. Consolidation target (`legal@rundberglaundry.com` at `public/terms-and-conditions.html:139,164` vs `admin@crhsent.com` at `public/terms-and-conditions-embed.html:216,222`) is open — §4.5 item 2; the `support@/privacy@/legal@/affiliates@rundberglaundry.com` aliases created 2026-09-09 are the bridge so nothing bounces meanwhile. |
+| D4 | Fate of `public/embed-landing.html` | (a) Retire: `EMBED_PAGES['/']` and `['/landing']` (`public/assets/js/embed-app-v2.js:41-42`) → `/affiliate-login-embed.html`; delete `embed-landing.html`, `embed-landing.css`, `embed-navigation.js`, `revenue-calculator.js`, `embed-landing-init.js`, and the `pageScripts` entries at `embed-app-v2.js:569-570`; recruitment copy + `landing.*` keys move to corporate | REC | Onboarding is invite-only (the page says so at `embed-landing.html:30`), origin `/` already serves the login shell (`server.js:738-750`), the page loads two scripts cross-origin from rundberglaundry.com that portal's CSP already blocks, and it duplicates `/affiliate` | — |
+| D5 | Survival of `public/wavemax-affiliate.html` | (a) Retire the page; corporate 301s `/wavemax-affiliate` → `/affiliate` on every marketing host; delete `affiliate-ad.css`, `affiliate-ad-og.png` (repoint `server/config/brand.js:30`), the `tools/flyers` `FLYER_URL` default, and the guard allowlist entries (`branding-guard` INFRA_ALLOW `:111`, `domain-guard:20`, `phase4bKeepSet`) | PENDING COUNSEL (Miguel) — designed as if it proceeds | The page names the franchisor mark by design and publishes a `JobPosting` with `hiringOrganization` "WaveMAX" during an active DMCA/trademark dispute; whichever way counsel rules it must not remain on the portal origin | Binding: mark pending counsel; the PR is built and reviewed but merges only on counsel's go. Printed flyers/QRs may encode the URL, so the 301 is permanent. |
+| D6 | Design Explorer + `/api/concierge` | (a) Retire: delete `public/design-explorer` (5 tracked files), the `design-explorer/` source, `server/middleware/explorerGuard.js` (which replaces the CSP with its own at `:28-38`), `conciergeController`/`conciergeFaq`, `@anthropic-ai/sdk`, `conciergeLimiter` (`rateLimiting.js:321`, mounted `server.js:642-644`), the web-core CSRF exemption `src/config/csrf-config.js:71`, 6 test files, and env `EXPLORER_TOKEN` / `ANTHROPIC_API_KEY`; archive the source | REC | A May-2026 franchisor-facing deliverable predating the de-brand; `conciergeFaq` hardcodes franchisor NAP facts; nothing in corporate references it | Treat as live until Phase 2 (memory says the token/key are set in prod); env removal is a confirm-first `.env` edit on both boxes. |
+| D7 | Store-IP bypass on the marketing hosts after the split | (a) KEEP a store-IP → portal 302 on corporate: requests from `STORE_IP_ADDRESS` / `ADDITIONAL_STORE_IPS` / `STORE_IP_RANGES` (key names per `server/config/storeIPs.js:37-38,48`) on any marketing host → `302 https://portal.atxwashdryfold.com` + `req.originalUrl` | **OVERRIDE** (REC was (b) drop) | Rick chose the safety net: a kiosk/expediter/admin device that is missed by the re-point checklist still lands on the portal instead of a marketing page | Consequences: corporate carries the `STORE_IP_*` env; the device re-point checklist (expediter `?k=` URL per `.env.example:184`, kiosk `/operator`, admin bookmark, `/scanbag` PWA reinstall from portal) STILL runs before the flip; the 302 is defence in depth, not the plan. Reconciliation with D21: `storeIPs.js` is deleted from both repos — corporate's 302 parses the three env keys itself (the `adminIpGate.js:30-32` / `operatorIpGate.js:25-27` pattern) and does not resurrect that module. |
+| D8 | Public launch of the marketing hosts at cutover | (b) Launch the partner page PUBLICLY on all four hosts (rundberglaundry.com, runberglaundry.com, atxwashateria.com, atxwashdryfold.com; www collapsed by nginx) with the atxwashdryfold THEME everywhere; canonical `https://atxwashdryfold.com` (`rel=canonical` on every marketing host); the ONLY "WaveMAX Austin" mention is the exclusive-fulfillment-partner copy; NO hold page, NO preview allowlist — the mechanism is deleted | **HUMAN** (REC expressed no technical preference — business decision) | Resolves the canonical mismatch (`partner-program.html:10`, `affiliate.html:10`, `wavemax-affiliate.html:10` all name rundberglaundry.com while that host sat at "Coming soon") by making atxwashdryfold.com the brand host | Overrides the scope doc's "preview/hold semantics carry over" path: delete `COMING_SOON_PAGE` (`server/middleware/partnerLanding.js:47-65`), `previewAllowlist()` with its hardcoded `70.114.167.145` (`:81-82`), and `PARTNER_PREVIEW_ALLOWLIST` (`:5-7`). No `frame-src` change is needed (the Maps iframe leaves with the hold page). |
+| D9 | Iframe-embed architecture (`iframe-bridge-v2`, `parent-iframe-bridge-v3`, `docs/IFRAME_*`, web-core CORP carve-outs) | (a) Delete the bridges and docs; remove `scripts/build-assets.js:26-27` entries; delete the web-core `assets/js` copies; review `crhs-web-core/src/security/securityHeaders.js:83-94` CORP carve-outs with a recorded outcome | REC | No `public/*.html` loads either bundle, `frame-ancestors` is `'self'` (`server.js:275`), and the bundle's origin list still trusts the franchisor (`public/assets/js/iframe-bridge-v2.js:18-27`) | Expected review outcome: the `/assets/` + `/locales/` `Cross-Origin-Resource-Policy: cross-origin` stamp (`securityHeaders.js:98-100`) stays — webmail `<img>` loads of the email logo depend on it. |
+| D10 | Google Ads tag `AW-16900975513` and rundberglaundry.com references in `public/affiliate-landing-embed.html` | (a) Keep the page as app UI; the gtag id (`:11,:16`) becomes config-driven and is not rendered when empty; the `$1.40` literal (`:59`) reads the existing public SystemConfig key `wdf_base_rate_per_pound`; drop the rundberglaundry.com `connect-src` host from the page-level meta CSP (`:8`) | REC | The page is data-driven app UI handed to customers by affiliates; a hardcoded ad pixel and a marketing-host CSP entry are content concerns leaking into the app; the rate literal violates the SystemConfig rule | — |
+| D11 | Affiliate app response to a marketing `Host` that still reaches :3000 | (a) nginx `default_server return 444` on :443 for unknown hosts; after Phase 2 the app answers 404 for any non-portal host; `locationQuarantine` (`server/middleware/locationQuarantine.js:56` → `CORPORATE_SITE_URL` default `https://www.wavemaxlaundry.com`, `server/config/quarantineConfig.js:14`) is deleted, never the fallback | REC | A 301 in the app would re-introduce the host awareness the split removes; a misrouted vhost is an ops error that should fail loudly | During Phase 1 the app KEEPS `partnerLanding` + the store fall-through (`server.js:958-965`) as the per-host rollback path; both go in Phase 2. Today's implicit :443 default is the `www.atxwashateria.com` 301 block (first `listen 443` in include order) — the explicit `default_server` replaces that accident. |
+| D12 | Portal crawlability | (a) `robots.txt` on portal = `Disallow: /`; no sitemap | REC | The `Allow: /embed-app-v2.html` justification at `server.js:857-863` cites retired franchise iframe pages; a login portal has no SEO value and claim/reset URLs must not index; the AI-bot block list moves to the content origin | — |
+| D13 | `brand` config placement | (b) Brand stays app-owned per app; web-core email transport/template-manager take `displayName` / `fromName` / `logo` by parameter (building on `EMAIL_FROM_NAME` at web-core `src/email/transport.js:72`); no rundberglaundry literals remain in core (`transport.js:73`, `template-manager.js:67`) | REC | Brand is per-application (corporate is CRHS, the portal is "WaveMAX Austin" via env); two processes reading the same env var is coincidence, not sharing | Corporate sets `BRAND_DISPLAY_NAME=WaveMAX Austin` for the intake mails so leads see the service brand, not web-core's `Laundromat` default (`src/config/brand.js:25`). |
+| D14 | Corporate session cookie name | (b) Corporate sets `SESSION_COOKIE_NAME=crhsent.sid` (drops live crhsent sessions once, scheduled with the Phase 0a deploy); web-core's `DEFAULT_COOKIE_BASE` (`src/config/sessionStore.js:22`) becomes brand-neutral and the "MUST stay wavemax.sid" comment (`:17-21`) is rewritten | REC | The default carries the franchisor mark and is policed app-side by `domain-guard`; a gated corporate site can lose sessions during a planned deploy; the portal already passes `portal.sid` | `SESSION_COOKIE_NAME` is not in `crhs-corporate/.env.example` today — add it. |
+| D15 | SystemConfig defaults ownership | (b) Core seeds only `maintenance_mode`, `access_gate_enabled`, `system_timezone` and exposes `registerDefaults(list)`; the affiliate registers its 24 domain keys; corporate seeds `access_gate_enabled` itself | REC | Today corporate's feature flag exists only because the affiliate seeds it at boot (`server.js:138-141`; web-core `src/models/SystemConfig.js:403-411`) — a hidden cross-app dependency; and core `L175` would seed "WaveMAX Associates" into the shared collection | The `Access*` seed scripts (`scripts/seed-access-gate.js`, `scripts/whitelist-access-ip.js`) move to corporate; the four dead `server/models/Access*.js` leave the affiliate. |
+| D16 | Golden CSP re-capture | (a) Authorize ONE deliberate, reviewed re-capture of `tests/integration/webCoreConsumptionGolden.test.js` and web-core `cspGolden` / `cspMonorepoParity` when the marketing hosts leave `img-src`/`connect-src` and the location block becomes a parameter | REC | The "never edit the expectation" rule assumed the hosts stay; leaving them authorized in the portal CSP contradicts the separation and litigation-hardening intent | One commit per repo, expectation change only, rationale in the message. |
+| D17 | `rateLimiting` end-state in web-core | (b) Core = `createCustomLimiter` + `apiLimiter` + key generators + Mongo store; each app declares its own named limiters; delete `emailVerificationLimiter` / `fileUploadLimiter` / `adminOperationLimiter` (`rateLimiting.js:233-249, 252-268, 271-294`, mounted nowhere) | REC | Corporate uses only `apiLimiter` (`server.js:77`); the named limiters are app policy; three are dead in both copies | Extended by D24 (collection prefix, `LIMITER_NAMES`, `sweepExpired`). |
+| D18 | Session store handle for Oracle diagnostics | (a) `buildSessionMiddleware` returns `{ middleware, store }` and carries the post-session maxAge fixer (`server.js:453-481`) so the affiliate can adopt it without losing `installOracleDiagnostics` on `sessionStore.clientP` (`server.js:129-132`) | REC | The store-handle need is the documented reason the session block stayed inline (`tasks/todo.md:32`) and covered the cursor errors in the Oracle support case; exposing the store is a small, testable API change | — |
+| D19 | `mongoCursorRetry` / `mongoOracleDiagnostics` | (a) Stay in core; corporate adopts `installCursorRetry` before `mongoose.connect` (`crhs-corporate/server/db.js:25`) | REC | Both apps sit on the same Oracle ADB; a driver-level workaround for a shared database is a genuinely shared primitive — but only if corporate consumes it | Only correct once D23 removes web-core's direct `mongodb` dependency (`crhs-web-core/package.json:25`); otherwise the patch lands on a driver mongoose never uses. |
+| D20 | CSRF route tables | (b) `CSRF_CONFIG` + `shouldEnforceCsrf` + their 47-test suite move to the affiliate (replacing the 5-line shim at `server/config/csrf-config.js:1-5`); core keeps the `doubleCsrf` primitive taking tables as a parameter | REC | Every affiliate route edit currently needs a web-core release + rsync + reinstall on both boxes or the route silently defaults to enforce (web-core `src/config/csrf-config.js:237`); corporate consumes csrf nowhere | — |
+| D21 | Scope of Item B | (b) ALL verified duplicates: SystemConfig, rateLimiting, rateLimitMongoStore, session, errorHandler, sanitization, auditLogger, mongoCursorRetry, mongoOracleDiagnostics, storeIPs (DELETE from both), brand (per D13), email transport/template-manager, CORS (after core strips `src/security/corsConfig.js:15-24`); then remove the shims once call sites import core directly; delete the 12 duplicate affiliate test suites, keeping only app-seam integration tests | REC | "No duplicated functionality anywhere"; corporate already runs the web-core versions of errorHandler/sanitization/email in production; the test-coupling reason mostly protects duplicated suites | Binding ordering: core must honour `LOG_DIR` in `auditLogger` FIRST — live bug: web-core `csrf-config.js:13` requires web-core's auditLogger, whose `__dirname`-relative paths (`auditLogger.js:17,23`) put the app's `CSRF_VALIDATION_FAILED` events in `node_modules/@crhs/web-core/logs/`. PR order: topology (D23) → core fixes → no-dep modules → auditLogger → rateLimiting → SystemConfig → session → email → shim/dup-test removal. |
+
+### 4.2 Decisions added at sign-off (D22–D27)
+
+These were open questions in the follow-up reviews and are closed by the binding constraints; numbering continues the register.
+
+| ID | Decision | Chosen | Decided by | One-line rationale | Consequences |
+|---|---|---|---|---|---|
+| D22 | `wavemax.promo` | Stays DNS-DARK. No redirect owner is built at any layer. Delete the affiliate's dead `RETIRED_HOSTS` middleware (`server.js:201-214`), the three wavemax entries in `allowedHosts` (`server.js:178-180`), and the wavemax assertions in `tests/integration/domainMigration.test.js:17-27` | HUMAN | Verified NODATA for the apex A/AAAA/CNAME and NXDOMAIN for `www.`/`affiliate.` at the authoritative NS; the nginx vhost that owned the 301 was moved to `/etc/nginx/removed-2026-08-26/` on both boxes; the app code has been unreachable since it shipped | Supersedes the Phase-4a spec's "indefinite 301" (`docs/superpowers/specs/2026-08-23-phase4a-domain-migration-design.md:18`). Pre-2026-08-23 labels that encode wavemax.promo stay unreachable (deferred with the label-reprint question). The `server.js:193` unknown-host upgrade fallback becomes portal. |
+| D23 | Item B dependency topology | Option (c): affiliate adds `.npmrc` `install-links=true`; web-core moves `mongoose`, `express-session`, `connect-mongo`, `express-rate-limit` (`crhs-web-core/package.json:26,22,16,21`) to `peerDependencies` while KEEPING them in `devDependencies` for its own 541 tests; web-core drops its direct `mongodb ^6.21.0` (`package.json:25`) or peers it in lockstep with mongoose (`~6.20.0`); corporate declares the four explicitly in `dependencies` (`crhs-corporate/package.json:15-21` today omits them) and rewrites the `server.js:20-22` comment; both consumers' `package-lock.json` regenerated and committed | HUMAN (per follow-up [8] empirical results) | Only (c) gives a single consumer-owned instance in BOTH consumers in BOTH environments (E2/E4/E5) and turns range drift into an install-time `ERESOLVE` (E7) instead of a silent nested copy (E6); (a) alone keeps drift silent, (b) alone leaves affiliate local dev split (E1/E3) | Model double-registration (`mongoose.model('SystemConfig')` at line 449 of both copies) is prevented by move-then-delete in ONE change. Post-deploy verification on corporate asserts `Model.base === wc.SystemConfig.base` (`crhs-corporate/tests/models.test.js:88-95`) AND the `Access gate cache loaded:` log line (`server/middleware/accessGate.js:72`) — a split instance there fails silently (`accessGate.js:75`), not by crash-loop. |
+| D24 | Shared-DB namespacing (rate-limit + sessions + config ownership) | web-core `MongoRateLimitStore` gains `collectionPrefix` (ctor `src/middleware/rateLimitMongoStore.js:33-36`, threaded via `rateLimiting.js:46-49`) from env `RATE_LIMIT_COLLECTION_PREFIX`, default `ratelimit_` (portal keeps its live names); corporate sets a distinct prefix (recommended `ratelimit_corp_`); core exports `LIMITER_NAMES` + `sweepExpired(prefix)`; the per-boot TTL `createIndex` (`:58-62`, a guaranteed swallowed error on ADB) becomes opt-in; `buildSessionMiddleware` gains `collectionName` and corporate gets its own sessions collection; `access_gate_enabled` seeding + `Access*` seed scripts move to corporate; the dead `rate_limits` reset paths (`server/routes/administratorRoutes.js:202-228`, `server/services/systemHealthService.js:90-112`, `scripts/admin/reset-rate-limits.js:36`) are rewritten over `LIMITER_NAMES` or removed; `server/services/codeAttemptLockout.js:49` uses `store.collectionName` | HUMAN (per follow-up [1]) | `ratelimit_api` is already one per-IP bucket written by both apps (portal `server.js:367-371`, corporate `server.js:77`) and `sessions` is one collection with a shared `SESSION_SECRET` (`crhs-corporate/.env.example:11,28`); a scanner on crhsent.com/api/* burns the store's portal quota; four workers sweep the same sessions collection every 2 min | Web-core's test pin of the literal (`tests/middleware/rateLimitMongoStore.test.js:27,77`) must assert via `store.collectionName`. Each app's own ensure-indexes/maintenance script owns the sweep for its prefix. |
+| D25 | How the strict marketing CSP is delivered | As a web-core `buildCspDirectives` extension: a profile/host parameter (`src/security/cspDirectives.js:129-140` today exposes only img/connect/frame extras and `frameAncestors`) that trims the hard-coded third-party origins (`:156-222`); absence of the parameter reproduces today's output byte-for-byte; marketing output = `default-src 'self'; script-src 'self' 'nonce-…'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'self'; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'` (+ `upgrade-insecure-requests` in prod). NOT an app-local directives object | HUMAN (per follow-up [7]) | An app-local object would duplicate the nonce push, the style-src quirk (`:224-240`) and the prod upgrade logic — the exact duplication Item B removes; the three marketing pages are already strict-clean (all self-hosted) | Overrides the default `frameAncestors` (`:139`, includes the franchisor) to `'self'`. No `frame-src` change (no hold page, D8). `webCoreConsumptionGolden.test.js:23-57` and corporate `tests/server.integration.test.js:30-45` stay green until the D16 re-capture. |
+| D26 | Which app the CF LB health signal follows after the flip (gate G1) | Repoint monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` `header.Host` from `rundberglaundry.com` to `portal.atxwashdryfold.com` (path `/health`, `expected_codes 200`, `expected_body` empty, `follow_redirects false` — all verified live 2026-09-09); pool `wavemax-oci` = oci1 `161.153.71.201` + oci2 `144.24.4.202` unchanged | HUMAN | After the flip, rundberglaundry.com terminates on :3001, so pool health would reflect corporate liveness only: a dead/crash-looping `wavemax` process (the ORA-04036 pattern) would stay in rotation and portal users would get 502s; the LB plan's 2-origin cap blocks a second pool | Side effect: the monitor finally exercises the real `/health` (`server.js:413-424`) instead of the Coming-soon HTML that `partnerLanding` answers today. Requires the account-owned token at `~/.cf_api_token` (has Load Balancing Monitors & Pools). `default_server return 444` is safe because the monitor carries a Host. |
+| D27 | Corporate `/health` vs session middleware (gate G2) | Move `app.get('/health')` (`crhs-corporate/server.js:80`) ABOVE `wc.buildSessionMiddleware(...)` (`server.js:65`), mirroring affiliate `server.js:413-424`; no `saveUninitialized` opt-out is added to the builder | HUMAN | web-core's builder sets `saveUninitialized: true` (`src/config/sessionStore.js:98`); ~11 monitor probes/sec would mint a session document each into the shared ADB — the 2026-05-25 incident class | Must land in the Phase 0a corporate deploy, before any monitor traffic reaches :3001. |
+
+### 4.3 Where the binding constraints override or narrow the recommendations (summary)
+
+- **D7 — reversed.** Recommendation: drop the store-IP bypass after re-pointing devices. Decision: KEEP the 302 on the content app (`STORE_IP_*` env in corporate) AND still run the re-point checklist before the flip.
+- **D8 — resolved from "no technical preference" to a full business decision.** All four hosts public, atxwashdryfold theme, canonical `https://atxwashdryfold.com`, sole "WaveMAX Austin" mention = exclusive fulfillment partner, hold page + preview allowlist deleted.
+- **D5 — status changed.** Recommendation stands, but merge is gated on counsel (Miguel); the design proceeds as if approved.
+- **D3 — narrowed.** No absolute legal links are retrofitted onto marketing pages (none exist today); only the portal register-form consent links and the T&C contact-address consolidation remain.
+- **D21 — ordered.** `auditLogger` `LOG_DIR` fix first (live log-misplacement bug); `storeIPs` deleted from both repos (zero live consumers after Item A), reconciled with D7 as noted in the D7 row.
+- **D22–D27 — added.** wavemax.promo dark; topology (c); rate-limit/session namespacing; CSP as a web-core profile; monitor Host → portal; corporate `/health` above session.
+
+### 4.4 Acceptance checks (one verifiable check per decision)
+
+Each check is the condition under which the decision is considered applied. Box checks run on BOTH oci1 and oci2.
+
+- **D1** — `pm2 list` shows exactly `wavemax` and `crhs-corporate` (no third process); `curl -s -H 'Host: atxwashdryfold.com' http://127.0.0.1:3001/` and the same with `Host: rundberglaundry.com`, `runberglaundry.com`, `atxwashateria.com` each return 200 with byte-identical bodies except the per-request nonce; `Host: crhsent.com` still serves the crhsent tree; the host → content-root map is the only place in `crhs-corporate` that names a marketing host.
+- **D2** — `POST /api/partner-inquiry` and `POST /api/affiliate-application` with a marketing `Host` on :3001 return 2xx and the delivered notification carries `Reply-To: <lead address>`; the same paths on `https://portal.atxwashdryfold.com/api/v1/...` return 404 after Phase 2; `grep -rn "pickups@rundberglaundry.com" server public/assets/js public/locales` in the affiliate repo → 0 after the copy alignment; corporate `.env` on both boxes sets `PARTNER_INQUIRY_RECIPIENT`, `AFFILIATE_APPLICATION_RECIPIENT`, `EMAIL_USER` = `EMAIL_FROM` = `no-reply@crhsent.com`, `EMAIL_TLS_SERVERNAME=mail.crhsent.com`.
+- **D3** — `https://portal.atxwashdryfold.com/privacy-policy`, `/terms-of-service`, `/refund-policy` → 200 (a serving test exists); `ls crhs-web-core/assets/legal` → no such directory; `public/terms-and-conditions.html` and `public/terms-and-conditions-embed.html` name the same contact address (the §4.5 item 2 choice).
+- **D4** — `grep -n "'/': \|'/landing': " public/assets/js/embed-app-v2.js` → both map to `/affiliate-login-embed.html`; the five deleted files are absent; logout/unknown-route fallback lands on `/affiliate-login`; the retired `landing.*` keys are absent from all four `public/locales/*/common.json` and present in corporate's four locale files.
+- **D5** — (after counsel's go) `curl -sI -H 'Host: rundberglaundry.com' http://127.0.0.1:3001/wavemax-affiliate` → 301 whose `Location` resolves to `/affiliate` on the same host; `public/wavemax-affiliate.html` absent; `brand.js:30` no longer references `affiliate-ad-og.png`; the three guard allowlist entries removed. Until counsel's go: the PR exists, reviewed, unmerged, and the register row reads PENDING COUNSEL.
+- **D6** — `grep -c "@anthropic-ai/sdk" package.json` → 0; `public/design-explorer`, `design-explorer/`, `server/middleware/explorerGuard.js` absent; `GET https://portal.atxwashdryfold.com/api/concierge` → 404; both boxes' `.env` lack `EXPLORER_TOKEN` and `ANTHROPIC_API_KEY` (confirm-first edit); the archive location is recorded in the Phase 2 PR.
+- **D7** — `curl -sI -H 'Host: rundberglaundry.com' -H 'CF-Connecting-IP: 72.190.1.227' http://127.0.0.1:3001/` → `302 Location: https://portal.atxwashdryfold.com/`; the same request from a non-store IP → 200 partner page; corporate `.env` carries `STORE_IP_ADDRESS`, `ADDITIONAL_STORE_IPS`, `STORE_IP_RANGES` with the portal's values; `server/config/storeIPs.js` and `crhs-web-core/src/config/storeIPs.js` are both absent; the pre-flip device checklist is ticked in the cutover runbook with the person and time.
+- **D8** — On each of the four hosts through Cloudflare AND per box (`curl --resolve`): `/` → 200, `<link rel="canonical" href="https://atxwashdryfold.com/">`, no `noindex`, no "Coming soon"; every occurrence of the string `WaveMAX` in the served HTML sits inside the fulfillment-partner copy; `grep -rn "PARTNER_PREVIEW_ALLOWLIST\|COMING_SOON\|70.114.167.145" crhs-corporate/server wavemax-affiliate-program/server` → 0 after Phase 2; Lighthouse mobile + desktop recorded for `atxwashdryfold.com/` and `atxwashdryfold.com/affiliate` and for at least one non-canonical host.
+- **D9** — `public/assets/js/iframe-bridge-v2*.js`, `parent-iframe-bridge-v3*.js`, `docs/IFRAME_*` absent; `scripts/build-assets.js` has no bridge entry; web-core `assets/js` bridge copies absent; the CORP carve-out review outcome is written in the PR description; access logs on both boxes show zero external fetches of the bridge `.min.js` in the 14 days before deletion.
+- **D10** — `grep -c "AW-16900975513\|\$1\.40\|rundberglaundry" public/affiliate-landing-embed.html` → 0; the rendered page shows the rate from `wdf_base_rate_per_pound`; with the gtag config value empty the page emits no `googletagmanager.com` script.
+- **D11** — After Phase 2: `curl -sI --resolve unknown.example:443:<box-ip> https://unknown.example/` → empty reply (curl exit 52 / nginx 444); `curl -s -H 'Host: rundberglaundry.com' http://127.0.0.1:3000/` → 404 JSON; `server/middleware/locationQuarantine.js`, `server/config/quarantineConfig.js`, `partnerLanding.js` absent; both boxes' `.env` lack `QUARANTINE_NON_AUSTIN` and `CORPORATE_SITE_URL`. During Phase 1: `partnerLanding` still present and a per-host `proxy_pass` rollback to :3000 restores the old behaviour.
+- **D12** — `curl -s https://portal.atxwashdryfold.com/robots.txt` → `User-agent: *` / `Disallow: /` only; `/sitemap.xml` → 404; the AI-bot block list is served by corporate on the marketing hosts.
+- **D13** — `grep -rn "rundberglaundry\|Laundromat" crhs-web-core/src/email crhs-web-core/src/config/brand.js` → 0 literals that reach output; `sendEmail` / `fillTemplate` signatures take `displayName` / `fromName` / `logo`; corporate `.env` sets `BRAND_DISPLAY_NAME=WaveMAX Austin`; an intake thank-you mail arrives `From: "WaveMAX Austin" <no-reply@crhsent.com>` with a resolvable absolute logo URL; the corporate gate mail arrives from a `no-reply@crhsent.com` identity with no bare "WaveMAX" mark and an absolute logo (`accessGate.js:54,250` rewritten).
+- **D14** — `curl -sI https://crhsent.com/` sets `__Host-crhsent.sid`; portal still sets `__Host-portal.sid`; `sessionStore.js` `DEFAULT_COOKIE_BASE` is not `wavemax.sid`; `SESSION_COOKIE_NAME` documented in `crhs-corporate/.env.example`.
+- **D15** — web-core's default list is exactly `maintenance_mode`, `access_gate_enabled`, `system_timezone`; `wc.SystemConfig.registerDefaults` exported; the affiliate registers 24 keys before `initializeDefaults()` and `tests/setup.js` asserts `initializeDefaults()` resolves; on an empty database corporate boots alone and logs `Access gate cache loaded:`; `grep -c "WaveMAX Associates" crhs-web-core/src/models/SystemConfig.js` → 0.
+- **D16** — exactly one commit per repo whose diff touches only the golden expectations plus a rationale; the re-captured portal CSP contains none of `rundberglaundry.com`, `runberglaundry.com`, `atxwashateria.com`, `atxwashdryfold.com` (apex) and no franchisor origin; web-core's default-profile golden is unchanged by D25.
+- **D17** — `Object.keys(wc.rateLimiting)` = `createCustomLimiter`, `apiLimiter`, the key generators, the store factory, `LIMITER_NAMES`, `sweepExpired`; `grep -rn "emailVerificationLimiter\|fileUploadLimiter\|adminOperationLimiter"` across the three repos → 0; every affiliate route imports its named limiters from an app-owned module.
+- **D18** — `const { middleware, store } = wc.buildSessionMiddleware(...)` in affiliate `server.js`; `installOracleDiagnostics` is attached to the returned `store.clientP`; the maxAge fixer is absent from `server.js` and present in core with a test; `GET /health` returns no `Set-Cookie` (test added).
+- **D19** — `crhs-corporate/server/db.js` calls `wc.mongoCursorRetry.installCursorRetry()` before `mongoose.connect`; a corporate test asserts the patched `Collection` is `mongoose.mongo.Collection`.
+- **D20** — web-core `src/config/csrf-config.js` contains no `/api/v1/` literal; `server/config/csrf-config.js` in the affiliate is the real module (tables + `shouldEnforceCsrf`) with the 47-test suite under `tests/`; adding a new affiliate route needs no web-core release.
+- **D21** — after the last Item-B PR: no file under affiliate `server/` is byte-identical (modulo header comment) to a file under `crhs-web-core/src/`; the 12 duplicate suites (`tests/unit/{systemConfig,rateLimitMongoStore,rateLimitKeyGen,sanitization,errorHandler,auditLogger,storeIPs,mongoCursorRetry,mongoOracleDiagnostics,logger,brand-config,emailTransport}.test.js`) are deleted; `madge --circular server/` → 0; a forced CSRF failure on portal writes to `$LOG_DIR/audit.log`, and `node_modules/@crhs/web-core/logs/` does not exist on either box.
+- **D22** — `grep -n "wavemax.promo" server.js tests/integration/domainMigration.test.js` → 0; `dig +short wavemax.promo A @jobs.ns.cloudflare.com` → empty; `server.js:193` fallback is `https://portal.atxwashdryfold.com`; `production_systems_access.md` records "wavemax.promo: DNS dark by decision".
+- **D23** — affiliate `.npmrc` = `install-links=true`; web-core `package.json` has `peerDependencies` AND `devDependencies` for the four packages and no `dependencies.mongodb` (or `peerDependencies.mongodb ~6.20.0`); corporate `package.json` declares the four; both locks are committed in copy form (no `"link": true`); on both boxes, in each consumer dir, `node -e "const m=require('mongoose');const wc=require('@crhs/web-core');console.log(wc.SystemConfig.base===m)"` → `true`, and from web-core's resolution `mongoose.mongo.Collection === require('mongodb').Collection` → `true`; `pm2 logs crhs-corporate` shows `Access gate cache loaded:` after reload; web-core's 541 tests pass.
+- **D24** — `RATE_LIMIT_COLLECTION_PREFIX` documented in both `.env.example`s; after traffic, `db.getCollectionNames()` on the shared DB lists `ratelimit_api` and `<corp-prefix>api` as separate collections, and two distinct session collections; `grep -rn "rate_limits" server scripts` → 0 (or the reset path iterates `LIMITER_NAMES` and a test proves it clears a bucket); `codeAttemptLockout.js` reads `store.collectionName`; `rateLimitMongoStore.test.js` asserts via `store.collectionName`; no swallowed `createIndex` error appears in boot logs on ADB.
+- **D25** — the `Content-Security-Policy` header on `/` and `/affiliate` for each marketing host (per box and through Cloudflare) has no `'unsafe-inline'` in `script-src`, no third-party origin in any directive, and `frame-ancestors 'self'`; `crhs-corporate` contains no CSP directives object of its own; the default-profile output of `buildCspDirectives` is byte-identical to the pre-change golden.
+- **D26** — `GET /accounts/<id>/load_balancers/monitors/be6953d2e0cfd7b40c4f414b5ddf20d9` returns `header.Host == ["portal.atxwashdryfold.com"]`, `path /health`, `expected_body ""`; within 5 minutes `portal.atxwashdryfold.com.access.log` on both boxes shows `Cloudflare-Traffic-Manager` hits and `rundberglaundry.com.access.log` shows none; pool `wavemax-oci` stays healthy on both origins.
+- **D27** — `app.get('/health')` precedes `buildSessionMiddleware` in `crhs-corporate/server.js`; `curl -sI -H 'Host: rundberglaundry.com' http://127.0.0.1:3001/health` returns 200 with no `Set-Cookie`; a corporate test asserts it; the corporate sessions collection count is unchanged after 60 s of `/health` polling.
+
+### 4.5 Decisions still open for the human
+
+These do not block the design and are not re-openings of the register; each names what it gates and the recommended default that the plan assumes if no answer arrives.
+
+1. **`pickups@` mailbox goto.** `pickups@atxwashdryfold.com` is a Mailcow alias whose goto is `pickups@rundberglaundry.com`, a mailbox with no recorded login since 2026-07-31 (two app-originated leads delivered 2026-08-29 sit unread as far as the server can tell). Choose the actively-read destination — recommended: add `administrator@wavemax.promo` (the mailbox behind `admin@crhsent.com`, read 2026-09-02) to the comma-separated goto of both pickups aliases, or a new `pickups@crhsent.com` mailbox. Gates: the "intake POST → mail delivered AND read" line of the validation gate; no code change either way.
+2. **T&C contact-address consolidation target.** `public/terms-and-conditions.html:139,164` says `legal@rundberglaundry.com`; `public/terms-and-conditions-embed.html:216,222` says `admin@crhsent.com`; `public/privacy-policy.html:119,129,150,183` and `public/refund-policy.html:58,114,128,158` name `privacy@`/`support@rundberglaundry.com`. Pick ONE identity family — recommended `crhsent.com` (CRHS Enterprises is the named legal entity; the four `@rundberglaundry.com` aliases created 2026-09-09 mean nothing bounces while you decide). Gates: the D3 copy PR (one commit, all documents).
+3. **Corporate `BASE_URL`: `https://portal.atxwashdryfold.com` or `https://atxwashdryfold.com`.** It is process-wide in web-core (`template-manager.js:67` builds `[BRAND_LOGO]` from it). Portal guarantees the logo resolves from day one but makes CRHS-sent intake mail advertise the portal host; atxwashdryfold.com is the brand host and works as soon as the content app serves `/assets/images/brand/logo.png` on the marketing roots (a Phase 0a deliverable). Recommended: `https://atxwashdryfold.com`, verified in the Phase 0a on-box check before the first intake mail. Gates: corporate `.env` for the 0a deploy.
+4. **`EXPEDITER_TOKEN` rotation timing.** The register fixes "after the flip"; confirm the exact point — recommended: immediately after the `rundberglaundry.com` host flip completes on BOTH boxes (Phase 1 step 3), in the same window: edit `.env` on both boxes, `pm2 reload wavemax --update-env`, re-open the store board with the new `?k=`. Rationale: the device is re-pointed to portal before the flip, so the token should never transit the content vhost; rotation is belt-and-braces (`server/middleware/expediterGuard.js:5` is read-only stats). Gates: the Phase 1 runbook line and the person on-site to re-open the board.
+
+---
+
+## 5. Item A — corporate becomes the multi-host content app
+
+crhs-corporate (`/mnt/c/Users/rickh/GitHub/crhs-corporate`, pm2 `crhs-corporate`, `:3001`, 2 cluster workers per `ecosystem.config.js`) stops being a single-host crhsent.com server and becomes the content app for five hosts: `crhsent.com` (unchanged behaviour) plus the four marketing hosts `atxwashdryfold.com`, `rundberglaundry.com`, `runberglaundry.com`, `atxwashateria.com`, which all serve ONE content tree (the atxwashdryfold theme) with `rel=canonical` → `https://atxwashdryfold.com`. Everything in this section ships DARK in Phase 0a (both boxes, verified on-box with `curl -H 'Host: …' http://127.0.0.1:3001/…`) before any nginx vhost is retargeted. D1, D7, D8, D5 (pending counsel), D2a, D12a, D13b, D14b apply as written in the binding block.
+
+### 5.1 Host resolution and the host → content-root map
+
+**New module `server/config/hosts.js`** replaces the single-host guard at `server/crhsentHandler.js:20-21` (`host !== 'crhsent.com' → next()`), the `reqHost` copies in `server/middleware/accessGate.js:89-91` and the `req.hostname` strip in `crhsentHandler.js:20`:
+
+```js
+const CORPORATE_HOST = 'crhsent.com';
+const MARKETING_HOSTS = ['atxwashdryfold.com', 'rundberglaundry.com', 'runberglaundry.com', 'atxwashateria.com'];
+const MARKETING_CANONICAL_ORIGIN = 'https://atxwashdryfold.com';
+const PORTAL_ORIGIN = 'https://portal.atxwashdryfold.com';
+const CONTENT_ROOTS = {
+  'crhsent.com':        path.join(__dirname, '..', '..', 'content', 'crhsent'),
+  'atxwashdryfold.com': path.join(__dirname, '..', '..', 'content', 'atxwashdryfold'),
+  'rundberglaundry.com': /* same atxwashdryfold root */,
+  'runberglaundry.com':  /* same */,
+  'atxwashateria.com':   /* same */
+};
+function requestHost(req)  // (x-forwarded-host || host) → lowercase → strip ':port' → strip leading 'www.'
+function hostKind(req)     // 'corporate' | 'marketing' | 'unknown'
+function resolveHost(req, res, next) // sets req.crhsHost = { name, kind, contentRoot }; always next()
+```
+
+- **www handling.** nginx owns the `www.<host>` → apex 301 for all five hosts (`$request_uri` preserved, verified externally in followups[4]: `www.rundberglaundry.com/` → `301 https://rundberglaundry.com/` with `x-origin-box`), so the map is **apex-only**. The in-app `www.` strip is kept as defence in depth for direct-to-origin requests and tests; the app never emits a www→apex redirect itself (single owner = nginx).
+- **Unknown host → 404.** After the `/health` route (5.2) any request whose `hostKind` is `'unknown'` (including `portal.atxwashdryfold.com`, `localhost` without a mapped Host, bare IP) gets `404 text/html` with the minimal body used by `wc.ipGate` (`crhs-web-core/src/middleware/ipGate.js:64`) and `Cache-Control: no-cache, no-store, must-revalidate`. This replaces today's fall-through to `wc.errorHandler` (`server.js:87-90`) and keeps `tests/server.integration.test.js:92-97` (`Host: other.com` → 404) green.
+- **`req.hostname` is no longer consulted anywhere** in corporate; `accessGate.js:89-91` and `mediatorGate.js:60-63` switch to `requestHost(req)` in the same PR so all three agree (accessGate reads `x-forwarded-host` first today, crhsentHandler reads `req.hostname`).
+
+**Content handler.** `server/crhsentHandler.js` becomes `server/contentHandler.js` = `contentHandler()` reading `req.crhsHost.contentRoot`; traversal guard (`crhsentHandler.js:25-27`), extension-less → `index.html` (`:30-32`), `.html` → `wc.cspHelper.readHTMLWithNonce` + `no-cache, no-store, must-revalidate` (`:33-36`) and `sendFile` (`:38`) are carried verbatim. Per move-then-delete, `server/crhsentHandler.js` stays for one PR as a shim (`module.exports = (root) => contentHandler({ 'crhsent.com': root })`) and `tests/crhsentHandler.test.js` keeps passing against it; the shim and its test are deleted in the following PR. The handler additionally: (a) sets `Cache-Control: public, max-age=31536000, immutable` on every non-HTML file under `/assets/` (mirrors affiliate `server.js:588-594`); (b) sets `Access-Control-Allow-Origin: *` + `Access-Control-Allow-Methods: GET` on `/locales/*.json` and `Cache-Control: public, max-age=3600` (mirrors `server.js:668-676`); (c) answers `GET /assets/images/brand/logo-wavemax.png` on marketing hosts with **410 Gone**, `Cache-Control: public, max-age=86400`, no body redirect (DMCA — the franchisor swirl, deleted `c48785ca`; historical emails 2026-06-17→08-24 embed this path per followups[5]; it must never 301 to `logo.png`); (d) HEAD is answered by Express's `res.send` short-circuit, so the B7 HEAD cases need no special code.
+
+**Content directory layout** (rename-only `git mv` PR so the diff is a rename):
+
+```
+content/
+  crhsent/                       ← today's 49 tracked content/ files, byte-unchanged (content-manifest pin moves with them)
+  atxwashdryfold/
+    index.html                   ← from affiliate public/partner-program.html (edits in 5.3)
+    affiliate/index.html         ← from affiliate public/affiliate.html (edits in 5.3)
+    assets/css/partner-program.css, affiliate.css
+    assets/fonts/{anton,big-shoulders-display,hanken-grotesk,plus-jakarta-sans,space-grotesk}-latin{,-ext}.woff2   (10 files, 272 KB)
+    assets/images/locations/austin-tx/hero-1.webp
+    assets/images/affiliate-og.png
+    assets/images/brand/logo.png (md5 7f5332b8…, 5137 B — the WaveMAX Austin wordmark), favicon-32x32.png
+    assets/js/partner-inquiry.js, affiliate-inquiry.js
+    locales/{en,es,pt,de}/common.json
+```
+
+`affiliate-ad.css`, `affiliate-ad-og.png`, `wavemax-affiliate.html` and the flyers do NOT move (D5: retired; `/wavemax-affiliate` 301s to `/affiliate`, 5.7). `/assets/js/i18n.js` and `/assets/js/language-switcher.js` are served from web-core's `assetsDir/js` (`crhs-web-core/src/index.js:68-72`; `assets/js/i18n.js` is byte-identical to the affiliate copy, md5 `7b24262d…`) via a host-scoped `express.static(path.join(wc.assetsDir, 'js'))` mounted at `/assets/js` **after** the content tree so content-owned JS wins; it is mounted at `/assets/js` only, never at `/assets`, so web-core's stale `assets/legal/*.html` are never exposed. `content/README.md` (stale: describes an nginx static root) is rewritten to this layout.
+
+### 5.2 Middleware order, host-scoping, and `/health` (gate G2)
+
+New `server.js` order (line numbers refer to today's file):
+
+1. `app.set('trust proxy', 1)` (`:34`).
+2. **`GET /health`** — moved from `:80` to immediately after step 1, BEFORE `wc.cspNonce` (`:38`), CORS (`:61`), cookies (`:62`) and `wc.buildSessionMiddleware` (`:65-69`). Body stays `{ status: 'ok' }` (the CF monitor `be6953d2…` expects code 200 with an EMPTY expected_body), plus `Cache-Control: no-store`. Host-agnostic: it answers for `crhsent.com`, every marketing host, `portal.atxwashdryfold.com` and no Host at all (on-box probes). Rationale: web-core's session is `saveUninitialized: true` (`crhs-web-core/src/config/sessionStore.js:98`) with a 2-minute `deleteMany` sweeper (`:83-84`); with four more LB hostnames proxied to `:3001` the old position would mint a session document per probe per host — the 2026-05-25 incident class.
+3. `wc.cspNonce` (`:38`), `wc.securityHeadersMiddleware()` (`:42`).
+4. `resolveHost` (5.1).
+5. **Host-aware CSP** (replaces `:49-58`; contract in 5.9).
+6. `legacyPortalRedirects` (5.7) — marketing hosts only.
+7. `storeIpPortalRedirect` (5.8) — marketing hosts only.
+8. `cookieParser()`, `express.json()`, `express.urlencoded()` (`:62-64`) — all hosts (intake POSTs need the body).
+9. `corporateOnly(cors(wc.corsConfig))` (`:61`) — crhsent only. Marketing hosts emit no CORS headers except the `/locales` ACAO in 5.1(b); `wc.corsConfig` still carries franchisor literals (`crhs-web-core/src/security/corsConfig.js:14-23`) until the web-core section strips them (D21b), so scoping it off the marketing hosts is also litigation-residue containment.
+10. `corporateOnly(wc.buildSessionMiddleware({ mongoUrl, secret, ttlSeconds: 600, cookieName: 'crhsent.sid' }))` (`:65-69`; D14b — cookie base comes from `SESSION_COOKIE_NAME=crhsent.sid`, `__Host-` prefixed in prod per `sessionStore.js:36-38`; the shared-`sessions` `collectionName` option is delivered by the web-core section and passed here as `collectionName: 'sessions_corporate'` once it exists). Marketing responses therefore carry **no `Set-Cookie`** — this is what keeps marketing HTML cacheable-by-policy and mints zero session docs for marketing traffic.
+11. `wc.sanitization.mongoSanitize()` + `sanitizeRequest` (`:72-73`) — all hosts.
+12. `corporateOnly(wc.rateLimiting.apiLimiter)` on `/api/` (`:77`) — crhsent only; the marketing intake routes carry their own two limiters (5.5). With `RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_` the collection becomes `ratelimit_corp_api` (today `ratelimit_api` is shared with the portal — followups[1] item 1).
+13. `marketingOnly(intakeRouter)` under `/api` (5.5), then `marketingOnly` catch-all `/api/*` → `404 {success:false,message:'Not found'}` JSON (never 301, never proxied).
+14. `corporateOnly(accessGate)` (`:85`). Today `/__gate` and `/__gate/*` are handled on ANY host before the `GATED_HOSTS` check (`accessGate.js:358-360` vs `:364-365`); the wrapper closes that so a marketing host never renders the gate form. `isExempt` (`:95-123`) is unchanged.
+15. `corporateOnly(mediatorGate)` (`:86`; already host-scoped at `mediatorGate.js:60-63`, wrapped anyway).
+16. Per-host SEO routes (5.6) — marketing generated; crhsent keeps its static `content/crhsent/robots.txt` + `sitemap.xml` via the handler.
+17. `contentHandler()` (5.1) with unknown-host 404.
+18. `wc.errorHandler.errorHandler` (`:90`).
+
+`corporateOnly(mw)` / `marketingOnly(mw)` are one-line wrappers in `server/config/hosts.js`: `(req,res,next) => req.crhsHost.kind === kind ? mw(req,res,next) : next()`.
+
+### 5.3 The marketing content root (atxwashdryfold theme)
+
+`content/atxwashdryfold/index.html` is `public/partner-program.html` with exactly these edits (all four marketing hosts serve it at `/`; D8 — no hold page, no `PARTNER_PREVIEW_ALLOWLIST`, no `X-Robots-Tag: noindex`; the inline "Coming soon" page at `server/middleware/partnerLanding.js:47-65` is not carried):
+
+| Line (source) | Today | After |
+|---|---|---|
+| `:10` `<link rel="canonical">` | `https://rundberglaundry.com/` | `https://atxwashdryfold.com/` |
+| `:18` `og:url` | `https://rundberglaundry.com/` | `https://atxwashdryfold.com/` |
+| `:19`, `:23` `og:image` / `twitter:image` | `https://rundberglaundry.com/assets/images/locations/austin-tx/hero-1.webp` | `https://atxwashdryfold.com/assets/…/hero-1.webp` |
+| `:34`, `:36`, `:48` JSON-LD `url` / `image` / provider `url` | rundberglaundry.com | atxwashdryfold.com |
+| `:109` `aria-label="WaveMAX Austin store"` | second mention of the mark | `aria-label="Fulfillment partner plant"` |
+| `:323` footer | `<a …>WaveMAX Austin</a> is the exclusive fulfillment partner for the atxwashdryfold program.` | **unchanged — this is the single permitted mention** (`partner.footer.fulfillmentPartnerRest`, 4 locales already carry the sentence tail) |
+| `:327-328` scripts | `/assets/js/i18n.js`, `/assets/js/partner-inquiry.js` | unchanged (served per 5.1) |
+
+The three `https://www.wavemaxlaundry.com/austin-tx` anchors (`:68`, `:259`, `:323`) stay as navigations to the fulfillment partner's site (they are not CSP-governed and are the only outbound links). `mailto:pickups@atxwashdryfold.com` (`:260`, `:321`) stays. The page is nonce-injected by `readHTMLWithNonce` (`crhs-web-core/src/utils/cspHelper.js:41-67`): the empty `<meta name="csp-nonce" content="">` (`:6`) is filled and `nonce=` is added to the two `<script src>` tags and the `ld+json` blocks — harmless under `script-src 'self' 'nonce-…'`.
+
+`content/atxwashdryfold/affiliate/index.html` is `public/affiliate.html` (served at `/affiliate` and `/affiliate/` by the extension-less rule) with: `:10` canonical and `:17` `og:url` → `https://atxwashdryfold.com/affiliate`; `:18`, `:22` OG image → `https://atxwashdryfold.com/assets/images/affiliate-og.png`; `:331` script unchanged. `mailto:admin@crhsent.com` (`:326`) stays.
+
+`assets/js/partner-inquiry.js`: `:85` `fetch('/api/v1/partner-inquiry')` → `fetch('/api/partner-inquiry')`; `:101`, `:106` fallback copy `pickups@rundberglaundry.com` → `pickups@atxwashdryfold.com`. `assets/js/affiliate-inquiry.js`: `:51` → `fetch('/api/affiliate-application')`; `:67`, `:72` already `admin@crhsent.com`. Neither script sends credentials.
+
+`/wavemax-affiliate` is not a file in the tree — it is a 301 (5.7).
+
+### 5.4 i18n
+
+- `content/atxwashdryfold/locales/{en,es,pt,de}/common.json` each contain exactly one top-level namespace, `partner`, copied from affiliate `public/locales/<lang>/common.json:1576-1702` — 109 leaf keys in the 10 groups `footer, form, hero, meta, nav, plant, stats, steps, who, why` (verified identical structure in all four today). The only value edits: `partner.form.errGeneric` and `partner.form.errNetwork` (`:1696-1697` in every locale) → the address becomes `pickups@atxwashdryfold.com`, same commit, all four languages. `index.html` references 103 distinct `data-i18n` keys (106 attributes, all `data-i18n`; every key resolves in en today).
+- i18n.js fetches `${translationsPath}/${lang}/common.json?v=<ts>` (`crhs-web-core/assets/js/i18n.js:99-100`) where `translationsPath` is `'/locales'` for `*rundberglaundry.com*`/localhost and `origin + '/locales'` otherwise (`:15-17`) — both same-origin, so the four marketing hosts work unchanged; the web-core section removes the host literal (D13b) with no behavioural change. ACAO `*` on `/locales` is kept for parity with the affiliate origin (`server.js:668-676`).
+- The affiliate repo removes `partner.*` from all four locales in ONE commit in Phase 2 (its parity gate `tests/unit/i18n-brand-token.test.js:13-18`); corporate adds them in ONE commit in Phase 0a. The two commits are independent (different repos, different origins).
+- **Parity test** `tests/i18nParity.test.js` (clone of `i18n-brand-token.test.js:13-18` plus HTML↔locale coupling): (1) the four files' key sets are identical; (2) the top-level key set is exactly `['partner']` with 109 leaves; (3) no locale value matches `/wavemax/i`; (4) every `data-i18n` value in `content/atxwashdryfold/index.html` resolves to a non-empty en string; (5) `errGeneric`/`errNetwork` in all four contain `pickups@atxwashdryfold.com` and never `rundberglaundry.com`. `npm run check:i18n` is not adopted (its `REQUIRED_KEYS` are portal keys — `scripts/check-i18n-parity.js:32-40`); the jest test is the gate.
+
+### 5.5 Intake endpoints (D2a): `POST /api/partner-inquiry`, `POST /api/affiliate-application`
+
+Ported file-for-file from the affiliate repo, marketing hosts only:
+
+| Corporate file | Source | Changes |
+|---|---|---|
+| `server/routes/partnerInquiryRoutes.js` | `server/routes/partnerInquiryRoutes.js` (validators `:11-48`, route `:50-56`) | limiters → `wc.rateLimiting.contactFormBurstLimiter` (store name `contact_burst`, `crhs-web-core/src/middleware/rateLimiting.js:190-206`) + `contactFormLimiter` (`contact_hourly`, `:213-230`); validators verbatim |
+| `server/routes/affiliateApplicationRoutes.js` | `affiliateApplicationRoutes.js` (`:12-53`, `:55-61`) | same |
+| `server/controllers/partnerInquiryController.js`, `affiliateApplicationController.js` | verbatim | `ControllerHelpers` → `wc.controllerHelpers`; `logger` → `wc.logger` |
+| `server/services/partnerInquiryService.js` | `partnerInquiryService.js` | `:6` default `pickups@rundberglaundry.com` → `pickups@atxwashdryfold.com`; `emailService.sendEmail` → `wc.email.transport.sendEmail`; `loadTemplate/fillTemplate` → `wc.email.templateManager` with an explicit template root; `brand` → corporate `server/config/brand.js` (getters over `BRAND_DISPLAY_NAME`/`BRAND_LEGAL_NAME`, generic defaults, same shape as `crhs-web-core/src/config/brand.js:24-31`; replaced by the parameterised web-core email API at D13b) |
+| `server/services/affiliateApplicationService.js` | `affiliateApplicationService.js` | `:6` default `admin@crhsent.com` unchanged; same substitutions |
+| `server/templates/emails/base-template.html` | affiliate `server/templates/emails/base-template.html` (32 lines; tokens `[BRAND_LEGAL] [BRAND_LOGO] [BRAND_NAME] [CURRENT_YEAR] [EMAIL_CONTENT]`) | byte copy; `EMAIL_TEMPLATE_ROOT` documents it, code passes `templateRoot = process.env.EMAIL_TEMPLATE_ROOT || path.join(__dirname, '..', 'templates', 'emails')` as `loadTemplate`'s third argument (`crhs-web-core/src/email/template-manager.js:41-46`) |
+
+- **Recipients** are explicit env: `PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com` (existing Mailcow alias whose goto is `pickups@rundberglaundry.com` — re-pointing that goto to an actively read mailbox is the human's OPEN action from the binding block), `AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com`. Code defaults equal the displayed addresses so page = default = locale = delivered.
+- **Reply-To.** web-core `sendEmail(to, subject, html, fromOverride)` (`crhs-web-core/src/email/transport.js:61`, `mailOptions` `:74`) gains a fifth argument `{ replyTo }` → `mailOptions.replyTo` (web-core prerequisite, tested in `tests/email/transport.test.js`). The notification (`partnerInquiryService.js:65`, `affiliateApplicationService.js:66`) passes `replyTo: email` (the lead) — the body already says "Reply to this email to reach <lead>" (`:64`/`:65`). The thank-you (`:73`/`:74`) passes `replyTo: RECIPIENT` because its body says "just reply to this email" (`:72`/`:73`) and the From is `no-reply@crhsent.com`.
+- **Brand/From.** From renders as `"${EMAIL_FROM_NAME || brand.displayName}" <EMAIL_FROM>` (`transport.js:72-73`) → `"WaveMAX Austin" <no-reply@crhsent.com>` with `BRAND_DISPLAY_NAME=WaveMAX Austin`; `[BRAND_LOGO]` = `${BASE_URL}${brand.logoPath}` (`template-manager.js:67,74`; `brand.js:29`) → `https://atxwashdryfold.com/assets/images/brand/logo.png`, which the content app serves (5.1) with `Cross-Origin-Resource-Policy: cross-origin` (`crhs-web-core/src/security/securityHeaders.js:98-100`). `EMAIL_USER` must own `EMAIL_FROM` (2026-08-24 553 rule): both `no-reply@crhsent.com`.
+- **CSRF posture.** Corporate mounts no CSRF middleware (none in `server.js`); the two endpoints are public, unauthenticated and credential-free — the same rationale as the affiliate `PUBLIC_ENDPOINTS` exemption (`crhs-web-core/src/config/csrf-config.js:94-95, 99-100`). Because marketing responses set no cookie (5.2 step 10) there is no ambient credential to forge. Abuse control is the two limiters only.
+- Any other `/api/*` on a marketing host → 404 JSON (5.2 step 13); `GET /api/v1/customers/verify-email/*` is the single API path that 301s (5.7). `express-validator ^7.0.1` (the affiliate's version, `package.json:63`) is added to corporate `dependencies`.
+
+### 5.6 Per-host SEO files and favicon (marketing hosts)
+
+Generated routes in `server/seoRoutes.js`, `marketingOnly`, `Cache-Control: public, max-age=3600` (mirrors affiliate `server.js:838, 897`):
+
+- **`/robots.txt`** (`text/plain`), identical body on all four hosts — the nine AI-bot blocks from `server.js:848-856` verbatim (`Amazonbot, Applebot-Extended, Bytespider, CCBot, ClaudeBot, CloudflareBrowserRenderingCrawler, Google-Extended, GPTBot, meta-externalagent`, each `Disallow: /`), then `User-agent: *` / `Allow: /` / `Disallow: /api/`, then `Sitemap: https://atxwashdryfold.com/sitemap.xml`. **No `Content-Signal:` line** (Lighthouse "robots.txt is not valid" caps SEO at 92; CF "Manage robots.txt" stays OFF on all zones). `/admin/` and `/monitoring/` are not listed (they 301 to the portal, 5.7).
+- **`/sitemap.xml`** (`application/xml`), identical on all four hosts, lists only canonical URLs: `https://atxwashdryfold.com/` (priority 1.0) and `https://atxwashdryfold.com/affiliate` (0.8), `lastmod` = `MARKETING_LASTMOD`, a constant in `hosts.js` updated in any PR that changes the two pages (not the request date the affiliate emits at `server.js:874`).
+- **`/.well-known/security.txt`** (`text/plain`) generated per host with `Contact: mailto:security@crhsent.com`, `Expires: 2027-05-20T00:00:00.000Z` (same expiry as the portal file), `Preferred-Languages: en`, `Canonical: https://<host>/.well-known/security.txt`, `Policy: https://portal.atxwashdryfold.com/privacy-policy.html` (D3a — the portal owns legal), header comment `# Operated by CRHS Enterprises, LLC.` — the franchise-licence statement at `public/.well-known/security.txt:2` is not carried. crhsent.com gets the same generator without the `Policy` line (it has none today).
+- **`/favicon.ico`** → `content/atxwashdryfold/assets/images/brand/favicon-32x32.png` as `image/png`, `Cache-Control: public, max-age=86400` (mirrors `server.js:511-514`). crhsent.com is unchanged (`content/crhsent/index.html:11` links `/assets/img/favicon.svg`).
+
+### 5.7 B7 legacy app-path 301s and `/wavemax-affiliate` → `/affiliate`
+
+`server/middleware/legacyPortalRedirects.js`, mounted before every gate (5.2 step 6), marketing hosts only, **GET and HEAD only**:
+
+```
+EXACT paths → 301 https://portal.atxwashdryfold.com + req.originalUrl
+  /embed-app-v2.html  /admin  /admin/  /operator  /operator/  /operator-scan-embed.html
+  /scanbag  /scanbag/  /scanbag-manifest.json  /scanbag-sw.js  /monitoring-dashboard.html
+PREFIX → 301 same rule
+  /api/v1/customers/verify-email/
+/wavemax-affiliate, /wavemax-affiliate/ → 301 /affiliate + original query (D5, pending counsel)
+```
+
+Rules: the target is built from `req.originalUrl` only (byte-preserved query — `route=/claim&bag=<32hex>` on printed bag labels, `labelSheetService.js:89-96`; `?k=<EXPEDITER_TOKEN>` on the expediter display, `.env.example:184`); no `/api/*` or `/assets/*` or `/locales/*` blanket redirect (a POST 301 changes semantics; the moved pages reference `/assets` relatively); never on `crhsent.com` or an unknown host; POST/PUT/DELETE fall through to the marketing `/api/*` 404. This mirrors the affiliate's own precedent `server.js:207-213` (`res.redirect(301, 'https://portal.atxwashdryfold.com' + req.originalUrl)`), which is dead in production and is deleted per the binding block. Corporate has no request logger; if one is ever added it must redact `[?&](t|k)=` like affiliate `server.js:73, 333-334`. The device re-point checklist (expediter `?k=` URL, kiosk `/operator` home, admin bookmark, `/scanbag` PWA reinstall from the portal) runs BEFORE the flip and `EXPEDITER_TOKEN` rotates AFTER it (cutover section); `ops.js:44,65` is fixed to `BASE_URL` in the affiliate Phase-0b PR.
+
+### 5.8 Store-IP → portal 302 (D7)
+
+`server/middleware/storeIpPortalRedirect.js`, marketing hosts only, GET/HEAD only, mounted AFTER the B7 301s (a legacy path always wins with a 301) and BEFORE cookies/gates/content:
+
+```js
+const { parseList, entryMatches } = wc.ipGate;   // crhs-web-core/src/middleware/ipGate.js:17-25
+const { clientIp } = wc.clientIp;                 // cf-connecting-ip first, src/utils/clientIp.js:41-48
+entries = [...parseList(STORE_IP_ADDRESS), ...parseList(ADDITIONAL_STORE_IPS), ...parseList(STORE_IP_RANGES)]  // resolved per request
+if (entries.length && entries.some((e) => entryMatches(clientIp(req), e))) {
+  res.set('Cache-Control', 'no-store');
+  return res.redirect(302, PORTAL_ORIGIN + req.originalUrl);
+}
+```
+
+No path exemptions (today the store "sees the real app on every route", `partnerLanding.js:119`); an empty allowlist means no redirect (fail-open — it is a convenience, not a gate). `STORE_IP_ADDRESS`/`ADDITIONAL_STORE_IPS`/`STORE_IP_RANGES` already exist in corporate's env (`.env.example:55-57`, read by `mediatorGate.js:36-50`) and now also drive this. Dependency: `entryMatches` delegates CIDR matching to `storeIPs.isInRange` (`ipGate.js:13, 23`); the web-core section, which deletes `storeIPs`, must move the pure `isInRange` helper into `ipGate.js` first.
+
+### 5.9 CSP — the web-core marketing profile
+
+The host-aware middleware (5.2 step 5) makes two calls:
+
+- **Marketing hosts:** `wc.buildCspDirectives({ profile: 'marketing', path: req.path, nonce: res.locals.cspNonce, useStrictCSP: true, frameAncestors: ["'self'"] })` — strict on EVERY path including `/` (today `/` on the marketing hosts ships `'unsafe-inline'` because `isFranchiseHostPage` rejects a bare `/`, `crhs-web-core/src/security/cspDirectives.js:63-70`, and the affiliate CSP runs before `partnerLanding`, `server.js:263-279, 362`). The `profile` parameter is the web-core extension the binding block requires (not an app-local directives object); with `profile` omitted the builder's output stays byte-identical (the `webCoreConsumptionGolden` and `cspGolden` suites remain the guard). Under `profile: 'marketing'` the hard-coded template (`cspDirectives.js:156-222`) is replaced by exactly:
+
+```
+default-src 'self'; script-src 'self' 'nonce-<n>'; style-src 'self' 'unsafe-inline';
+img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self';
+frame-src 'none'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; child-src 'none';
+worker-src 'self'; manifest-src 'self'; upgrade-insecure-requests   (last only when NODE_ENV=production)
+```
+
+  while the shared behaviour stays in core: nonce push (`:235-236`), style-src `'unsafe-inline'` with NO style nonce (`:224-240` — the partner page has 14 `style="--rot:…"` attributes that depend on it), the strict/non-strict switch (`:244-246`), prod upgrade (`:249-251`), `serializeCspDirectives` (`:263-270`). Every value was verified against the pages' actual needs in followups[7]: two same-origin scripts, self-hosted woff2, one `data:` SVG in the CSS, one same-origin hero image, same-origin `fetch`. `frame-src 'none'` because no marketing page embeds a frame (the Maps iframe lived only in the deleted hold page). The marketing profile's own `frameAncestors` default is `["'self'"]` so an omitted override cannot fall back to the franchisor list at `:139`.
+- **crhsent.com:** today's call (`server.js:50-55`) plus `frameAncestors: ["'self'"], imgSrcSelfOrigins: [], connectSrcSelfOrigins: []` — drops the default franchisor `frame-ancestors` (`cspDirectives.js:139`) and the `wavemax.promo` self-origins (`:134-135`) (litigation residue). `tests/server.integration.test.js:30-45` asserts nothing about those directives, so it stays green.
+
+### 5.10 accessGate mail and the crhsent logo
+
+`server/middleware/accessGate.js`: `:54` `GATE_FROM` becomes a lazy getter `` `"CRHS Enterprises" <${process.env.EMAIL_FROM || process.env.EMAIL_USER}>` `` (the sending identity is always the SMTP login's own address — no `sender_acl` dependency; today's `admin@rundberglaundry.com` works only through one Mailcow ACL row for `no-reply@wavemax.promo`, followups[3]); `:161` `<title>WaveMAX</title>` → `CRHS Enterprises`; `:250` `<img src="/assets/images/brand/logo.png" alt="WaveMAX">` → `` `https://${host}/assets/images/brand/logo.png` `` with `alt="CRHS Enterprises"`, `host` taken exactly as the link at `:343-344`; `:345` subject → `Your CRHS Enterprises access link`. `tests/accessGate.test.js:204` asserts the new From; `:93` uses `logo.png`. `content/crhsent/owners/index.html:30` `alt="WaveMAX Laundry"` → `alt="WaveMAX Austin"` (the only value the branding guard allows).
+
+`https://crhsent.com/assets/images/brand/logo.png` returns 404 live (probed 2026-09-08) although `content/assets/images/brand/logo.png` exists at HEAD `bc86055` (2026-08-26) and the handler serves any extension path via `sendFile` (`crhsentHandler.js:38`): the boxes are behind HEAD (scope §3.1 also found installed web-core 0.1.1 vs source 0.1.2). The Phase-0a deploy (`git pull`/`reset --hard origin/main` + `npm install --install-links` + `pm2 reload crhs-corporate`) brings it live; acceptance below checks it explicitly, and the per-host serving test locks the route.
+
+### 5.11 Environment, package and deploy hygiene
+
+`.env.example` — fix the stale header `:3-7` ("uses NO dotenv": `server.js:15` and `scripts/ensure-indexes.js` load dotenv) and add/uncomment, every key with its production value:
+
+```
+SESSION_COOKIE_NAME=crhsent.sid                       # D14b (was default wavemax.sid)
+RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_          # per-app rate-limit collections
+LOG_SERVICE_NAME=crhs-corporate                       # logger stamps 'wavemax-affiliate' when unset
+LOG_DIR=/var/www/crhs-corporate/logs
+EMAIL_PROVIDER=smtp
+EMAIL_HOST=158.62.198.7
+EMAIL_PORT=587
+EMAIL_USER=no-reply@crhsent.com                       # MUST own EMAIL_FROM
+EMAIL_PASS=
+EMAIL_FROM=no-reply@crhsent.com
+EMAIL_TLS_SERVERNAME=mail.crhsent.com
+EMAIL_TEMPLATE_ROOT=/var/www/crhs-corporate/server/templates/emails
+BRAND_DISPLAY_NAME=WaveMAX Austin                     # intake From-name + [BRAND_NAME]
+BRAND_LEGAL_NAME=CRHS Enterprises, LLC
+BASE_URL=https://atxwashdryfold.com                   # [BRAND_LOGO] absolute URL (content app serves logo.png)
+PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com
+AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com
+STORE_IP_ADDRESS=72.190.1.227                         # also drives the marketing-host → portal 302 (5.8)
+ADDITIONAL_STORE_IPS=
+STORE_IP_RANGES=
+CORS_ORIGIN=https://crhsent.com                       # CORS is crhsent-only
+```
+
+Unchanged: `NODE_ENV, PORT, MONGODB_URI, MONGODB_TLS, SESSION_SECRET, JWT_SECRET, ENCRYPTION_KEY, MEDIATOR_GATE_*, ADMIN_ALLOWLIST, ADMIN_IP, CORPORATE_SITE_URL`. Production `.env` on both boxes (confirm-first): switch `EMAIL_USER`/`EMAIL_FROM` from `no-reply@wavemax.promo` to `no-reply@crhsent.com` with that login's `EMAIL_PASS`; delete `BASE_URL=https://rundberglaundry.com`, `FRONTEND_URL=https://rundberglaundry.com` and the `https://wavemax.promo` entry in `CORS_ORIGIN` (followups[4]); add the keys above. `package.json`: add `express-validator ^7.0.1` (the four peer packages are declared by the topology PR of the Item B section). `ecosystem.config.js` unchanged. README `:101-105` (rollback "monorepo still ships the crhsent handler" — false since `e2107288`) is rewritten: rollback for crhsent.com is `git revert` + `pm2 reload`; rollback for a marketing host is the nginx `proxy_pass` back to `:3000` (cutover section). `tests/crhsent-parity.test.js` (red since the monorepo `crhsent/` was deleted — `:29`) is deleted; `tests/content-manifest.test.js:17` becomes two manifests (crhsent 49 files unchanged; atxwashdryfold an explicit file list).
+
+### 5.12 Tests (written first, red → green) and acceptance criteria
+
+New/changed corporate suites, each driven through `request(app).set('Host', …)`:
+
+| Suite | Asserts |
+|---|---|
+| `tests/hosts.test.js` | `requestHost`: `x-forwarded-host` precedence, `:port` strip, `www.` strip, case; `hostKind` for the five hosts, `portal.atxwashdryfold.com` → unknown |
+| `tests/health.test.js` | `GET /health` → 200 `{status:'ok'}`, `set-cookie` header **absent**, `cache-control: no-store` for Host `crhsent.com`, `rundberglaundry.com`, `portal.atxwashdryfold.com`, and no Host |
+| `tests/hostScoping.test.js` | marketing `/` → no `set-cookie`; crhsent `/` → `crhsent.sid` cookie (bare name under test); `/__gate` on `atxwashdryfold.com` with `_cache.enabled=true` → 404, on `crhsent.com` → gate form; `/wavemax` on a marketing host → 404 |
+| `tests/contentHandler.test.js` | each of the 4 marketing Hosts: `/` → 200, filled `csp-nonce` meta, `no-cache, no-store`, contains `rel="canonical" href="https://atxwashdryfold.com/"`, exactly one occurrence of `WaveMAX Austin`; `/affiliate` and `/affiliate/` → 200 with canonical `https://atxwashdryfold.com/affiliate`; `/assets/css/partner-program.css` → 200 `public, max-age=31536000, immutable`; `/assets/js/i18n.js` → 200; `/locales/de/common.json` → 200 + `access-control-allow-origin: *`; `/assets/images/brand/logo.png` → 200 `image/png` 5137 B on all four AND on `crhsent.com`; `/assets/images/brand/logo-wavemax.png` → 410 on marketing hosts; `Host: other.com` → 404; encoded traversal → 403; crhsent `/`, `/wavemax/` unchanged (existing `server.integration.test.js`) |
+| `tests/i18nParity.test.js` | the five assertions in 5.4 |
+| `tests/seoFiles.test.js` | robots: nine AI-bot blocks, `Disallow: /api/`, `Sitemap: https://atxwashdryfold.com/sitemap.xml`, no `Content-Signal`, `max-age=3600`, identical on all four; sitemap: `application/xml`, exactly the two canonical `<loc>`s; security.txt: no `franchise`, `Canonical` matches the request host, `Contact: mailto:security@crhsent.com`; `/favicon.ico` → 200 `image/png`; crhsent `robots.txt`/`sitemap.xml` byte-equal to the static files |
+| `tests/intake.test.js` (ports `partnerInquiry.test.js`, `affiliateApplication.test.js`, mocks `wc.email.transport.sendEmail`) | 200 + two sends; notification `to` = recipient default / env override, `replyTo` = lead; thank-you `to` = lead, `replyTo` = recipient; From contains `"WaveMAX Austin"` when `BRAND_DISPLAY_NAME` set; validation 400 shape (`errors[].field/msg`); email-dispatch failure → 500; `Host: crhsent.com` → 404; `GET` → 404 JSON; `/api/anything` on marketing → 404 JSON; response has no `set-cookie` |
+| `tests/legacyPortalRedirects.test.js` | every listed path × GET and HEAD → 301 with `location` byte-exact `https://portal.atxwashdryfold.com<originalUrl>` incl. `?route=/claim&bag=<32hex>` and `?route=/order-expediter&k=abc`; `/api/v1/customers/verify-email/tok` → 301, `/api/v1/customers/other` → 404 JSON; POST `/embed-app-v2.html` → not 301; `/assets/x.css`, `/locales/en/common.json` → not 301; `Host: crhsent.com` → not 301; `/wavemax-affiliate?utm=1` → 301 `/affiliate?utm=1` |
+| `tests/storeIpRedirect.test.js` | `STORE_IP_ADDRESS=72.190.1.227` + `cf-connecting-ip` → 302 `https://portal.atxwashdryfold.com/` + originalUrl, `cache-control: no-store`; CIDR via `STORE_IP_RANGES`; other IP → 200 page; POST → untouched; crhsent → untouched; empty allowlist → 200; legacy path from the store IP → 301 (not 302) |
+| `tests/csp.test.js` | marketing `/`, `/affiliate`, `/robots.txt`: `script-src` has `'nonce-'` and no `'unsafe-inline'`, none of `cdnjs.cloudflare.com, cdn.jsdelivr.net, code.jquery.com, www.local-marketing-reports.com, static.cloudflareinsights.com, maps.googleapis.com, connect.facebook.net, challenges.cloudflare.com, www.gstatic.com, www.google.com, apis.google.com`; `style-src` has `'unsafe-inline'`; `frame-ancestors 'self'` on marketing AND crhsent; `frame-src 'none'` on marketing; crhsent `/wavemax/` assertions unchanged |
+| `tests/accessGate.test.js` | `:204` From contains `"CRHS Enterprises" <no-reply@crhsent.com>`; email HTML contains `https://crhsent.com/assets/images/brand/logo.png` and matches nothing for `/wavemax/i` |
+
+**Acceptance (Phase 0a, on-box, both boxes, before any nginx edit):** for each `H` in the four marketing hosts, `curl -sS -H "Host: $H" http://127.0.0.1:3001/` → 200 with the canonical `https://atxwashdryfold.com/` and a filled nonce; `/affiliate` → 200; `/robots.txt`, `/sitemap.xml`, `/.well-known/security.txt`, `/favicon.ico` → 200 with the bodies above; `/assets/images/brand/logo.png` → 200 `image/png` 5137 B; `/assets/images/brand/logo-wavemax.png` → 410; `'/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef'` → 301 `Location: https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef`; `-H 'cf-connecting-ip: 72.190.1.227' /` → 302 to the portal; `POST /api/partner-inquiry` with a valid JSON body → 200 and one notification delivered to `pickups@atxwashdryfold.com` carrying `Reply-To: <lead>` plus one thank-you (checked in the mailbox / Postfix log); `/health` for every Host and for no Host → 200, no `Set-Cookie`; `Host: crhsent.com /` → unchanged 200; `Host: portal.atxwashdryfold.com /` → 404. `pm2 logs crhs-corporate` shows exactly one `Access gate cache loaded` line per worker, service name `crhs-corporate`, no restart climb. Mongo: new `ratelimit_corp_*` collections appear only after traffic; `ratelimit_api` and `sessions` receive no writes from `:3001`. Lighthouse (`docs/development/LIGHTHOUSE-QUALITY-BAR.md` procedure, `?lh=<ts>` cache-buster) on `atxwashdryfold.com/` and `/affiliate`, mobile AND desktop, all four categories: no regression from the last measured affiliate-origin values, target 100 — measured on the dark host via `--resolve` in Phase 0a and again through Cloudflare after the Phase-1 flip. Corporate jest suite green without `--forceExit`; `npm run lint` clean (no `console.*` in `server/`).
+
+### 5.13 PR sequence for Item A (one concern each, TDD, ≤ 500-line diffs)
+
+A0 (web-core prerequisites, owned by the web-core section, must land first): `RATE_LIMIT_COLLECTION_PREFIX`; `sendEmail` `replyTo`; `buildCspDirectives` `profile: 'marketing'`; `ipGate` CIDR helper independent of `storeIPs`; `buildSessionMiddleware` `collectionName`. Then in corporate: **A1** `content/` → `content/crhsent/` rename + `hosts.js` + `contentHandler` multi-root + unknown-host 404 (crhsent behaviour byte-unchanged; `crhsent-parity` deleted; manifests split). **A2** `/health` hoist + `corporateOnly`/`marketingOnly` scoping of cors/session/apiLimiter/gates + `SESSION_COOKIE_NAME` (G2). **A3** marketing pages + css/fonts/images (verbatim copies with the canonical edits of 5.3) + immutable caching + `logo-wavemax.png` 410. **A4** locales + web-core `i18n.js` mount + parity test. **A5** SEO files + favicon. **A6** B7 301s + `/wavemax-affiliate` + store-IP 302. **A7** intake endpoints + template + brand + recipients + Reply-To. **A8** host-aware CSP (marketing profile; crhsent `frame-ancestors 'self'`). **A9** accessGate mail + owners alt + `.env.example`/README/`content/README.md` + prod `.env` change list (confirm-first). A3 is the one PR that may exceed 500 lines because it is dominated by verbatim file copies; it contains no logic beyond the table in 5.3.
+
+---
+
+## 6. Item A — the affiliate app becomes portal-only
+
+After Item A the affiliate app (`wdf-affiliate-program`, pm2 `wavemax`, :3000) answers exactly one hostname — `portal.atxwashdryfold.com` — and serves exactly the transactional surface: the SPA shell + `/api/v1`, the clean URLs `/admin`, `/operator`, `/scanbag`, the legal pages, and `/monitoring`. Every marketing host, page, asset, locale namespace, intake API, franchisor-era tool and dead retirement shim leaves. The work splits into **Phase 0b** (portal-only hygiene deployed *before* the nginx flip, invisible on the portal, and — by construction — changing nothing a marketing host still proxied to :3000 depends on) and **Phase 2** (the content deletions, ≥ 1 week after the last host flips). The single sequencing rule that governs the whole item: **`server/middleware/partnerLanding.js`, the store fall-through (`server.js:958-965`), `locationQuarantine`, the `/affiliate` + `/wavemax-affiliate` routes and `public/partner-program.html` are deleted only in Phase 2, because "proxy_pass back to :3000" is the per-host rollback for Phase 1 and it only works while the app still serves the marketing hosts.**
+
+### 6.1 What the app serves after Item A (kept surface)
+
+| Surface | Handler | Why it stays |
+|---|---|---|
+| `/` → SPA shell with `window.__DEFAULT_ROUTE='/affiliate-login'` | `server.js:738-750` | Portal root; `tests/integration/affiliatePortalRoot.test.js` locks it |
+| `/embed-app-v2.html`, `/embed-app.html` (nonce-injected) | `server/routes/embedRoutes.js:9,12` | SPA entry; every printed bag QR and every email deep link targets it (followups[0] items 1, 7, 8) |
+| `/admin`, `/admin/` (adminIpGate) · `/operator`, `/operator/` (operatorIpGate) + path-normalising defense `server.js:549-561` | `server.js:766`, `:790` | Store/admin clean URLs; gating is IP-based and host-agnostic (`operatorIpGate.js:23-31`, `adminIpGate.js:25-34`) so the store loses nothing when the marketing hosts leave |
+| `/scanbag`, `/scanbag/` (camera Permissions-Policy carve-out), `/scanbag-manifest.json` (brand-filled), `/scanbag-sw.js` | `server.js:808-820`, `:603-615` | The portal's claim on-ramp PWA; the content app 301s the same paths to portal (B7) |
+| `/monitoring/*` (adminIpGate), `/monitoring-dashboard.html` → `/monitoring/` | `server.js:571-576` | Ops dashboard; alert emails will point here once `ops.js:44,65` is fixed (§6.8) |
+| `/health` | `server.js:418` | CF LB monitor target (after gate G1 the monitor sends `Host: portal.atxwashdryfold.com`) |
+| `/api/v1/*` mounts (auth, affiliates, affiliate-invites, customers, bags, scan, expediter, addons, orders, administrators[adminIpGate], operators, system/config, firebase-config, brand) + legacy `/api` → `/v1` rewrite | `server.js:691-702, 706-707, 724-729` | The API |
+| Legal pages: `/terms-of-service`, `/terms-and-conditions`, `/privacy-policy`, `/refund-policy` (clean URLs, `{{BRAND_NAME}}` resolved) + `/terms-and-conditions-embed.html`, `/privacy-policy.html` (nonce) + SPA map entries | `server.js:913-919`, `embedRoutes.js:15,18`, `embed-app-v2.js:43-46` | **D3a: the portal owns the legally reviewed, de-branded text** (commits `43f6dfc8`, `43996e1c`, `e51984ea`). The only in-app consumer is the register-form consent links `affiliate-register-embed.html:260-261`, handled by the SPA's own `[data-navigate]` delegate at `embed-app-v2.js:551-555` — they stay in-frame |
+| `/affiliate-landing-embed.html` via SPA routes `/affiliate-landing` and `/affiliate-program` | `embed-app-v2.js:59-60`, `:587` | App page (data-driven from `GET /api/v1/affiliates/public/:code`, `affiliate-landing-init.js:78`) handed to customers by affiliates; kept with the D10a edits in §6.6 |
+| `/.well-known/security.txt`, `/favicon.ico`, sensitive-probe 404s, WP-scanner 404s | `server.js:502-504`, `:511-514`, `:520-535`, `:922-948` | Hygiene; security.txt gets the line-2 edit in §6.9 |
+| `/assets/*` immutable static, `/locales/*` (ACAO `*`) | `server.js:588-594`, `:668-676` | App assets and the four app locales (minus the namespaces in §6.4) |
+| `public/manifest-scan.json` (kiosk PWA manifest, `start_url:/operator-scan-embed.html`, `scope:/`) | linked from `operator-scan-embed.html:13` | Unchanged; the kiosk reinstall is a Phase-0 device-checklist item, not a code change |
+| `server/monitoring/connectivity-monitor.js` | started at `server.js:989-991` | The only background loop |
+
+### 6.2 Removal inventory
+
+Destination column: **DEL** = deleted from the app (git history retains it); **→C** = the concern is re-implemented in corporate (spec §7) — the app copy is still *deleted*, never shimmed; **→WC** = handled in the web-core section. Phase column says when the app-side deletion lands.
+
+#### 6.2.1 Marketing-host routing plumbing (`server.js` + middleware)
+
+| Item | Path / lines | Dest | Phase |
+|---|---|---|---|
+| partnerLanding catch-all: `PARTNER_LANDING_HOSTS` (8 hosts, `partnerLanding.js:24-29`), `PARTNER_PUBLIC_HOSTS :32`, page read at boot with silent stub fallback `:36-42`, inline "Coming soon" hold `:47-65`, `isStore :73-76`, `isPreview :81-88` (hardcoded `70.114.167.145` at `:82`), `isExempt :90-113`, store bypass `:119`; mount `server.js:362-363` + comment `:356-361` | `server/middleware/partnerLanding.js` (148 lines) | DEL (host map →C; the hold page and preview allowlist are **not** carried over — D8) | 2 |
+| Store-IP fall-through 302 → `/embed-app-v2.html` + its comment | `server.js:953-965` | DEL (store-IP → portal 302 →C, D7) | 2 |
+| locationQuarantine + config: `CORPORATE_SITE_URL` default `https://www.wavemaxlaundry.com` (`quarantineConfig.js:13-14`), ALLOWLIST `:19-58` naming retired `/austin-tx`, SUSPICIOUS `:77-118`; require `server.js:488`, mount `:538`, comment `:486-487` | `server/middleware/locationQuarantine.js`, `server/config/quarantineConfig.js` | DEL — the franchisor redirect target is litigation residue; replaced by nginx `default_server return 444` + the app host guard (§6.7) | 2 |
+| `storeIPs.js` (env `STORE_IP_ADDRESS :37`, `ADDITIONAL_STORE_IPS :38`, `STORE_IP_RANGES :48`, `STORE_SESSION_* :62-68`) — consumers after the two deletions above: only the dead import `server/middleware/auth.js:10` | `server/config/storeIPs.js` (144 lines) | DEL file + `auth.js:10` + `tests/unit/storeIPs.test.js` + the mock at `tests/unit/authMiddleware.test.js:16-20` and the case at `:418-426`. **Keep the `STORE_IP_*` env** — `operatorIpGate.js:23-31` / `adminIpGate.js:25-34` read it directly. `STORE_SESSION_*` env is deleted (referenced nowhere else) | 2 |
+| RETIRED_HOSTS 301 (dead: wavemax.promo is DNS-dark, nginx owned that 301 until 2026-08-26 — followups[4]) | `server.js:201-214` | DEL + the three wavemax entries in `allowedHosts` `:178-180` + `tests/integration/domainMigration.test.js:17-27` (two tests) | **0b** |
+| HTTPS-upgrade `allowedHosts` + default redirect `https://rundberglaundry.com${req.url}` | `server.js:172-199` (`:175-176` rundberglaundry/www, `:181` localhost, `:193` default) | Rewritten (§6.7): default → portal in 0b; list → portal-only in 2 | 0b / 2 |
+| CORS `wavemaxDomains` (portal + 3 marketing origins; identifier allowlisted in `branding-guard.test.js` INFRA_ALLOW `/wavemaxDomains/g`) | `server.js:289-294` | Trim to `['https://portal.atxwashdryfold.com']` + `CORS_ORIGIN`; rename identifier `appOrigins` and drop the INFRA_ALLOW entry. Marketing forms never call the portal API cross-origin (all fetches are relative: `partner-inquiry.js:85`, `affiliate-inquiry.js:51`), so this is dead today; deleted in Phase 2 to keep 0b rollback-pure. Module moves to core later (D21b) | 2 |
+| Per-host `robots.txt` (host literal `:836`, AI-bot list `:848-856`, stale iframe rationale `:857-861`) and per-host `sitemap.xml` (`managedHosts :881-887`, fallback `:892-894`) | `server.js:833-907` | Replaced by the D12a portal response (§6.10); AI-bot list →C | 2 |
+| `/affiliate`, `/wavemax-affiliate` clean-URL routes + comments | `server.js:751-759` | DEL (pages →C / 301 →C, D5 pending counsel) | 2 |
+| Stale comments describing partnerLanding pre-emption | `server.js:734-736` | DEL | 2 |
+| Comment block "Request logging … marketing path" | `server.js:358-361` | DEL | 2 |
+
+#### 6.2.2 Marketing pages and their assets
+
+| Item | Path | Dest | Phase |
+|---|---|---|---|
+| Partner-program landing | `public/partner-program.html` (canonical `https://rundberglaundry.com/` at `:10,18,34`; franchisor links `:68,109,259,323`) | →C; DEL **in the same commit as `partnerLanding.js`** (its `:38-42` stub fallback otherwise makes `tests/unit/partnerLanding.test.js:39-51` pass on a premature move) | 2 |
+| UT-student recruitment page | `public/affiliate.html` (English only, zero `data-i18n`; canonical `:10,17`; JobPosting JSON-LD `:28-44`) | →C | 2 |
+| Franchisor-branded ad funnel | `public/wavemax-affiliate.html` (names the mark `:7-8,14-16,33,36,62,86`) | DEL from the app **regardless of D5's counsel outcome** — under D5a corporate 301s `/wavemax-affiliate` → `/affiliate`; under D5b corporate serves it. Either way it must not remain on the portal origin | 2 (gated on counsel only for corporate's behaviour) |
+| Marketing stylesheets | `public/assets/css/{partner-program,affiliate,affiliate-ad}.css` (23 + 13 + 9 KB) | →C | 2 |
+| Marketing-only fonts (10 woff2, 272 KB; referenced only by the three stylesheets) | `public/assets/fonts/anton-*`, `big-shoulders-display-*`, `hanken-grotesk-*`, `plus-jakarta-sans-*`, `space-grotesk-*` | →C | 2 |
+| OG images | `public/assets/images/affiliate-og.png` (110 KB), `affiliate-ad-og.png` (554 KB) | →C; `brand.js:30` repointed first (§6.8) | 2 |
+| Recruitment flyers + generator | `public/assets/flyers/affiliate-flyer-{landscape,portrait}.pdf` (385 KB, zero code refs); `tools/flyers/build-flyers.js` (`:27` `FLYER_URL` default `https://rundberglaundry.com/wavemax-affiliate`) | DEL from the app (see open question on whether corporate regenerates them against `https://atxwashdryfold.com/affiliate`) | 2 |
+| Form client scripts | `public/assets/js/partner-inquiry.js` (`:85` fetch; `pickups@rundberglaundry.com` at `:101,106`), `public/assets/js/affiliate-inquiry.js` (`:51` fetch; `admin@crhsent.com` `:67,72`) | →C | 2 |
+| Austin location images | `public/assets/images/locations/austin-tx/` (used by `partner-program.html:19,23,36,111`) | →C; DEL with the page | 2 |
+| **64 other franchise location directories** (456 tracked files under `public/assets/images/locations/`, 65 directories, 450 MB; only consumer `wm-image-config.js`, itself dead) | `public/assets/images/locations/!(austin-tx)/` | DEL — DMCA exposure and repo bloat; nothing served from them | **0b** |
+| `products-placeholder.html` (48 lines, names the mark; zero consumers) · `wm-image-config.js` (`:43` cites franchisor uploads) · `faq-accordion.js` | `public/products-placeholder.html`, `public/assets/js/{wm-image-config,faq-accordion}.js` | DEL | 0b |
+
+#### 6.2.3 Content-only APIs, their limiters and CSRF exemptions
+
+| Item | Path | Dest | Phase |
+|---|---|---|---|
+| `POST /api/v1/partner-inquiry` | `server/routes/partnerInquiryRoutes.js` (validators `:11-48`), `server/controllers/partnerInquiryController.js`, `server/services/partnerInquiryService.js` (`:6` recipient default `pickups@rundberglaundry.com`); mount `server.js:703` | →C as `POST /api/partner-inquiry` (D2a) | 2 |
+| `POST /api/v1/affiliate-application` | `affiliateApplicationRoutes.js` / `Controller.js` / `Service.js` (`:6` `admin@crhsent.com`); mount `server.js:704` | →C as `POST /api/affiliate-application` | 2 |
+| `GET /api/v1/maps-config` (referer-locked to rundberglaundry.com `:5-9`; reads `GOOGLE_PLACES_API_KEY`, legacy `LOCATION_PLACE_ID` `:13-14`; **zero consumers** in `public/` or corporate) | `server/routes/mapsConfigRoute.js`; mount `server.js:705` | DEL | 2 |
+| Named limiters that exist only for the above: `contactFormBurstLimiter` (`rateLimiting.js:190`, Mongo store `contact_burst`), `contactFormLimiter` (`:213`, `contact_hourly`) | `server/middleware/rateLimiting.js` | DEL from the app (corporate declares its own under its `RATE_LIMIT_COLLECTION_PREFIX`, D17b). Ops follow-up: drop the orphaned `ratelimit_contact_burst` / `ratelimit_contact_hourly` collections (confirm-first) | 2 |
+| CSRF exemptions for `/api/v1/partner-inquiry`, `/api/partner-inquiry`, `/api/v1/affiliate-application`, `/api/affiliate-application` | web-core `src/config/csrf-config.js:94-95, 99-100` | →WC/D20b: when the CSRF tables move into the app, these four entries are **not** carried over; corporate adds its two paths to its own table | Item B |
+| `PARTNER_INQUIRY_RECIPIENT`, `AFFILIATE_APPLICATION_RECIPIENT` (undocumented env) | box `.env` | →C env (`PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com`, `AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com` per BINDING); removed from the app `.env` at the Phase-2 scrub (confirm-first) | 2 |
+
+#### 6.2.4 Design Explorer + concierge (D6a — retire, archive source)
+
+| Item | Path | Dest | Phase |
+|---|---|---|---|
+| Explorer client (5 tracked) + generator (23 tracked: `build.js`, `content-model.js`, `render.js`, `themes.js`, `skins/_stub/index.js`, 3 skins × 6 files); `render/` is gitignored build output (`.gitignore:244`) | `public/design-explorer/`, `design-explorer/` | Archive the source to a private repo **before** deletion; DEL both trees + the `.gitignore` entry | 2 |
+| `explorerGuard` (`?k=EXPLORER_TOKEN`/cookie `:4-5,51`; replaces the CSP with `unsafe-inline` styles `:28-38`); mount `server.js:596-597` | `server/middleware/explorerGuard.js` | DEL | 2 |
+| `POST /api/concierge` (mounted before apiVersioning, `server.js:640-644`); controller (`:18` sdk, `:44` key); `conciergeFaq.js` hard-codes franchisor NAP/hours/prices `:21-45`; `conciergeLimiter` (`rateLimiting.js:321-338`, store `concierge`) | `server/controllers/conciergeController.js`, `server/services/conciergeFaq.js` | DEL; CSRF exemption `csrf-config.js:71` dropped at the D20b move; orphan `ratelimit_concierge` collection dropped by ops | 2 |
+| `@anthropic-ai/sdk ^0.100.1` (`package.json:48`, sole user) · `build:explorer` script (`package.json:26`) | `package.json`, `package-lock.json` | DEL; regenerate lockfile | 2 |
+| `EXPLORER_TOKEN` (`.env.example:173-179`, documents a rundberglaundry.com review URL), `ANTHROPIC_API_KEY` (`:186-189`) | `.env.example` + box `.env` (memory says both are set) | DEL (production `.env` edit confirm-first, same reload as the Phase-2 deploy) | 2 |
+| 6 test files (651 lines): `tests/unit/design-explorer/{build,concierge,content-model,explorerGuard,explorerIntegration,render}.test.js` | | DEL; add 404 assertions for `/design-explorer/index.html` and `POST /api/concierge` to `tests/integration/hostRouting.test.js` (§6.11) | 2 |
+| Guard exclusions naming the explorer/concierge | `branding-guard.test.js:27` (controller + faq), `domain-guard.test.js:13` (`design-explorer/`, `public/design-explorer/`) | Prune in the same PR | 2 |
+
+#### 6.2.5 Dead / franchisor-era residue (safe before the flip)
+
+| Item | Path | Evidence | Phase |
+|---|---|---|---|
+| Iframe bridges (D9a) | `public/assets/js/{iframe-bridge-v2,parent-iframe-bridge-v3}.js` + `.min.js`; build entries `scripts/build-assets.js:26-27` | no `public/*.html` loads either bundle; `frame-ancestors 'self'` (`server.js:275`); origin lists trust the franchisor (`iframe-bridge-v2.js:19-27`) and the marketing hosts (`parent-iframe-bridge-v3.js:35-41,67`). Web-core `securityHeaders.js:83-94` CORP carve-outs reviewed →WC | 0b |
+| `/docs` documentation server (`SHOW_DOCS`, `.env.example:120` = true) — serves the entire `docs/` tree (forensic evidence, audits, franchisor proposals) from the portal origin | `server/routes/docsRoutes.js`, mount `server.js:621-624`; `systemHealthService.js:28` lists `SHOW_DOCS`; `tests/unit/simpleRouteHandlers.test.js:180-221` exercises it | DEL route + mount + env + the test block | 0b |
+| Franchisor-era docs (`docs/crhsent-proposal/*`, `docs/corporate-handoff/*`, `docs/seo/corporate-austin/*`, `docs/stash/crhsent-wavemax-SALES-version-2026-05-28.html`, `docs/austin-reference*`, `docs/franchise-preview-plan.md`, `docs/deployment/franchise-tracking-setup.md`, `docs/CONTENT_EMBED_INTEGRATION_GUIDE.md`, `docs/IFRAME_EMBED_GUIDE.md`, `docs/parent-iframe-bridge.js`, `docs/examples/wavemaxlaundry-*-embed.html`) | `docs/` | Move to a private archive repo (not served once `/docs` is gone); see open question | 2 |
+| `/api/docs` → `/api-docs.html` (absent) | `server.js:826-829` | DEL; the catch-all's `hint:` text at `server.js:973` loses its `/api/docs` reference | 0b |
+| Dead `APP_STRICT_CSP_PAGES` entries `/customer-login-embed.html`, `/customer-dashboard-embed.html` (pages do not exist) and `/embed-landing.html` (retired in §6.3) | `server.js:258-259`, `:250` | DEL | 0b |
+| Duplicate `/environment` (second shadowed) | `server.js:709-714` | DEL | 0b |
+| `equipmentProfileService` (`:25` reads a deleted directory; required by nothing) · `turnstile.js` + `tests/unit/turnstile.test.js` (only caller deleted in 4b) | `server/services/equipmentProfileService.js`, `server/utils/turnstile.js` | DEL | 0b |
+| Dead email templates | `server/templates/emails/affiliate-commission.html`, `affiliate-urgent-pickup.html` | DEL (zero consumers) | 0b |
+| crhsent access-gate models (gates removed in `e2107288`; corporate has its own copies) | `server/models/{AccessClick,AccessGate,AccessRequest,AccessWhitelist,MediatorAccess}.js`; `scripts/ensure-indexes.js:15,34,36`; `scripts/seed-access-gate.js`, `scripts/whitelist-access-ip.js` | DEL models + the `MediatorAccess` entry in `ensure-indexes.js`; the two scripts move to corporate (BINDING shared-DB item; spec §7/§8) and are deleted here in the same change | 2 |
+| Hibu refresher | `scripts/ops/refresh-hibu.sh` (writes the deleted `public/assets/vendor/`; `:4` says it is invoked by `/etc/cron.d/wavemax-hibu-refresh`); `scripts/README.md:11`; `branding-guard.test.js:53` | DEL script + README row + guard entry; ops: `sudo rm -f /etc/cron.d/wavemax-hibu-refresh /var/log/wavemax-hibu-refresh.log` on both boxes (confirm-first; presence unverified — check first) | 2 |
+
+#### 6.2.6 Env, package and script residue
+
+| Key / entry | Where | Action |
+|---|---|---|
+| `QUARANTINE_NON_AUSTIN`, `CORPORATE_SITE_URL` | `.env.example:163-171`; box `.env` (memory: `true` in prod) | DEL with quarantine (Phase 2; box edit confirm-first) |
+| `EXPLORER_TOKEN`, `ANTHROPIC_API_KEY` | `.env.example:173-179, 186-189`; box `.env` | DEL (Phase 2) |
+| `PARTNER_PREVIEW_ALLOWLIST` (undocumented) | box `.env` | DEL (Phase 2) — no preview mechanism survives (D8) |
+| `GOOGLE_PLACES_API_KEY`, `GOOGLE_PLACES_LOCATION_PLACE_ID`, `LOCATION_AUSTIN_TX_PLACE_ID` + the Places comment block citing deleted `LOCATION_DATA` | `.env.example:127-162`; only app consumer `mapsConfigRoute.js` | DEL from `.env.example` with maps-config (Phase 2). **Keep `GOOGLE_GEOCODING_API_KEY` (`:145`)** — the geo radius gate. The box value of `GOOGLE_PLACES_API_KEY` is retained for the PSI measurement tooling (memory), so it is not scrubbed from the box `.env` |
+| `FRONTEND_URL` | `.env.example:93`; `passwordResetService.js:78`; `systemHealthService.js:14` | Collapsed into `BASE_URL` (§6.8, Phase 0b); box key deleted at the Phase-2 scrub |
+| `SHOW_DOCS` | `.env.example:120`; `server.js:621`; `systemHealthService.js:28` | DEL (Phase 0b) |
+| `STORE_SESSION_*` | box `.env` | DEL with `storeIPs.js` (Phase 2) |
+| `CORS_EXTRA_ORIGINS` (reserved/unread, `.env.example:74-79`) | `.env.example` | Leave for Item B's CORS adoption (D21b) |
+| Expediter comment URL `https://rundberglaundry.com/embed-app-v2.html?route=/order-expediter&k=` | `.env.example:184` | → `https://portal.atxwashdryfold.com/…` (Phase 0b) |
+| `EXPEDITER_TOKEN` value | box `.env` | **Rotate after the flip** (Phase 2 ops): edit both boxes, `pm2 reload wavemax --update-env`, re-open the board with the new `k` |
+| `@anthropic-ai/sdk`, `build:explorer` | `package.json:48`, `:26` | DEL (Phase 2), regenerate `package-lock.json` |
+| `scripts/build-assets.js:26-27` | bridge minification entries | DEL (Phase 0b) |
+| `tests/setup.js:20-21` (`EMAIL_FROM=test@wavemax.promo`, `BASE_URL=https://wavemax.promo`) | | → `test@portal.atxwashdryfold.com`, `https://portal.atxwashdryfold.com` (Phase 0b); any assertion that pinned the promo host gets a surgical update |
+
+### 6.3 embed-landing retirement (D4a)
+
+`public/embed-landing.html` is the SPA's `/` and `/landing` page. It loads two scripts cross-origin from `https://rundberglaundry.com` (`:314`, `:317`) that the portal's served CSP already blocks, links `https://rundberglaundry.com/operator` (`:294`), says onboarding is invite-only, and duplicates `/affiliate`. Phase 0b, one PR:
+
+1. `public/assets/js/embed-app-v2.js:41` → `'/': '/affiliate-login-embed.html'`; delete `:42` (`'/landing'`). The unknown-route fallback `EMBED_PAGES[baseRoute] || EMBED_PAGES['/']` at `:330` is left as written — it now resolves to the login page. The logout handler `:889` `navigateTo('/')` becomes `navigateTo('/affiliate-login')` (explicit, not via the fallback).
+2. Delete `pageScripts['/']` and `pageScripts['/landing']` (`embed-app-v2.js:569-570`). `pageScripts['/affiliate-landing']` (`:587`) stays.
+3. Delete five files: `public/embed-landing.html`, `public/assets/css/embed-landing.css`, `public/assets/js/embed-navigation.js`, `public/assets/js/revenue-calculator.js`, `public/assets/js/embed-landing-init.js`.
+4. `embed-navigation.js` is also referenced as a plain `<script src="/assets/js/embed-navigation.js">` by three app pages — `affiliate-register-embed.html:294`, `forgot-password-embed.html:140`, `reset-password-embed.html:196`. The SPA strips body `<script>` tags before injection (`embed-app-v2.js:369-371`) and handles `[data-navigate]` itself (`:551-555`), so those tags are inert in the SPA path and would only 404 on a direct document load. Remove the three lines in the same PR; verify the register form's consent links (`:260-261`) still navigate in-frame (Playwright).
+5. `APP_STRICT_CSP_PAGES` loses `'/embed-landing.html'` (`server.js:250`).
+6. Locales: of the 121 `landing.*` leaf keys per locale (`public/locales/en/common.json:267`), exactly **31 are referenced by `affiliate-landing-embed.html`** (sub-groups `cta`, `features`, `hero`, `howItWorks`, `pricing`, `quality`); the other **90 are deleted from all four locales in one commit** — 49 used only by embed-landing (`calculator`, `contact`, `faq`, `footer`, `header`, `page`, `stats`, `testimonials`, plus the embed-landing-only leaves of `cta`/`features`/`howItWorks`) and 41 referenced by no page at all. The single shared leaf `landing.howItWorks.title` stays. The keep-list is computed by script from the page's `data-i18n*` attributes, not by hand; `npm run check:i18n` + `tests/unit/i18n-brand-token.test.js` run before and after. No `landing.*` key is read from JS (`grep "'landing\." public/assets/js/*.js` is empty), so the page's attributes are the complete consumer set. `landing.footer.fulfillmentPartner` ("WaveMAX Austin is the fulfillment partner…", `embed-landing.html:299`) leaves with the page — the recruitment copy's new home is corporate's `/affiliate`.
+7. `mailto:affiliates@rundberglaundry.com` (`:278`) goes with the page; the alias exists (2026-09-09) and is unaffected.
+8. Rebuild `embed-app-v2.min.js` (`npm run build:assets`) and bump the shell's `?v=` (memory: SPA cache-bust gotcha).
+
+Acceptance: `GET /` and `GET /embed-app-v2.html?route=/landing` both land on the affiliate login (Playwright, zero CSP violations in the console); `grep -rn "embed-navigation\|revenue-calculator\|embed-landing" public/ server/ tests/ --include=*.js --include=*.html` returns nothing outside `.min.js` regenerated output; four locales structurally identical.
+
+### 6.4 Locale namespaces
+
+| Namespace | Keys | Consumers | Action |
+|---|---|---|---|
+| `partner.*` (109 leaves × 4, 10 sub-groups; en block starts `common.json:1576`; `errGeneric`/`errNetwork` name `pickups@rundberglaundry.com`) | 436 | `partner-program.html` (106 refs), `partner-inquiry.js` only | Phase 2, one commit across all four locales, in the same PR as the page (§6.12 A-2.5); corporate adds them in one commit on its side (spec §7). Parity gate `tests/unit/i18n-brand-token.test.js:13-18` must pass on both sides of the commit |
+| `landing.*` | 121 → 31 | see §6.3 | Phase 0b |
+
+### 6.5 App → content cross-links (resolution of every item in scope §2.2)
+
+| # | Cross-link | Resolution | Phase |
+|---|---|---|---|
+| 1, 2, 4, 5, 6, 8 | `embed-landing.html:314,317,294,290,299`; `pageScripts :569-570`; `embed-navigation.js` franchisor trust (`:34-39`, `:186-191`) | DROP with the page (§6.3) | 0b |
+| 3 | `mailto:affiliates@rundberglaundry.com` (`embed-landing.html:278`) | DROP with the page; alias exists | 0b |
+| 7 | fallback `:330`, logout `:889` | `/` → login page; logout → `/affiliate-login` (§6.3) | 0b |
+| 9 | Meta CSP `connect-src https://rundberglaundry.com` (`affiliate-landing-embed.html:8`) | DELETE the whole `<meta http-equiv="Content-Security-Policy">` line — the SPA discards fetched `<head>` except `<style>`/`<link>` (`embed-app-v2.js:354-366`), so it never applied; the served header governs | 0b |
+| 10 | Google Ads gtag `AW-16900975513` (`:11-17`) | Config-driven per D10a — §6.6 | 0b (removal) / Item B tail (re-enable) |
+| 11 | `<a href="https://rundberglaundry.com">` (`affiliate-landing-init.js:37`) | The one surviving absolute app→content link: `brand.js` gains `get homeUrl() { return process.env.BRAND_HOME_URL || 'https://atxwashdryfold.com/'; }`, exposed on `GET /api/v1/brand` as `homeUrl`; the init script renders `<a href="${BRAND.homeUrl}">${new URL(BRAND.homeUrl).host}</a>` (label = hostname, so no translatable copy changes and no brand word beside the marketing host) | 0b |
+| 12 | `$1.40` literal (`affiliate-landing-embed.html:59`) | SystemConfig-driven — §6.6 | 0b |
+| 13 | Consent links `data-navigate="/terms-of-service"`, `"/privacy-policy"` (`affiliate-register-embed.html:260-261`) | KEEP in-frame (D3a); SPA/embedRoutes/clean-URL/CSP legal entries all stay | — |
+| 14 | `EMBED_PAGES` `/`, `/landing`, `/affiliate-program` | `/` → login; `/landing` deleted; `/affiliate-program` kept | 0b |
+| 15 | Bridge origin lists | DROP bundles (D9a) | 0b |
+| 16 | `i18n.js:15` hostname check `includes('rundberglaundry.com')` (both branches resolve to `/locales`) | `translationsPath: '/locales'` | 0b |
+| 17 | BASE_URL fallbacks `'https://rundberglaundry.com'` in `template-manager.js:46`, `dispatcher/affiliate.js:14`, `admin.js:103`, `operator.js:105,221,342`, `customer.js:108,614`, `modules/bags/labelSheetService.js:89`, `modules/onboarding/inviteService.js:27` | Single helper — §6.8 | 0b |
+| 18 | `ops.js:44,65` hardcoded `https://rundberglaundry.com/monitoring-dashboard.html`; `:12-13` `@rundberglaundry.com` from/to fallbacks | → `${baseUrl()}/monitoring/` (the `/monitoring-dashboard.html` → `/monitoring/` redirect at `server.js:574-576` stays); `from` uses the shared transport identity (`EMAIL_FROM`, owned by `EMAIL_USER`, no literal fallback), `to` = `ALERT_EMAIL || DEFAULT_ADMIN_EMAIL` with no literal fallback (log an error and skip the send when both are unset) | 0b |
+| 19 | `connectivity-monitor.js:28` default `mail.rundberglaundry.com` | Default → `mail.crhsent.com` (the certificate CN the transport already pins — memory `email_smtp_tls_servername`); env still wins | 0b |
+| 20 | `${FRONTEND_URL}/reset-password?token=` (`passwordResetService.js:78`) — a path the app does not serve as a clean URL | → `appUrl('route=/reset-password&token=<token>&type=<userType>')`; `reset-password-init.js:38` already reads `token` from `URLSearchParams`; `FRONTEND_URL` removed from `.env.example:93` and `systemHealthService.js:14` | 0b |
+| 21 | `support@rundberglaundry.com` in `affiliate-welcome.html:178`, `en/affiliate-welcome.html:178`, `affiliate-new-customer.html:166`, `dispatcher/customer.js:218` | KEEP — `support@rundberglaundry.com → admin@crhsent.com` alias exists (2026-09-09) | — |
+| 22 | `brand.js:30` `ogImagePath` default `/assets/images/affiliate-ad-og.png` (no runtime consumer besides `tests/unit/brand-config.test.js:27`) | Default → `/assets/images/brand/logo.png` (the only app-owned image; no OG-sized brand asset exists and nothing renders the value today); update the test | 0b |
+| 23 | `security.txt:2` franchise-license statement; `:8` Policy URL | §6.9 | 0b |
+| 24 | `.env.example:184` expediter URL | → portal | 0b |
+| 25 | `tests/setup.js:21` `BASE_URL=https://wavemax.promo` (+ `:20` EMAIL_FROM) | → portal | 0b |
+| 26 | `allowedHosts` + default redirect | §6.7 | 0b / 2 |
+| 27 | `APP_STRICT_CSP_PAGES` content + dead entries | Prune `:250,258-259`; keep the legal entries `:245-246`; add `'/'` (§6.10) | 0b |
+| 28 | `embed-config.js:30` `baseUrl = window.location.origin`; all `*-init.js` links origin-relative | KEEP | — |
+| 29 | Comments `server.js:734-736`, `:955-957` | DEL with code | 2 |
+
+### 6.6 `affiliate-landing-embed.html` (D10a)
+
+- **The gtag is dead today, twice over.** The loader `<script async src="https://www.googletagmanager.com/gtag/js?id=AW-16900975513">` (`:11`) and its inline bootstrap (`:12-17`) sit in `<head>`, which the SPA discards (`embed-app-v2.js:354-366`); and the served CSP `script-src` contains no `googletagmanager.com` origin (golden string, `tests/integration/webCoreConsumptionGolden.test.js:25`). Removing lines 8-17 in Phase 0b is therefore not a behavioural regression.
+- **Config-driven re-enable.** New SystemConfig default registered by the app (D15b): `google_ads_conversion_id` — `dataType: 'string'`, `category: 'marketing'`, `isPublic: true`, `isEditable: true`, `value: ''`. `affiliate-landing-init.js` fetches `GET /api/v1/system/config/public/google_ads_conversion_id` (`systemConfigRoutes.js:30-40`; 404 = disabled) and, when non-empty, appends a nonce'd `<script src="https://www.googletagmanager.com/gtag/js?id=<id>">` plus the `dataLayer` bootstrap (nonce from `<meta name="csp-nonce">`, the same lookup the router uses at `embed-app-v2.js:631-637`). The CSP needs `https://www.googletagmanager.com` in `script-src` and `https://www.google-analytics.com` in `connect-src` (the two origins the page's own meta at `:8` already named); they are passed through the web-core builder's new `scriptSrcExtra` / `connectSrcExtra` parameters (§6.10) **only when the tag is activated** — see open question 3. Until then the key stays `''` and the portal CSP does not widen.
+- **`$1.40/lb` → SystemConfig.** `wdf_base_rate_per_pound` is already public (`SystemConfig.js:250-258`, `isPublic: true`, value 1.40). `:59` becomes `<span id="wdfRate">—</span>` and the init script fills it from `GET /api/v1/system/config/public/wdf_base_rate_per_pound` as `$<value.toFixed(2)>`; on failure it stays `—` (never a stale literal). No locale change (`landing.pricing.wdf.unit` is untouched).
+- Not-found fallback link per cross-link #11.
+- Lighthouse: re-measure `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/affiliate-program` mobile + desktop after the PR; the page's Google-Fonts stylesheet (`:20`) is pre-existing and out of scope.
+
+### 6.7 Host handling: HTTPS upgrade, allowed hosts, and non-portal Hosts
+
+New module `server/middleware/portalHost.js` (unit-testable without booting the app — scope §7.1 row "hostRouting"), replacing `server.js:172-214`:
+
+```js
+// server/middleware/portalHost.js
+const APP_HOST = new URL(process.env.BASE_URL || 'https://portal.atxwashdryfold.com').host; // 'portal.atxwashdryfold.com'
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const hostOf = (req) => String(req.headers.host || '').toLowerCase().split(':')[0].trim();
+
+function allowedHosts() {                       // Phase 0b: + TRANSITIONAL; Phase 2: APP_HOST only
+  return new Set([APP_HOST, ...TRANSITIONAL_MARKETING_HOSTS]);
+}
+function httpsUpgrade(req, res, next) {         // mounted only when NODE_ENV === 'production' (as today)
+  if (req.header('x-forwarded-proto') === 'https') return next();
+  const host = hostOf(req);
+  return res.redirect(`https://${allowedHosts().has(host) ? host : APP_HOST}${req.url}`);
+}
+function hostGuard(req, res, next) {            // Phase 2 only; mounted after httpsUpgrade, before everything else
+  if (req.path === '/health') return next();
+  const host = hostOf(req);
+  if (allowedHosts().has(host)) return next();
+  if (process.env.NODE_ENV !== 'production' && LOOPBACK.has(host)) return next();
+  return res.status(404).type('text/plain').send('Not Found');
+}
+module.exports = { httpsUpgrade, hostGuard, allowedHosts, _hostOf: hostOf };
+```
+
+- **Phase 0b:** `TRANSITIONAL_MARKETING_HOSTS = ['rundberglaundry.com', 'www.rundberglaundry.com']` (the two entries at `server.js:175-176`, kept until the flip per followups[4]); the three `wavemax.promo` entries (`:178-180`), `localhost:3000` (`:181`) and `RETIRED_HOSTS` (`:201-214`) are deleted; the unknown-host default (`:193`) becomes `APP_HOST`. `hostGuard` exists in the module and is unit-tested but is **not mounted**.
+- **Phase 2 (A-2.1):** `TRANSITIONAL_MARKETING_HOSTS = []`; `hostGuard` mounted. A marketing `Host` (any of the eight `PARTNER_LANDING_HOSTS`), `crhsent.com`, or an arbitrary host that still reaches :3000 gets a plain-text 404 — never the SPA shell, never a redirect (D11a: a misrouted vhost is an ops error that must fail loudly in the per-host smoke test). Upstream, nginx `default_server return 444` (spec §9) already drops unknown hosts before they reach Express; the guard covers the *known-but-misrouted* case (a marketing vhost accidentally left on :3000).
+- `/health` is host-agnostic so on-box `curl http://127.0.0.1:3000/health` keeps working; every other on-box check passes `-H 'Host: portal.atxwashdryfold.com'` (already the practice in followups[4]). Prerequisite: gate **G1** (CF monitor Host → portal) is done before A-2.1 deploys; the guard does not change what the monitor sees (nginx routes by Host), but a portal-only app must never be behind a monitor that names a marketing host.
+- The guard reads `Host` only (nginx sets `Host $host` in `proxy-node-app.conf`); the `x-forwarded-host` lookup of the deleted fall-through (`server.js:961`) is not carried over.
+
+### 6.8 `BASE_URL` consolidation (Phase 0b)
+
+New `server/utils/appUrl.js`:
+
+```js
+const DEFAULT = 'https://portal.atxwashdryfold.com';
+function baseUrl() {
+  const v = (process.env.BASE_URL || '').replace(/\/+$/, '');
+  if (v) return v;
+  if (process.env.NODE_ENV === 'production') throw new Error('BASE_URL is required in production');
+  return DEFAULT;
+}
+const appUrl = (query) => `${baseUrl()}/embed-app-v2.html${query ? `?${query}` : ''}`;
+module.exports = { baseUrl, appUrl };
+```
+
+Consumers rewritten to it (every `'https://rundberglaundry.com'` fallback in `server/` disappears): `template-manager.js:46` (`[BASE_URL]` injection), `dispatcher/affiliate.js:14` (its local `appUrl` is replaced by the import), `admin.js:103`, `operator.js:105,221,342`, `customer.js:108,614` (claim button + verify-email links), `labelSheetService.js:89` (bag QR — `${baseUrl()}/embed-app-v2.html?route=/claim&bag=${token}` unchanged in shape), `inviteService.js:27`, `ops.js:44,65`, `passwordResetService.js:78`. Evaluated lazily per call (the dispatchers' existing "late dotenv" rationale at `affiliate.js:10-13` is preserved). The production fail-fast is exercised at boot by `server.js` calling `baseUrl()` once after dotenv loads. `tests/unit/affiliateEmailUrls.test.js:48-49` keeps passing (it builds `BASE` from env). After this PR `grep -rn "rundberglaundry" server/ --include=*.js` returns only `customer.js:218` (support alias, kept) and the Phase-2 files.
+
+### 6.9 Legal pages and `security.txt` (portal-owned, D3a)
+
+- Canonical `<link rel="canonical">` in `terms-and-conditions.html:10`, `privacy-policy.html:10`, `refund-policy.html:10`, `terms-and-conditions-embed.html:10` → `https://portal.atxwashdryfold.com/<clean-url>`.
+- Contact consolidation (BINDING): `terms-and-conditions.html:139,164` (`legal@rundberglaundry.com`) and `terms-and-conditions-embed.html:216,222` (`admin@crhsent.com`) → one address, **`admin@crhsent.com`** (a verified, actively read mailbox; the `legal@rundberglaundry.com` alias created 2026-09-09 bridges old copies). Open question 4 covers a `legal@crhsent.com` identity.
+- The marketing-domain enumerations in `privacy-policy.html:35-39` / `terms-and-conditions.html:34` are legal text and are not edited by this item (counsel).
+- `public/.well-known/security.txt:2` → `# Operated by CRHS Enterprises, LLC.` (the franchise-license clause is litigation residue); `:8` `Policy:` → `https://portal.atxwashdryfold.com/privacy-policy` (the clean URL; `/privacy-policy.html` also works via `embedRoutes.js:18`, but the clean URL is the canonical).
+- New `tests/integration/legalPages.test.js`: each of `/terms-of-service`, `/terms-and-conditions`, `/privacy-policy`, `/refund-policy`, `/terms-and-conditions-embed.html`, `/privacy-policy.html` → 200, `text/html`, a `nonce=` attribute present, no unresolved `{{BRAND_NAME}}`, `frame-ancestors 'self'`; the SPA map resolves `/terms-of-service` and `/privacy-policy`; `security.txt` contains no `franchise` and its `Policy:` URL returns 200. Zero coverage exists today (scope §7.1).
+- Web-core's stale `assets/legal/*` copies are deleted in the web-core section; nothing in the app references them.
+
+### 6.10 CSP: the portal profile, the location block as a parameter, and the D16 re-capture
+
+Today the app's CSP middleware (`server.js:263-279`) passes `imgSrcSelfOrigins: []`, `connectSrcSelfOrigins: []`, portal in `img/connect/frameSrcExtra`, `frameAncestors: ["'self'"]`. What it cannot do is remove the four sibling marketing origins, because web-core's template hard-codes them around the `…Extra` splice point: `'https://atxwashateria.com', 'https://atxwashdryfold.com', ...imgSrcExtra, 'https://runberglaundry.com', 'https://rundberglaundry.com'` (`crhs-web-core/src/security/cspDirectives.js:189` img-src, `:190` connect-src; documented as "the location-domain block" at `:107-108`). That block is exactly what the golden bakes in (`webCoreConsumptionGolden.test.js:27-28`).
+
+**Contract the app needs from web-core** (delivered in the web-core section as the same profile extension that gives corporate its trimmed marketing profile; defaults byte-identical so corporate's `server.integration.test.js` and web-core's `cspGolden` / `cspMonorepoParity` keep passing until their own deliberate re-capture):
+
+- `locationOrigins` — replaces the four literals; default = today's four; the app passes `[]`.
+- `scriptSrcExtra` — appended to `script-src` before the nonce; default `[]`; the app passes the gtag origin only when activated (§6.6).
+
+App-side call after the extension lands (`server/config/portalCsp.js`, unit-tested; `server.js` imports it):
+
+```js
+webCore.buildCspDirectives({
+  path: req.path, nonce: res.locals.cspNonce, useStrictCSP, isClickjackingDemo: false,
+  imgSrcSelfOrigins: [], connectSrcSelfOrigins: [],
+  locationOrigins: [],
+  imgSrcExtra: ['https://portal.atxwashdryfold.com'],
+  connectSrcExtra: ['https://portal.atxwashdryfold.com', ...(gtag ? ['https://www.google-analytics.com'] : [])],
+  scriptSrcExtra: gtag ? ['https://www.googletagmanager.com'] : [],
+  frameSrcExtra: ['https://portal.atxwashdryfold.com'],
+  frameAncestors: ["'self'"]
+});
+```
+
+**D16a re-capture (one deliberate, reviewed commit in this repo, titled `test(csp): authorized golden re-capture — marketing origins leave the portal CSP (D16)`):** `EXPECTED_STRICT_CSP` (`webCoreConsumptionGolden.test.js:23-38`) changes in exactly two directives — `img-src` and `connect-src` each lose `https://atxwashateria.com https://atxwashdryfold.com` and `https://runberglaundry.com https://rundberglaundry.com`; `https://portal.atxwashdryfold.com` remains in both; nothing else moves (the commit's diff must show only those four tokens per directive — the review checks that). `domainMigration.test.js:34-44` (connect-src contains portal; frame-ancestors is `'self'`) passes unchanged. The commit lands after web-core ships the parameter and is the *only* golden edit in this repo; the "never edit the expectation" header (`:11-14`) is amended to record the authorization. The Meta-Pixel / reCAPTCHA assertions (`securityHeaders.test.js:104-131`) stay — those origins are not touched here (open question 5 covers a later portal trim).
+
+**Strict-page list** (`APP_STRICT_CSP_PAGES`, `server.js:244-262`): delete `/embed-landing.html`, `/customer-login-embed.html`, `/customer-dashboard-embed.html`; add `'/'` (the portal root injects a nonce'd inline script at `server.js:742`, so strict costs nothing — followups[7] flagged it as non-strict today); keep `/terms-and-conditions-embed.html`, `/privacy-policy.html` (portal owns legal). `securityHeaders.test.js:141-152` becomes `for (const slug of ['/', '/scanbag', '/admin', '/operator'])` (the `/affiliate`, `/wavemax-affiliate` cases leave in Phase 2 — the content app asserts them on its side).
+
+### 6.11 robots.txt and sitemap.xml (D12a) — Phase 2
+
+The portal is an authenticated app; indexing claim/reset URLs is undesirable. After the last host flips, `server.js:833-907` is replaced by:
+
+```js
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').setHeader('Cache-Control', 'public, max-age=3600');
+  res.send('User-agent: *\nDisallow: /\n');
+});
+// no /sitemap.xml handler — falls through to the 404 catch-all
+```
+
+This is deliberately **not** done in Phase 0b: until a marketing host flips, its `robots.txt` is still served by the app, and `Disallow: /` on `rundberglaundry.com` during the flip window would be an SEO regression (crawlers cache robots ~24 h). The AI-bot block list (`:848-856`) and the per-host sitemaps move to corporate. `tests/integration/seoCrawlability.test.js` is rewritten to the portal assertions (robots body equals the two lines above; `/sitemap.xml` → 404 JSON from the catch-all; `Host: portal.atxwashdryfold.com`). Consequence to accept explicitly: Lighthouse's SEO category reports "blocked from indexing" on portal pages by design (open question 2); Performance / Accessibility / Best-Practices stay at the quality bar.
+
+### 6.12 Ordered PR plan (one concern per PR, ≤ 500-line diffs, failing test first)
+
+Phase 0b — deployable any time before the flip; each PR: `git pull` on both boxes, `pm2 reload wavemax`, verify the portal unchanged.
+
+| PR | Concern | Failing test first |
+|---|---|---|
+| A-0b.1 | `portalHost.js` (§6.7): delete RETIRED_HOSTS + wavemax allowedHosts entries, default → portal; delete `domainMigration.test.js:17-27` | `tests/unit/portalHost.test.js`: unknown host upgrades to portal; transitional hosts upgrade to themselves; `hostGuard` 404s a marketing Host and passes `/health` |
+| A-0b.2a | embed-landing retirement code + 5 files + 3 page script tags + `APP_STRICT_CSP_PAGES` prune (§6.3, §6.10) | Playwright: `/` and `?route=/landing` land on affiliate login with zero CSP violations; `simpleRouteHandlers`/router tests updated |
+| A-0b.2b | `landing.*` 90-key removal, all four locales, one commit | `i18n-brand-token.test.js` parity + a new structural test that every `data-i18n` key in `affiliate-landing-embed.html` exists in all four locales |
+| A-0b.3 | `affiliate-landing-embed.html` hygiene (§6.6 minus CSP): delete `:8-17`; `wdfRate` from SystemConfig; `google_ads_conversion_id` default + init-script injection (inert while empty); `homeUrl` on `/api/v1/brand`; not-found link | `tests/unit/affiliateLandingInit.test.js` (jsdom) for the three client behaviours; `tests/unit/systemConfig*.test.js` for the new default; `brand-config.test.js` for `homeUrl` |
+| A-0b.4 | `appUrl.js` + 12 call sites + `ops.js:12-13,44,65` + FRONTEND_URL collapse + `connectivity-monitor.js:28` + `tests/setup.js:20-21` + `.env.example:93,184` + `systemHealthService.js:14` (§6.8) | `tests/unit/appUrl.test.js` (prod fail-fast, trailing-slash strip); password-reset link matches `^https://portal\.atxwashdryfold\.com/embed-app-v2\.html\?route=/reset-password&token=[0-9a-f]{64}&type=\w+$`; ops alert HTML contains `https://portal.atxwashdryfold.com/monitoring/` and no `rundberglaundry` |
+| A-0b.5 | Iframe bridges (D9a): 4 files + `build-assets.js:26-27` + `docs/IFRAME_*`, `docs/parent-iframe-bridge.js` to archive | `assetCaching`/build tests updated; a grep guard in `branding-guard`/`domain-guard` that `iframe-bridge` no longer exists |
+| A-0b.6 | Legal canonicals + contact consolidation + `security.txt` (§6.9) + `brand.js:30` + `i18n.js:15` | `tests/integration/legalPages.test.js` (new) |
+| A-0b.7 | Dead-code sweep: `/docs` server + `SHOW_DOCS`, `/api/docs`, duplicate `/environment`, `equipmentProfileService`, `turnstile` (+ test), dead email templates, `products-placeholder.html`, `wm-image-config.js`, `faq-accordion.js` | `simpleRouteHandlers.test.js:180-221` block removed; `GET /docs/` and `GET /api/docs` → 404 assertions in `hostRouting.test.js` |
+| A-0b.8 | Delete the 64 non-Austin franchise photo directories (binary deletions; small line diff) + prune `wm-image-config` refs | `tests/unit/locationImages.test.js`: `public/assets/images/locations/` contains only `austin-tx/` (this test is itself deleted in A-2.2). Ops: purge the marketing zones' CF cache (spec §9) |
+
+Phase 2 — ≥ 1 week after the last host flips; prerequisites: G1 done, all four hosts verified on :3001 from both boxes, device checklist done, counsel's D5 answer recorded.
+
+| PR | Concern | Tests |
+|---|---|---|
+| A-2.1 | Host plumbing: delete `partnerLanding.js` **+ `partner-program.html` (same commit)**, fall-through `:953-965`, `locationQuarantine.js`, `quarantineConfig.js`, `storeIPs.js` + `auth.js:10`, comments `:358-361, :734-736`; mount `hostGuard`; `TRANSITIONAL_MARKETING_HOSTS = []`; CORS trim + rename; `austin-tx/` images | delete `partnerLanding.test.js` (237), `marketingHostFallthrough.test.js` (57; its `:45-49` "API 404 stays JSON" moves to `hostRouting`), `locationQuarantine.test.js` (452; its `:342-363` thirteen sensitive-path cases extracted to new `tests/integration/sensitivePathProbes.test.js`, which also gains the first WP-scanner-block cases for `server.js:922-948`), `storeIPs.test.js`; edit `authMiddleware.test.js:16-20, 418-426`; delete the `describe('gate exemptions …')` block `tests/unit/scanbag.test.js:60-67` (it `require`s both deleted modules) and `wavemaxAffiliatePage.test.js:43-49`; **new `tests/integration/hostRouting.test.js`**: `Host: portal.atxwashdryfold.com` → 200 shell; each of the 8 marketing hosts + `crhsent.com` + `example.invalid` → 404 text/plain; `/health` → 200 for any Host and no `Set-Cookie`; `/api/definitely-not-a-route` → JSON 404; `/design-explorer/index.html`, `POST /api/concierge`, `/docs/`, `/api/docs`, `/partner-program.html`, `/affiliate`, `/wavemax-affiliate` → 404; `affiliatePortalRoot.test.js` gains the portal-Host positive and a marketing-Host negative |
+| A-2.2 | Marketing pages/assets: `affiliate.html`, `wavemax-affiliate.html`, routes `:751-759`, 3 CSS, 10 fonts, 2 OG pngs, flyers + `tools/flyers`, `partner-inquiry.js`, `affiliate-inquiry.js`; guard allowlists pruned (`branding-guard.test.js:30,32,52,53,62,65`, INFRA_ALLOW `/\/wavemax-affiliate/gi`, `/wavemax-affiliate\.html/gi`, `/wavemaxDomains/g`; `domain-guard.test.js:13` (`crhsent/`), `:20`) | delete `wavemaxAffiliatePage.test.js`; `phase4bKeepSet.test.js:29-37` → 404 assertions (keep `:24-27`, `:40-52`); `securityHeaders.test.js:141-152` per §6.10; both guards gain a check that every `EXCLUDED_FILES` entry exists in `git ls-files` (today only baseline staleness is checked, `branding-guard.test.js:148-151`, `domain-guard.test.js:69-72`) |
+| A-2.3 | Intake APIs + maps-config + the two contact limiters (§6.2.3) — lands only after corporate's copies are green in production | delete `tests/integration/partnerInquiry.test.js`, `affiliateApplication.test.js`, `tests/unit/partnerInquiryForm.test.js`, `affiliateApplicationForm.test.js`, `interestFormEmailBranding.test.js` (they move with the pages; their form↔validator contracts and "ZERO WaveMAX" guards survive in corporate); `rateLimitingMiddleware.test.js` cases for the two limiters removed |
+| A-2.4 | Design Explorer + concierge (§6.2.4): archive first, then delete 28 tracked files, `explorerGuard`, controller, `conciergeFaq`, `conciergeLimiter`, `@anthropic-ai/sdk`, `build:explorer`, `.gitignore:244`, `.env.example:173-179,186-189` | delete the 6 explorer suites; `hostRouting` 404s (already in A-2.1) |
+| A-2.5 | `partner.*` 109-key removal, all four locales, one commit | parity gate + `check:i18n` |
+| A-2.6 | robots/sitemap (§6.11) | `seoCrawlability.test.js` rewrite |
+| A-2.7 | Residue: Access* models + `ensure-indexes.js:15,34,36` + the two seed scripts (moved to corporate in the same change), `refresh-hibu.sh` + `scripts/README.md:11`, `.env.example` scrub (§6.2.6), docs archive | `ensure-indexes` smoke |
+| A-2.8 | Portal CSP profile (`portalCsp.js`, `locationOrigins: []`, `scriptSrcExtra`) + **D16 golden re-capture** + `'/'` strict — depends on the web-core builder extension | `webCoreConsumptionGolden` re-captured per §6.10; `securityHeaders` strict list |
+| Ops (no PR) | Box `.env` scrub on both boxes (confirm-first): remove `QUARANTINE_NON_AUSTIN`, `CORPORATE_SITE_URL`, `EXPLORER_TOKEN`, `ANTHROPIC_API_KEY`, `PARTNER_PREVIEW_ALLOWLIST`, `PARTNER_INQUIRY_RECIPIENT`, `AFFILIATE_APPLICATION_RECIPIENT`, `FRONTEND_URL`, `SHOW_DOCS`, `STORE_SESSION_*`; **rotate `EXPEDITER_TOKEN`**; `pm2 reload wavemax --update-env`; remove the Hibu cron; drop the three orphan `ratelimit_*` collections; re-open the expediter board with the new `k` | per-box `curl --resolve` matrix (spec §10) |
+
+Rollback after any Phase-2 PR = `git revert` + `pm2 reload` (restores partnerLanding) + nginx flip back — the same path as Phase 1, one commit longer.
+
+### 6.13 Acceptance criteria (Item A complete)
+
+1. `server.js` ≤ 800 lines (project rule); if the Phase-2 deletions leave it above, the `/scanbag`, legal, `/admin`/`/operator` clean-URL handlers move to `server/routes/portalPages.js` in A-2.1 (no other split).
+2. `grep -rn "rundberglaundry\|atxwashateria\|atxwashdryfold\|runberglaundry\|wavemax\.promo\|wavemaxlaundry" server/ server.js public/assets/js/*.js --include=*.js` returns only: `customer.js:218` (support alias), the `portal.atxwashdryfold.com` default in `appUrl.js`/`portalHost.js`, and `brand.js` `homeUrl` default. `branding-guard` and `domain-guard` pass with their allowlists pruned and the new missing-entry check.
+3. On each box: `curl -s -o /dev/null -w '%{http_code}' -H 'Host: portal.atxwashdryfold.com' http://127.0.0.1:3000/` → 200; the same for `Host: rundberglaundry.com`, `www.rundberglaundry.com`, `runberglaundry.com`, `www.runberglaundry.com`, `atxwashateria.com`, `www.atxwashateria.com`, `atxwashdryfold.com`, `www.atxwashdryfold.com`, `crhsent.com` → 404 `text/plain`; `curl http://127.0.0.1:3000/health` (no Host) → 200 with no `Set-Cookie`.
+4. `GET /robots.txt` on portal = `User-agent: *\nDisallow: /\n`; `GET /sitemap.xml` → 404; `GET /affiliate`, `/wavemax-affiliate`, `/partner-program.html`, `/design-explorer/index.html`, `/docs/`, `/api/docs`, `/api/v1/maps-config` → 404; `POST /api/concierge`, `/api/v1/partner-inquiry`, `/api/v1/affiliate-application` → 404.
+5. Served CSP on `/embed-app-v2.html` contains no marketing origin in any directive, `frame-ancestors 'self'`, and `script-src` has no `'unsafe-inline'` on `/`, `/embed-app-v2.html`, `/admin`, `/operator`, `/scanbag`; the golden diff is exactly the four tokens per directive described in §6.10.
+6. A bag-claim scan of a **new** label (printed after Item A) opens `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=<32hex>` and SMS verification completes (Firebase authorized domain already added 2026-09-09); a password-reset email link and an ops alert link both point at the portal; `[BASE_URL]` in every template resolves to the portal (`domainMigration.test.js:102-107`).
+7. `npm test` green without `--forceExit` regressions attributable to this item; the 12 deleted/moved suites are gone; `hostRouting`, `sensitivePathProbes`, `legalPages`, `portalHost`, `appUrl` suites exist and pass; four locales structurally identical after A-0b.2b and A-2.5 (`npm run check:i18n`).
+8. Lighthouse mobile + desktop, four categories, on `https://portal.atxwashdryfold.com/` (login) and `?route=/affiliate-program`: Performance / Accessibility / Best Practices at the prior measured state or better; SEO reports the intentional `Disallow: /` (open question 2).
+9. Repo size: `git ls-files public/assets/images/locations` returns nothing; `du -sh public/assets` drops by ~450 MB; `@anthropic-ai/sdk` absent from `package-lock.json`.
+10. Both pm2 processes online with no restart climb for 24 h after each Phase-2 deploy; `pm2 logs wavemax` shows no `BASE_URL is required` and no CSP-violation reports from the portal pages.
+
+---
+
+## 7. Item B — web-core primitives and the end of duplicated functionality
+
+### 7.0 Shape, rule, and scheduling
+
+**Rule.** After Item B, `@crhs/web-core` exports *mechanism only*: session builder, SystemConfig model + registration hook, rate-limit store + limiter factory, email transport/template primitives, CSP builder with profiles, env-only CORS, LOG_DIR-aware loggers, the CSRF double-submit primitive, and the Oracle driver shims. Every host name, brand string, route table, default config key, and limiter policy lives in the consuming app. The affiliate app runs each of these from web-core, keeps *composition* modules only (a registration module, a policy module, three brand-binding wrappers), and deletes its inline copies plus their duplicate test suites.
+
+**Two tranches, two timings** (the cutover order in §5 puts "Item B PRs" after Phase 2; that holds for the affiliate *adoption* PRs, not for the core changes corporate needs on day one):
+
+| Tranche | Contents | When |
+|---|---|---|
+| **B-core** | 7.1 topology (web-core `v0.1.3`), 7.2 API changes (web-core `v0.2.0`), corporate + affiliate call-site PRs for the `v0.2.0` surface | Inside **Phase 0**, before the 0a corporate DARK deploy — corporate's multi-host build consumes the `marketing` CSP profile, the session `collectionName`, `RATE_LIMIT_COLLECTION_PREFIX`, the email `replyTo`/brand parameters and the `LOG_DIR` fix |
+| **B-adopt** | 7.3–7.6: affiliate consumes core module by module (move-then-delete), deletes 12 duplicate suites, removes shims, shared-DB ownership moves | After **Phase 2**, in the PR order of 7.5 |
+
+Every PR: strict TDD (failing test first), one concern, ≤ 500-line diff, `logger` only, never `--no-verify`.
+
+---
+
+### 7.1 Prerequisite — dependency topology (BINDING option (c))
+
+Today the affiliate resolves web-core through a symlink (`package-lock.json:700-703` records `"link": true`; `node_modules/@crhs/web-core → ../../../crhs-web-core`), so web-core's requires hit `crhs-web-core/node_modules` (mongoose 8.24.4) while the app resolves its own (mongoose 8.24.1) — two instances, dormant only because the app touches no DB-bound getter (`server.js:227,264-265,277`). Corporate is already single-instance via `.npmrc install-links=true` but declares no `mongoose` (`crhs-corporate/package.json:15-21`, `server.js:20-22`). A separate driver split exists in corporate today: web-core's direct `mongodb ^6.21.0` (`crhs-web-core/package.json:25`) vs mongoose's `~6.20.0` → `mongoose.mongo.Collection !== require('mongodb').Collection`, which makes `wc.mongoCursorRetry.installCursorRetry()` a silent no-op (`src/utils/mongoCursorRetry.js:89` patches the wrong driver).
+
+#### 7.1.1 Edits (PR B0 web-core, B1 corporate, B2 affiliate)
+
+| Repo | File | Change |
+|---|---|---|
+| web-core | `package.json` | Move `connect-mongo ^5.1.0` (L16), `express-rate-limit 7.1.4` (L21), `express-session ^1.18.1` (L22), `mongoose ^8.15.0` (L26) from `dependencies` to **`peerDependencies`** at the same ranges, **and** add the same four to `devDependencies` (web-core's own tests need them: `tests/setup.js:11-12`, `src/models/SystemConfig.js:4`, `src/middleware/rateLimitMongoStore.js:25`, `src/config/sessionStore.js:8-9`). **Delete** `mongodb ^6.21.0` (L25). Version `0.1.2 → 0.1.3`. |
+| web-core | `src/utils/mongoCursorRetry.js:89` | `const Collection = opts.Collection \|\| require('mongoose').mongo.Collection;` — the driver mongoose actually drives, always. |
+| web-core | `src/utils/mongoOracleDiagnostics.js:106` | Driver version label resolved via `require('mongoose').mongo` / `require('mongoose/package.json').version`, with `require('mongodb/package.json')` in try/catch → `'unknown'`; label only, no behaviour change. |
+| corporate | `package.json:15-21` | Add `"connect-mongo": "^5.1.0"`, `"express-rate-limit": "7.1.4"`, `"express-session": "^1.18.1"`, `"mongoose": "^8.15.0"` to `dependencies`. |
+| corporate | `server.js:20-22` | Replace the comment with: `// mongoose, express-session, connect-mongo and express-rate-limit are declared HERE and are peerDependencies of @crhs/web-core: with .npmrc install-links=true npm hoists ONE copy that both this app's models and web-core's SystemConfig/store bind to. A range-incompatible pin fails loudly at install (ERESOLVE) instead of silently nesting a second copy. Guard: tests/models.test.js shared-instance test.` |
+| corporate | `README.md:18-23`, `:107-115` | Document the explicit declarations and that a web-core bump still requires `npm install` in this dir (copy semantics). |
+| corporate | `package-lock.json` | Regenerate with `npm install` (currently records web-core `0.1.0` at `:534-536` vs installed `0.1.1` vs source `0.1.2`); commit. |
+| affiliate | `.npmrc` (new) | `install-links=true` |
+| affiliate | `package-lock.json` | Regenerate with `npm install`: the `node_modules/@crhs/web-core` entry (`:700-703`) becomes the copy form (`"resolved": "file:../crhs-web-core"`, version, peer records); commit with `.npmrc`. The affiliate already declares all four at web-core's ranges (`package.json:52,61,62,71`), so the hoisted copy is the app's pin. |
+
+**Driver decision:** web-core **drops** its direct `mongodb` dependency (does not peer it). mongoose supplies the driver; after the change each consumer tree contains exactly one `mongodb` (the one hoisted for mongoose).
+
+#### 7.1.2 Identity assertions (the tests that pin the topology)
+
+- **web-core** `tests/packageTopology.test.js` (new): reads `package.json`; asserts the four packages appear in `peerDependencies` and `devDependencies`, appear in neither `dependencies`, and `mongodb` is absent from all three blocks. `tests/utils/mongoCursorRetry.test.js` gains: `installCursorRetry({ logger: null })` with no injected `Collection` sets `require('mongoose').mongo.Collection.prototype.__cursorRetryInstalled === true`.
+- **corporate** `tests/models.test.js:88-95` stays; add to the same test: `expect(wc.SystemConfig.base).toBe(require('mongoose'))` and `expect(require('mongoose').mongo.Collection).toBe(require('mongodb').Collection)`.
+- **affiliate** `tests/integration/webCoreInstanceIdentity.test.js` (new, written first, fails until B2): (a) `require('@crhs/web-core').SystemConfig.base === require('mongoose')`; (b) `fs.lstatSync('node_modules/@crhs/web-core').isSymbolicLink() === false`; (c) `mongoose.modelNames().filter(n => n === 'SystemConfig').length === 1`; (d) `await SystemConfig.initializeDefaults()` **resolves** (today `tests/setup.js:157-164` swallows the error) and `countDocuments()` ≥ 3; (e) driver identity as in corporate. After PR B8 add (f) `require('../../server/models/SystemConfig') === require('@crhs/web-core').SystemConfig`.
+- **affiliate** `tests/setup.js` `beforeAll` (after connect, guarded by `mongoose.connection.readyState === 1`): `if (require('@crhs/web-core').SystemConfig.base !== mongoose) throw new Error('web-core mongoose instance split — install-links/peer topology regressed');` — a split fails the whole suite, not one file.
+
+#### 7.1.3 Model double-registration rule
+
+`server/models/SystemConfig.js:449` and web-core `src/models/SystemConfig.js:449` both call `mongoose.model('SystemConfig', …)`. On one instance that is `OverwriteModelError` at boot; on two it double-registers silently. **Rule:** the commit that makes any affiliate code path reach core's SystemConfig (PR B8) replaces the affiliate file body with the registration module of 7.2.2 in the *same* commit; no intermediate state may have both `mongoose.model('SystemConfig'` calls reachable. Guard: `tests/unit/noDuplicateModelRegistration.test.js` greps `server/**/*.js` for `mongoose.model('SystemConfig'` and expects 0 matches (lands red in B8's first commit, green in its last), plus identity assertion (c) above.
+
+#### 7.1.4 On-box reinstall sequence (per box, oci1 → verify → oci2; both consumers copy web-core at install, so the rsync alone changes nothing running)
+
+0. Local: B0 merged + `npm test` in web-core green (541); B1 and B2 merged with regenerated locks; `npm ci` succeeds in both consumers. On the box, as the deploy user: `npm config get legacy-peer-deps` must print `false` or `undefined`; if `true`, `npm config set legacy-peer-deps false` (otherwise peers are not auto-installed — E1 in the follow-up).
+1. `rsync -a --delete --exclude node_modules --exclude .git ~/GitHub/crhs-web-core/ ubuntu@<box>:/var/www/crhs-web-core/`
+2. Affiliate: `cd /var/www/wavemax/wavemax-affiliate-program && git pull --ff-only && npm install --install-links` (flag now redundant with the committed `.npmrc`, harmless) → `node -e "const m=require('mongoose');const wc=require('@crhs/web-core');console.log(wc.SystemConfig.base===m, m.mongo.Collection===require('mongodb').Collection, require('@crhs/web-core/package.json').version)"` must print `true true 0.1.3` → `pm2 reload wavemax` → `curl -s localhost:3000/health` → `pm2 logs wavemax --lines 50` for 60 s: no `ORA-04036`, no buffering timeout.
+3. Corporate: `cd /var/www/crhs-corporate && git pull --ff-only && npm install` → same one-liner (prints `true true 0.1.3`) → `pm2 reload crhs-corporate` → `curl -s localhost:3001/health` → `pm2 logs crhs-corporate` must show `Access gate cache loaded:` (`server/middleware/accessGate.js:72`), never `Access gate cache load failed` (a split instance there does **not** crash-loop — `accessGate.js:75` swallows it — so the log line is the check).
+4. Repeat on the second box. Ship the topology deploy and any consumption change as **separate** deploys so a boot failure is attributable.
+
+**Acceptance (7.1):** identity one-liner prints `true true 0.1.3` in both consumer dirs on both boxes; corporate logs `Access gate cache loaded:`; both `/health` 200; both `pm2 status` restart counters unchanged after 10 min.
+
+---
+
+### 7.2 web-core API changes (`v0.2.0`; each with the test that pins it)
+
+All 7.2 changes ship as PRs B3a–B3i on web-core `main` and are tagged `v0.2.0` together; `v0.2.0` reaches the boxes only after the two consumer call-site PRs (B4a corporate, B4b affiliate) are merged.
+
+#### 7.2.1 `buildSessionMiddleware` → `{ middleware, store }` + maxAge fixer + `collectionName` + neutral cookie base (D14b, D18a)
+
+File `src/config/sessionStore.js` (today returns only the middleware, `L94-121`; default base `'wavemax.sid'`, `L22`).
+
+```js
+/**
+ * @param {object}  [opts]
+ * @param {string}  [opts.mongoUrl=process.env.MONGODB_URI]
+ * @param {string}  [opts.secret]                 SESSION_SECRET → JWT_SECRET chain (L96, unchanged)
+ * @param {number}  [opts.ttlSeconds=600]
+ * @param {string}  [opts.cookieName]             base name; falls back to SESSION_COOKIE_NAME, then 'app.sid'
+ * @param {string}  [opts.collectionName='sessions']   connect-mongo collection
+ * @param {number}  [opts.autoRemoveInterval=2]   minutes (L84, unchanged default)
+ * @returns {{ middleware: RequestHandler, store: (MongoStore|undefined), cookieName: string, sessionMaxAge: number }}
+ */
+function buildSessionMiddleware(opts = {})
+```
+
+- `store` is the `MongoStore.create({...})` instance (`undefined` under `NODE_ENV=test`, as today `L62-63`); consumers reach `store.clientP` for `installOracleDiagnostics` (affiliate `server.js:129-132`).
+- `middleware` is **composed**: express-session (`L94-121` verbatim) followed by the post-session maxAge fixer moved verbatim from affiliate `server.js:453-481`, parameterised by `sessionMaxAge`. Exported for unit test as `_maxAgeFixer(sessionMaxAge)`.
+- `DEFAULT_COOKIE_BASE = 'app.sid'` (replaces `'wavemax.sid'`, `L22`); the `L17-21` comment is deleted. Corporate sets `SESSION_COOKIE_NAME=crhsent.sid` (D14b; drops live crhsent sessions once, scheduled with 0a); the affiliate passes `cookieName: 'portal.sid'`.
+- Corporate call site (`crhs-corporate/server.js:65-69`, PR B4a): `const { middleware: sessionMiddleware, store: sessionStore } = wc.buildSessionMiddleware({ mongoUrl: process.env.MONGODB_URI, secret: process.env.SESSION_SECRET, ttlSeconds: 600, collectionName: 'sessions_corporate' }); app.use(sessionMiddleware);` — mounted **after** `/health` (Phase-0 gate G2).
+
+**Tests** (`tests/config/sessionStore.test.js`, 12 today): rewrite `L26-30` to destructure `{ middleware }` (arity 3); update `L82` ("defaults to 'app.sid'") and `L102` ("production default is `__Host-app.sid`"); add: (i) `store` is `undefined` under test; (ii) with `NODE_ENV='development'` and the in-memory `mongoUrl`, `store.options.collectionName === 'sessions_corporate'` when passed and `'sessions'` by default, and `store.clientP` is a Promise (`connect-mongo` `MongoStore.js:79,126-127`; call `store.close()` and restore `NODE_ENV` in `afterEach`); (iii) `_maxAgeFixer(600000)` on `{ session: { cookie: { maxAge: NaN } } }` yields numeric `maxAge === 600000` and a Date `expires`; (iv) a request through `middleware` reaches the route with `req.session.cookie.originalMaxAge === ttlSeconds*1000` (fixer does not clobber a valid cookie).
+
+#### 7.2.2 `SystemConfig.registerDefaults` + core seeds only 3 keys + de-brand L175 (D15b)
+
+File `src/models/SystemConfig.js`. Delete the 24 affiliate-domain entries (`L167-394`) — including `L175`'s `"WaveMAX Associates"` description, which would otherwise be written into the shared `systemconfigs` collection the first time core's `initializeDefaults()` ran. The schema (`L6-118`, category enum `L20`) is unchanged.
+
+```js
+SystemConfig.CORE_DEFAULTS           // frozen: maintenance_mode (L395), access_gate_enabled (L404), system_timezone (L413) — verbatim
+SystemConfig.registerDefaults(list)  // list: Array<{ key, value, defaultValue, description, category, dataType, isEditable?, isPublic?, validation? }>
+                                     // validates: key non-empty string; category ∈ schema enum (L20); dataType ∈ enum (L25);
+                                     // throws Error(`registerDefaults: key "${key}" already registered with a different definition`) on a deep-unequal re-registration;
+                                     // identical re-registration is a no-op; returns the total registered count
+SystemConfig.getRegisteredDefaults() // frozen copy: CORE_DEFAULTS ++ registered, in registration order
+SystemConfig.initializeDefaults()    // $setOnInsert upsert of getRegisteredDefaults() (L426-431 mechanics unchanged)
+```
+
+Affiliate side (PR B8): `server/config/systemConfigDefaults.js` (new) holds the 24 entries moved verbatim from `server/models/SystemConfig.js:167-394` (already de-branded: `L175` reads `house Associates`); `server/models/SystemConfig.js` becomes the **registration module** (permanent, not a shim — it is the single place registration happens, so the four relative-path mocks at `tests/unit/adminDashboard.test.js:62`, `administratorController.test.js:169`, `administratorControllerEnhanced.test.js:10`, `systemConfigRoutes.test.js:19` keep working):
+
+```js
+const SystemConfig = require('@crhs/web-core').SystemConfig;
+SystemConfig.registerDefaults(require('../config/systemConfigDefaults'));
+module.exports = SystemConfig;
+```
+
+Corporate boot (`crhs-corporate/server.js:97-99`, PR B4a): `await db.connect(); await wc.SystemConfig.initializeDefaults(); await accessGate.loadCache();` — corporate seeds `access_gate_enabled` itself; the portal's boot (`server.js:138-141`) no longer owns that key (it still upserts the 3 core keys idempotently, which is harmless by `$setOnInsert`).
+
+**Tests** (`tests/models/systemConfig.test.js`, 54): the default-set assertion becomes "exactly the 3 core keys"; add `registerDefaults` cases: validation errors (bad category / dataType / missing key), duplicate-with-different-definition throws, identical re-registration no-op, `initializeDefaults()` seeds registered keys, `getRegisteredDefaults()` is frozen. New `tests/brandNeutral.test.js`: `grep -rEi 'wavemax|rundberglaundry|runberglaundry|atxwash|wavemaxlaundry' src/` → 0 matches (this test also guards 7.2.5, 7.2.6, 7.2.4).
+
+#### 7.2.3 `rateLimiting` = mechanism only + store `collectionPrefix` + `LIMITER_NAMES` + `sweepExpired` + opt-in TTL index + 3 dead limiters deleted (D17b)
+
+`src/middleware/rateLimitMongoStore.js`:
+
+```js
+new MongoRateLimitStore({ windowMs, name, collectionPrefix, ensureTtlIndex })
+// collectionPrefix default: process.env.RATE_LIMIT_COLLECTION_PREFIX || 'ratelimit_'   (the portal keeps its live names with zero migration)
+// ensureTtlIndex default: process.env.RATE_LIMIT_TTL_INDEX === 'true'                   (init() calls createIndex ONLY when true — on ADB it is a guaranteed swallowed error per limiter per worker per boot, L58-62)
+// this.collectionName = `${collectionPrefix}${name}`                                     (L36 — still the single source of the name)
+// static sweepExpired(collectionName, now = new Date()) → deletedCount                    (deleteMany({ _expiresAt: { $lt: now } }))
+```
+
+`src/middleware/rateLimiting.js` end-state exports:
+
+```js
+_keyGenerators, keyGenerators            // same object (L61-76), public alias for app policy modules
+isRelaxed, isTest                        // load-time booleans (L16-17) so app policy modules apply the same 10× rule
+createMongoStore(windowMs, name)         // L46-49 semantics; ALSO registers `name` in the process registry
+createCustomLimiter(options)             // L340-357 unchanged; registers options.name || 'custom'
+apiLimiter                               // L141-165 unchanged, name 'api' — the only named limiter left in core
+get LIMITER_NAMES()                      // frozen, sorted array of names registered in this process
+collectionPrefix()                       // process.env.RATE_LIMIT_COLLECTION_PREFIX || 'ratelimit_' (read at call time)
+collectionNameFor(name)                  // `${collectionPrefix()}${name}`
+sweepExpired({ prefix = collectionPrefix(), names = LIMITER_NAMES, now = new Date() })   → [{ collection, deletedCount }]
+resetBuckets({ prefix = collectionPrefix(), names = LIMITER_NAMES, idPattern })          → [{ collection, deletedCount }]  // deleteMany(idPattern ? { _id: idPattern } : {})
+```
+
+Deleted from core: `emailVerificationLimiter` (`L232-249`), `fileUploadLimiter` (`L251-268`), `adminOperationLimiter` (`L270-294`) — mounted nowhere in either app; and the app-policy limiters `authLimiter` (`L79-97`), `passwordResetLimiter` (`L100-118`), `registrationLimiter` (`L121-138`), `sensitiveOperationLimiter` (`L168-185`), `contactFormBurstLimiter` (`L190-206`), `contactFormLimiter` (`L213-230`), `adminLoginLimiter` (`L297-315`), `conciergeLimiter` (`L321-337`). The RELAX/production guard (`L25-32`) stays.
+
+Where the policy goes: the affiliate's `server/middleware/rateLimiting.js` becomes its **policy module** (PR B7) declaring, via `createCustomLimiter` with the exact numbers above, `authLimiter` (`'auth'`), `passwordResetLimiter` (`'pwreset'`), `registrationLimiter` (`'register'`), `sensitiveOperationLimiter` (`'sensitive'`, `keyGenerators.userOrIp`), `adminLoginLimiter` (`'admin_login'`, `keyGenerators.adminLogin`), and the four route-level custom limiters moved in from `bagRoutes.js:12-17` (`'bag-resolve'`), `customerRoutes.js:19-24` (`'claim-resolve'`), `customerRoutes.js:28-33` (`'email-verify'`), `scanRoutes.js:23-28` (`'scan_actions'`), re-exporting `apiLimiter`, `createCustomLimiter`, `_keyGenerators` and an explicit `APP_LIMITER_NAMES = ['api','auth','pwreset','register','sensitive','admin_login','bag-resolve','claim-resolve','email-verify','scan_actions','bag_codes']`. `contactFormBurstLimiter`/`contactFormLimiter` (`'contact_burst'`, `'contact_hourly'`) move to corporate's policy module with the intake routes (D2a); `conciergeLimiter` is deleted with the concierge (D6a).
+
+**Tests.** `tests/middleware/rateLimitMongoStore.test.js` (7): replace the literal `'ratelimit_unit-test'` at `L27,77` with `store.collectionName`; add "honours `collectionPrefix`", "honours `RATE_LIMIT_COLLECTION_PREFIX` (module reload)", "`init()` never calls `createIndex` unless `ensureTtlIndex`" (spy on `mongoose.connection.collection(...).createIndex`), "`sweepExpired` deletes expired docs only". `tests/middleware/rateLimiting.test.js` (11) receives the **ported** affiliate blocks from `tests/unit/rateLimitingMiddleware.test.js` — `createMongoStore` (`L61-108`, 2 tests), `createCustomLimiter` (`L339-409`, 3 tests), `keyGenerator wiring` (`L415-451`, reduced to `apiLimiter → ip` and `createCustomLimiter → ip`) — with `jest.mock('express-rate-limit')` by name and `jest.mock('../../src/middleware/rateLimitMongoStore')` by core path; plus new: "`LIMITER_NAMES` lists every name passed to `createMongoStore`/`createCustomLimiter`", "`RELAX_RATE_LIMITING=true` + `NODE_ENV=production` calls `logger.error` with the `SECURITY:` message on load" (`jest.isolateModules`), "`RELAX_RATE_LIMITING=true` raises `apiLimiter` max to 500", "`resetBuckets({ idPattern })` deletes only matching `_id`s".
+
+#### 7.2.4 Email transport / template-manager parameterised by brand (D13b)
+
+`src/email/transport.js` — delete `require('../config/brand')` (`L8`):
+
+```js
+sendEmail(to, subject, html, from)
+// from: string  → full From header (legacy; corporate accessGate.js:345 passes one)
+//     | { from?, fromName?, fromAddress?, replyTo? }
+// From resolution: from ?? (name ? `"${name}" <${addr}>` : addr)
+//   name = fromName ?? process.env.EMAIL_FROM_NAME (no brand fallback)
+//   addr = fromAddress ?? process.env.EMAIL_FROM ?? process.env.EMAIL_USER ?? throw Error('sendEmail: EMAIL_FROM or EMAIL_USER must be set')   // replaces the L73 'noreply@rundberglaundry.com' literal
+// replyTo → mailOptions.replyTo (the intake mails' lead address)
+```
+The TLS servername default `mail.crhsent.com` (`L48`) stays — CRHS mail infrastructure, env-overridable.
+
+`src/email/template-manager.js` — delete `require('../config/brand')` (`L18`):
+
+```js
+fillTemplate(template, data, brand = {})   // brand: { displayName, legalName, logoUrl }
+// BASE_URL   = data.BASE_URL ?? process.env.BASE_URL ?? ''      (logger.warn when '' — replaces the L67 rundberglaundry literal)
+// BRAND_NAME / BRAND_LEGAL / BRAND_LOGO: data wins, then brand.{displayName,legalName,logoUrl}, then '' + logger.warn
+loadTemplate(templateName, language = 'en', templateRoot)   // unchanged (L41-60; EMAIL_TEMPLATE_ROOT fallback L27-29)
+```
+`src/config/brand.js` and `tests/config/brand.test.js` (8) are **deleted**; `src/utils/cspHelper.js:25` drops the `brand === true` shorthand (brand must be passed as an object). Brand stays app-owned: affiliate `server/config/brand.js` (14 require sites) and corporate's own values.
+
+Affiliate wrappers (PR B10; the `server/utils/cspHelper.js:1-31` pattern — no env dependency): `server/services/email/transport.js` → `sendEmail = (to, s, h, from) => wc.email.transport.sendEmail(to, s, h, typeof from === 'string' ? from : { fromName: brand.displayName, ...from })`; `server/services/email/template-manager.js` → `loadTemplate(name, lang) => wc.email.templateManager.loadTemplate(name, lang, TEMPLATE_ROOT)` with `TEMPLATE_ROOT = path.join(__dirname, '..', '..', 'templates', 'emails')` (today's `L18`) and `fillTemplate(t, d) => wc…fillTemplate(t, d, { displayName: brand.displayName, legalName: brand.legalName, logoUrl: `${process.env.BASE_URL}${brand.logoPath}` })` — preserving the 19 two-arg `loadTemplate` call sites (`dispatcher/affiliate.js:25,188,349,488,559,663`, `admin.js:18,135`, `customer.js:98,256,420,518,613`, `operator.js:18,137,253`, `onboarding.js:39`) untouched.
+
+**Tests.** `tests/email/transport.test.js` (15): replace `L131-135` ("default From is Laundromat") with "no `fromName`/`EMAIL_FROM_NAME` → bare address"; add "`fromName` beats `EMAIL_FROM_NAME`", "`replyTo` reaches `sendMail`", "throws when `EMAIL_FROM` and `EMAIL_USER` are both unset". `tests/email/template-manager.test.js` (17): `L106,146` pass a brand object; add "`BASE_URL` unset → `[BASE_URL]` is `''` and `logger.warn` called". Affiliate `tests/integration/domainMigration.test.js:95-108` and `email-brand.test.js` keep passing through the wrappers.
+
+#### 7.2.5 `buildCspDirectives` profile parameter + `frameAncestors` default `'self'` + host literals removed (D16a authorises the goldens re-capture)
+
+`src/security/cspDirectives.js` new signature:
+
+```js
+buildCspDirectives({ nonce, useStrictCSP, profile = 'full',
+                     scriptSrcExtra = [], imgSrcExtra = [], connectSrcExtra = [], frameSrcExtra = [],
+                     frameAncestors = ["'self'"] })
+isStrictCspPath(path, { strictCSPPages = [], isDocumentationPage, isCleanUrlSlugPage })   // isFranchiseHostPage (L63-70) renamed; default page list [] (L13-41 deleted)
+CSP_PROFILES   // exported frozen table
+```
+
+Removed: `path`/`isClickjackingDemo` (`L116-120, 141-150`) and the demo branch (`L205-210`, franchisor + rundberglaundry frame-src) — corporate passes `frameSrcExtra` for `/wavemax/clickjacking-demo.html` itself; `imgSrcSelfOrigins`/`connectSrcSelfOrigins` and their `wavemax.promo` defaults (`L134-135`); the franchisor `frame-ancestors` default (`L139`); the four CRHS hosts in img-src/connect-src (`L194-195`); the Firebase project origin `https://wavemax-bag-registration.firebaseapp.com` (`L208, L215`) — the affiliate supplies it in `frameSrcExtra` (it is the portal claim page's). Token order in every directive: `'self'` → profile fixed tokens (`data:` for img-src) → extras → profile third-party origins → nonce / `'unsafe-inline'` tail. The `L224-251` nonce / style-src / `upgrade-insecure-requests` logic is untouched and shared by both profiles.
+
+- `full` = today's third-party origins minus the removed literals (script `L158-186` 11 hosts; style `L188-193`; img third-party from `L194`; connect third-party from `L195-201`; font `L202`; frame `www.google.com`, `maps.google.com`, `my.matterport.com`, `challenges.cloudflare.com`, `www.recaptcha.net`).
+- `marketing` = every third-party list empty; img keeps `data:`. Exact header under `NODE_ENV=test`, strict: `default-src 'self'; script-src 'self' 'nonce-X'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'; child-src 'none'; worker-src 'self'; manifest-src 'self'` (+ `upgrade-insecure-requests` in production). All three marketing pages are self-hosted, so no origin is needed; there is no hold page, so no maps frame-src.
+- Unknown `profile` throws `Error('buildCspDirectives: unknown profile "<x>"')`.
+
+**Tests.** New `tests/security/cspMarketingProfile.test.js`: the exact string above; "marketing script-src contains none of the `full` third-party hosts"; unknown profile throws; `frameAncestors` default is `["'self'"]`. **One-time re-capture** (a deliberate, reviewed commit, D16a): `tests/security/cspGolden.test.js` (31) — no-arg output is the new crhsent header; `tests/security/cspMonorepoParity.test.js` (4) — `MONOREPO_CSP_ARGS` becomes `{ imgSrcExtra: ['https://portal.atxwashdryfold.com'], connectSrcExtra: ['https://portal.atxwashdryfold.com'], frameSrcExtra: ['https://portal.atxwashdryfold.com','https://wavemax-bag-registration.firebaseapp.com'], frameAncestors: ["'self'"] }` and the expectation re-transcribed; affiliate `tests/integration/webCoreConsumptionGolden.test.js:23-45` re-captured in PR B4b together with the `server.js:263-279` call-site change; corporate `tests/server.integration.test.js:30-45` asserts nonce/no-`unsafe-inline`, not bytes — unchanged. The `L3-8` header comment ("changing any host silently breaks CSP") is rewritten to describe profiles.
+
+#### 7.2.6 CORS env-only
+
+`src/security/corsConfig.js`: delete the fixed list (`L14-24`: `www.wavemaxlaundry.com`, `wavemaxlaundry.com`, `wavemax.promo`, the four CRHS hosts). `allowedOrigins = parseList(CORS_ORIGIN) ∪ parseList(CORS_EXTRA_ORIGINS)`, no default origins (the `L12` `localhost:3000` default goes too); null-origin rejection (`L44`), clean rejection (`L58`), `credentials: true`, methods and headers (`L61-64`) unchanged; comment `L3-6` rewritten. Corporate today grants credentialed CORS to the franchisor through this file — fixed as a side-effect. **Tests** (`tests/security/corsConfig.test.js`, 5, re-pinned): no env → every origin rejected; `CORS_ORIGIN` list admitted; `https://www.wavemaxlaundry.com` rejected with env unset; null origin rejected; credentials/headers unchanged. Affiliate adoption (PR B11): `server.js:282-328` → `app.use(cors(wc.corsConfig))` with production `CORS_ORIGIN=https://portal.atxwashdryfold.com`; `.env.example:75-79` rewritten (the "reserved" note is deleted). Corporate `.env.example:64` → `CORS_ORIGIN=` (empty: crhsent has no cross-origin API callers).
+
+#### 7.2.7 `auditLogger` honours `LOG_DIR` (live defect)
+
+`src/utils/auditLogger.js:17,23`: `const logDir = process.env.LOG_DIR || path.join(__dirname, '../../logs');` then `path.join(logDir, 'audit.log')` / `'security-critical.log'` — identical to `logger.js:11`. Today web-core's `csrf-config.js:13` requires web-core's auditLogger, so the affiliate's `CSRF_VALIDATION_FAILED` events already land in `node_modules/@crhs/web-core/logs/` on the boxes (wiped on every `npm install`). Corporate's `.env.example:65` leaves `LOG_DIR` commented, so **corporate's `combined.log`/`error.log` are inside `node_modules/@crhs/web-core/logs/` on the boxes today as well** — corporate sets `LOG_DIR=/var/www/crhs-corporate/logs` in 0a. **Test** (`tests/utils/auditLogger.test.js`, env-reload pattern at `L493-496`): with `LOG_DIR=/tmp/x`, `winston.transports.File` is constructed with `filename: '/tmp/x/audit.log'` and `'/tmp/x/security-critical.log'`.
+
+#### 7.2.8 CSRF: the primitive takes tables (D20b)
+
+`src/config/csrf-config.js` keeps the `doubleCsrf` configuration (`L12-54`: secret chain, `__Host-x-csrf`/`x-csrf` cookie, header list) and becomes a factory; the route tables `L57-190` are deleted:
+
+```js
+createCsrf({ tables = {}, phase = () => process.env.CSRF_PHASE })
+// tables: { PUBLIC_ENDPOINTS, AUTH_ENDPOINTS, REGISTRATION_ENDPOINTS, CRITICAL_ENDPOINTS, HIGH_PRIORITY_ENDPOINTS, READ_ONLY_ENDPOINTS } — each optional, default []
+// → { csrfProtection, conditionalCsrf, csrfTokenEndpoint, shouldEnforceCsrf, generateCsrfToken }
+// shouldEnforceCsrf keeps today's order (GET/HEAD/OPTIONS never → PUBLIC → AUTH/REGISTRATION → CRITICAL → HIGH_PRIORITY gated by phase() >= 2 → READ_ONLY → default ENFORCE)
+```
+`wc.csrf` now exposes `{ createCsrf }`. Affiliate (PR B12): `server/config/csrfTables.js` (new) = `L57-190` minus the retired entries (`/api/concierge` `L71`, partner-inquiry `L94-95`, affiliate-application `L99-100`); `server/config/csrf-config.js` → `module.exports = require('@crhs/web-core').csrf.createCsrf({ tables: require('./csrfTables') });` — every affiliate route edit stops requiring a web-core release. Corporate consumes csrf nowhere. **Tests:** the 47-test `tests/config/csrfConfig.test.js` **moves** to the affiliate as `tests/unit/csrfConfig.test.js` (targets `server/config/csrf-config.js`; audit mock via the app path); core keeps a new `tests/config/csrfPrimitive.test.js` (~10): empty tables → POST enforced, GET never; PUBLIC bypass; `:param` pattern matching; HIGH_PRIORITY gated by `phase`; token endpoint 500 without session; invalid token → audit event via core's auditLogger (mocked at `../../src/utils/auditLogger`).
+
+#### 7.2.9 Deletions and the export surface (28 → 26 keys)
+
+| Delete | Reason |
+|---|---|
+| `src/config/storeIPs.js`, `tests/config/storeIPs.test.js` (34), `src/index.js:40` | affiliate-only; zero live consumers after Item A (`server/middleware/auth.js:10` imports `storeIPConfig` and never references it; `locationQuarantine.js:26` and `partnerLanding.js:20,75` are deleted). `STORE_IP_*` env stays for corporate's store-IP 302 (D7). |
+| `src/utils/previewUnlockCookie.js`, `tests/utils/previewUnlockCookie.test.js` (5), `src/index.js:44` | 0 consumers; franchise preview retired |
+| `assets/legal/*` (3 files) | stale — still carries the stripped §12.2 franchise text; the portal owns legal pages (D3a) |
+| `assets/js/iframe-bridge-v2.js`, `assets/js/parent-iframe-bridge-v3.js`; `src/security/securityHeaders.js:83-88` (bridge ACAO/CORP block) | D9a. The `/assets/`+`/locales/` CORP `cross-origin` carve-out (`L90-94`) **stays** — email logos and cross-host asset loads still need it. |
+| `src/config/brand.js`, `tests/config/brand.test.js` (8) | 7.2.4 |
+| `rateLimiting.js` limiters listed in 7.2.3; `SystemConfig.js:167-394`; `csrf-config.js:57-190`; `cspDirectives.js:13-41, 134-135, 139, 194-195 hosts, 205-210` | 7.2.2, 7.2.3, 7.2.5, 7.2.8 |
+
+`tests/index.smoke.test.js`: list minus `storeIPs`, `previewUnlockCookie`; `toHaveLength(26)`; header comment "FINAL at 28" rewritten. `tests/index.lazy.test.js` `CONSUMED` unchanged (contains neither key). Corporate `tests/webcore.smoke.test.js:10` → `26` (PR B4a). The affiliate pins no key count.
+
+**Release:** PRs B3a–B3i each bump nothing; the tag `v0.2.0` is cut after B3i with `npm test` green in web-core (541 minus the deleted suites plus the ported/new cases — the exact count is recorded in the tag message).
+
+---
+
+### 7.3 Per-module disposition (affiliate)
+
+Column "Keep as" distinguishes *shim* (5-line re-export, removed in B14) from *composition module* (permanent: binds app policy/brand/tables to a core primitive).
+
+| Module | Affiliate today | Core | Core change (PR) | Affiliate step (PR) | Keep as | Affiliate tests |
+|---|---|---|---|---|---|---|
+| sanitization | `server/middleware/sanitization.js` (105); `server.js:19,350` | `src/middleware/sanitization.js` (comment-only diff) | none | shim (B5) | shim → removed B14 | delete `tests/unit/sanitization.test.js` (52, dup 52/52) |
+| errorHandler | `server/middleware/errorHandler.js` (149); `server.js:5,983` | `src/middleware/errorHandler.js` | none | shim (B5) | shim → removed B14 | delete `errorHandler.test.js` (24, dup); its `jest.mock('../../server/utils/logger')` `:5` intercepts only via the app path |
+| mongoCursorRetry | `server/utils/mongoCursorRetry.js` (101); `server.js:59` before any DB use | `src/utils/mongoCursorRetry.js` | 7.1.1 (`mongoose.mongo.Collection`) | shim (B5); `server.js:59` ordering unchanged | shim → removed B14 | delete `mongoCursorRetry.test.js` (9, dup) |
+| mongoOracleDiagnostics | `server/utils/mongoOracleDiagnostics.js` (163); `server.js:123-132` | `src/utils/mongoOracleDiagnostics.js` | 7.1.1 label | shim (B5); store handle from 7.2.1 (B9) | shim → removed B14 | delete `mongoOracleDiagnostics.test.js` (8, dup) |
+| auditLogger | `server/utils/auditLogger.js` (267) | `src/utils/auditLogger.js` (byte-identical) | 7.2.7 LOG_DIR (B3a) | shim (B6); 16 `jest.mock('../../server/utils/auditLogger')` sites already target the shim path; 2 `requireActual` (`tests/integration/addons.test.js:12`, `tests/unit/bags/bagService.test.js:3`) resolve through the shim | shim → removed B14 (mocks migrate to the Proxy helper, 7.5) | delete `auditLogger.test.js` (26, dup) |
+| rateLimitMongoStore | `server/middleware/rateLimitMongoStore.js` (134, byte-identical); `codeAttemptLockout.js:19` | `src/middleware/rateLimitMongoStore.js` | 7.2.3 prefix/TTL/sweep (B3f) | shim (B7); `codeAttemptLockout.js:49` → `getStore().collectionName` | shim → removed B14 | delete `rateLimitMongoStore.test.js` (7, dup) |
+| rateLimiting | `server/middleware/rateLimiting.js` (356); consumers `server.js:367,642`, `auth.js:14`, 8 route files | `src/middleware/rateLimiting.js` | 7.2.3 (B3f) after porting tests | policy module (B7): declares 9 named limiters + `APP_LIMITER_NAMES`; route files import from it | composition (permanent) | delete `rateLimitKeyGen.test.js` (11, dup) and `rateLimitingMiddleware.test.js` (17) **after** its unique blocks are ported (7.4); new `tests/unit/rateLimitPolicy.test.js` pins each app limiter's `windowMs`/`max`/keygen/name |
+| SystemConfig | `server/models/SystemConfig.js` (450); 18 require sites; `server.js:138-141` boot seed | `src/models/SystemConfig.js` (diff `L1,169,175`) | 7.2.2 (B3e) | registration module + `server/config/systemConfigDefaults.js` (B8), one commit (7.1.3) | composition (permanent) | delete `systemConfig.test.js` (53, dup of core's 54); keep `systemConfigRoutes.test.js` (automock `:19`, `resetModules` `:244,318` — still valid, the module path is unchanged); new `tests/unit/systemConfigDefaults.test.js`: 24 keys, no `wavemax` substring, `initializeDefaults` seeds 27 |
+| session | `server.js:374-481` inline; `.env.example:81-86` | `src/config/sessionStore.js` | 7.2.1 (B3d) | `server.js:374-481` → `const { middleware, store: sessionStore } = wc.buildSessionMiddleware({ mongoUrl, secret, ttlSeconds: 600, cookieName: 'portal.sid' })`; `/health` stays before (`:418-424`); `sessionStore.clientP` → `:129-132` unchanged (B9) | direct import | `domainMigration.test.js:46-55` + `webCoreConsumptionGolden.test.js:67-76` (cookie name) unchanged; new `tests/integration/sessionMount.test.js`: `GET /health` emits **no** `Set-Cookie`; `GET /api/csrf-token` cookie `originalMaxAge === 600000` |
+| email transport + template-manager | `server/services/email/transport.js` (82; `L69` rundberglaundry default), `template-manager.js` (129; `TEMPLATE_ROOT` `L18`) | `src/email/*` (superset) | 7.2.4 (B3g) | two wrapper modules (B10), 19 call sites untouched | composition (permanent) | `emailTransport.test.js` (63 lines) replaced by wrapper seam cases in `email-brand.test.js` (fromName passthrough; string 4th arg passthrough); `emailServiceUncovered/Additional` `jest.doMock` logger ×7 keep working (wrappers require the app logger path) |
+| CORS | `server.js:282-328` (portal + 3 CRHS hosts) | `src/security/corsConfig.js` (franchisor + wavemax.promo) | 7.2.6 (B3b) | `app.use(cors(wc.corsConfig))`, `CORS_ORIGIN` env (B11) | direct import | new `tests/integration/cors.test.js`: portal origin admitted, `www.wavemaxlaundry.com` and `atxwashdryfold.com` rejected, null rejected |
+| csrf-config | 5-line shim → core tables | `src/config/csrf-config.js` (358) | 7.2.8 (B3h) | `csrfTables.js` + factory call (B12) | composition (permanent) | 47 tests move in (7.2.8) |
+| CSP builder | `server.js:244-279` call site | `src/security/cspDirectives.js` | 7.2.5 (B3c) | call site → `profile:'full'`, extras, `strictCSPPages: APP_STRICT_CSP_PAGES` (B4b, Phase 0b) | direct import | `webCoreConsumptionGolden.test.js` re-captured (D16a); `securityHeaders.test.js` drops any bridge-path assertion |
+| brand | `server/config/brand.js` (31), 14 sites | `src/config/brand.js` (deleted, 7.2.4) | delete (B3g) | none | app-owned (D13b) | **keep** `brand-config.test.js` (5) — no longer a duplicate once core's copy is gone |
+| storeIPs | `server/config/storeIPs.js` (144); dead import `auth.js:10` | `src/config/storeIPs.js` | delete (B3i) | delete file + `auth.js:10` + `authMiddleware.test.js:16` mock (B13) | — | delete `storeIPs.test.js` (34) |
+| logger, encryption, clientIp, controllerHelpers, validateSecrets, cspNonce, ipGate, geocodingService | 5-line shims | core | none | remove shims (B14) | removed | delete `logger.test.js` (dup; env-reload `:5`); mocks on shim paths (encryption ×7, controllerHelpers ×6, geocodingService ×2 + `requireActual`, logger ×4 + `doMock` ×7) migrate to the Proxy helper |
+| cspHelper | 32-line wrapper (`server/utils/cspHelper.js:1-31`) binding brand + `public/` | core takes brand as arg | `brand === true` shorthand removed (B3g) | none | composition (permanent) | `cspHelper` mocks ×2 unchanged |
+
+---
+
+### 7.4 Test migration: delete vs port
+
+**Ported into web-core first (PR B3f, before the affiliate deletes anything):** from `tests/unit/rateLimitingMiddleware.test.js` (451 lines, 17 tests) the coverage that exists nowhere in core (core's suite is 75 lines of key-gen tests): `createMongoStore` block `L61-108` (returns `undefined` in test; constructs `MongoRateLimitStore({ windowMs, name })` in production — asserted via `req.rateLimitConfig.store._isMongoStore` with the mocked `express-rate-limit` at `L2-27`), `createCustomLimiter` block `L339-409` (custom options; defaults merge; `windowMs` reaches the store), `keyGenerator wiring` `L415-451` reduced to the two limiters that remain in core. Added alongside: the `RELAX_RATE_LIMITING` production guard and the 10× rule (untested anywhere today), `LIMITER_NAMES`, `sweepExpired`, `resetBuckets`. **Not ported:** `Key Generators` `L110-273` (covered by core's 11) and `Skip Functions` `L275-337` (`adminOperationLimiter`, deleted).
+
+**Deleted from the affiliate (12 suites, ~3,000 lines):** `tests/unit/{systemConfig, rateLimitMongoStore, rateLimitKeyGen, rateLimitingMiddleware, sanitization, errorHandler, auditLogger, storeIPs, mongoCursorRetry, mongoOracleDiagnostics, logger, emailTransport}.test.js`, each in the PR that switches its module (7.5). `brand-config.test.js` is **kept** (app-owned module). **Kept as app-seam tests:** `webCoreConsumptionGolden.test.js` (re-captured once), `domainMigration.test.js` (minus its wavemax assertions, removed with the dead `RETIRED_HOSTS` block `server.js:207-214`), `securityHeaders.test.js`, plus the new seam tests named in 7.3 (`webCoreInstanceIdentity`, `sessionMount`, `cors`, `rateLimitPolicy`, `systemConfigDefaults`, `csrfConfig`, `resetRateLimits`).
+
+**Mocking after shim removal (B14):** mocking `@crhs/web-core` by name with a spread (`{ ...jest.requireActual(...) }`) would load every lazy getter (the `src/index.js` header forbids spreading). Add `tests/helpers/mockWebCore.js`:
+
+```js
+// mockWebCoreKey('auditLogger', impl) → jest.mock('@crhs/web-core', () => new Proxy(jest.requireActual('@crhs/web-core'),
+//   { get: (t, k) => (k === key ? impl : t[k]) }))   — preserves laziness; used by the 16 auditLogger, 7 encryption, 6 controllerHelpers, 4+7 logger, 2 geocodingService, 2 cspHelper mock sites
+```
+
+---
+
+### 7.5 PR sequence (dependency order; one acceptance test each)
+
+| # | Repo | PR | Acceptance (must be green before merge) |
+|---|---|---|---|
+| B0 | web-core | Topology: peers + devDeps, drop `mongodb`, cursor-retry via `mongoose.mongo`, `v0.1.3` | `tests/packageTopology.test.js` + new cursor-retry case; full suite green |
+| B1 | corporate | Declare the four deps, rewrite `server.js:20-22`, README, lock regen | `tests/models.test.js` shared-instance + driver identity; `npm ci` clean |
+| B2 | affiliate | `.npmrc` + lock regen + `webCoreInstanceIdentity.test.js` (a–e) + `tests/setup.js` guard | that test green; `lstat` not a symlink; `npm ci` clean |
+| — | boxes | 7.1.4 reinstall, oci1 then oci2 | `true true 0.1.3` ×4; `Access gate cache loaded:`; no restart climb |
+| B3a | web-core | auditLogger `LOG_DIR` | `auditLogger.test.js` LOG_DIR case |
+| B3b | web-core | CORS env-only | re-pinned `corsConfig.test.js` (5) |
+| B3c | web-core | CSP profiles + literal removal + goldens re-capture (D16a, reviewed commit) | `cspMarketingProfile.test.js`; re-captured `cspGolden` (31) + `cspMonorepoParity` (4); `brandNeutral.test.js` |
+| B3d | web-core | session `{ middleware, store }` + fixer + `collectionName` + `'app.sid'` | `sessionStore.test.js` (12 + 4 new) |
+| B3e | web-core | SystemConfig 3 core keys + `registerDefaults` + `L175` gone | `systemConfig.test.js` re-based + `registerDefaults` cases |
+| B3f | web-core | rateLimiting mechanism-only + store prefix/TTL/sweep + ported tests + 3 dead limiters deleted | `rateLimiting.test.js` (11 + ported + new); `rateLimitMongoStore.test.js` via `store.collectionName` |
+| B3g | web-core | email brand params + `replyTo`; delete `brand.js`; cspHelper shorthand | `transport.test.js` / `template-manager.test.js` re-pinned |
+| B3h | web-core | csrf `createCsrf({ tables })`; 47-test suite exported to the affiliate | `csrfPrimitive.test.js` |
+| B3i | web-core | delete storeIPs, previewUnlockCookie, `assets/legal`, bridges + `securityHeaders.js:83-88`; smoke 26; tag `v0.2.0` | `index.smoke.test.js` = 26; `index.lazy.test.js` green |
+| B4a | corporate | Consume `v0.2.0`: session destructure + `sessions_corporate`, `SystemConfig.initializeDefaults()` at boot, CSP `profile`/`frameSrcExtra` for the demo path, contact limiters in its policy module, smoke 26, `.env.example` keys (7.6.6) | `server.integration.test.js` + `webcore.smoke.test.js` green; `Access gate cache loaded:` on the box |
+| B4b | affiliate | Consume `v0.2.0` CSP args (`server.js:244-279`) + golden re-capture (D16a) — nothing else | `webCoreConsumptionGolden.test.js` re-captured; `securityHeaders.test.js` green |
+| — | Phase 0a / 0b / 1 / 2 | (per §5; `v0.2.0` reaches both consumers with 0a) | — |
+| B5 | affiliate | Shim sanitization, errorHandler, mongoCursorRetry, mongoOracleDiagnostics; delete 4 dup suites | full suite green; `madge --circular server/` = 0 |
+| B6 | affiliate | Shim auditLogger; delete dup suite; `LOG_DIR=logs` asserted in a boot test | `logs/audit.log` receives a `CSRF_VALIDATION_FAILED` event in an integration test (proves the live defect closed) |
+| B7 | affiliate | rateLimiting policy module + store shim + `codeAttemptLockout.js:49` + `rate_limits` reset fix (7.6.3) + delete 3 suites | `rateLimitPolicy.test.js`; `resetRateLimits.test.js`; `APP_LIMITER_NAMES ⊇ wc.rateLimiting.LIMITER_NAMES` after loading routes |
+| B8 | affiliate | SystemConfig registration module + `systemConfigDefaults.js` + delete dup suite (one commit, 7.1.3) | `noDuplicateModelRegistration.test.js`; identity (f); `systemConfigDefaults.test.js` |
+| B9 | affiliate | Session adopt (`server.js:374-481` → core); `/health` before; diagnostics attach via `store.clientP` | `sessionMount.test.js`; `domainMigration.test.js:46-55` |
+| B10 | affiliate | Email wrappers; delete `emailTransport.test.js`; seam cases | `email-brand.test.js` + `emailService.integration.test.js:161-193` green |
+| B11 | affiliate | CORS adopt + `.env.example` | `cors.test.js` |
+| B12 | affiliate | `csrfTables.js` + factory; 47 tests move in | `tests/unit/csrfConfig.test.js` (47) green against the app module |
+| B13 | affiliate ↔ corporate | Shared-DB ownership: delete storeIPs (+`auth.js:10`), `Access*` models, `MediatorAccess`, the two seed scripts (→ corporate), `ensure-indexes.js` MODELS update, sweep script + cron (7.6) | corporate `ensure-indexes.test.js` still ≥ 5 models; affiliate `branding-guard.test.js` allowlist updated; `ensure-indexes` exits 0 on both |
+| B14 | affiliate | Remove the 14 shims; call sites import `@crhs/web-core`; `mockWebCore` helper | `grep -rL` no `server/**` file re-exports `@crhs/web-core`; full suite green without `--forceExit` |
+
+---
+
+### 7.6 Shared-DB namespacing plan (one ADB, two processes)
+
+#### 7.6.1 Collection map (after Item B)
+
+| Collection | Writers today | After | Index owner | Sweep owner | Change |
+|---|---|---|---|---|---|
+| `ratelimit_api` | portal (`server.js:367-371`) **and** corporate (`crhs-corporate/server.js:77`) — one per-IP bucket shared | portal `ratelimit_api`; corporate `ratelimit_corp_api` | none needed (lookup by `_id`) | each app's sweep script for its prefix | corporate env `RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_`; portal leaves it unset (default `ratelimit_`) |
+| `ratelimit_contact_burst` / `_contact_hourly` | portal (`partnerInquiryRoutes.js:5,52-53`, `affiliateApplicationRoutes.js:5,57-58`) | corporate `ratelimit_corp_contact_*` (D2a); portal collections orphaned → dropped by the portal sweep script `--drop-orphans` after Phase 2 | — | corporate | limiter definitions move to corporate's policy module |
+| `ratelimit_{auth,pwreset,register,sensitive,admin_login,bag-resolve,claim-resolve,email-verify,scan_actions,bag_codes}` | portal only | unchanged names | — | portal `scripts/ops/sweep-rate-limits.js` | names now enumerated by `APP_LIMITER_NAMES`; `ratelimit_concierge` orphaned (D6a) → `--drop-orphans` |
+| `ratelimit_{email_verify,upload,admin_op}` | never written (dead limiters) | deleted with 7.2.3 | — | — | — |
+| `rate_limits` | nobody writes it; three reset paths delete from it | reset paths fixed (7.6.3); collection never created | — | — | — |
+| `sessions` | portal inline (`server.js:382-403`) and corporate via core (default `'sessions'`), same `SESSION_SECRET` → cross-honoured ids, 4 sweepers | portal `sessions` (default); corporate `sessions_corporate` | none (`autoRemove:'interval'`) | each app's connect-mongo 2-min `deleteMany` | corporate `collectionName: 'sessions_corporate'` (B4a); cookie `crhsent.sid` (D14b) |
+| `systemconfigs` | portal seeds 27 keys; corporate reads `access_gate_enabled` (`accessGate.js:44,67`) | portal seeds 3 core + 24 app; corporate seeds the 3 core keys at boot | **portal** `scripts/ensure-indexes.js:36` MODELS += SystemConfig (via the registration module: `key` unique + `{key,category}` + `{category,isPublic}`, `SystemConfig.js:8,446-447`); corporate `server/db.js:25` passes `{ autoIndex: false }` (today it does not, despite `scripts/ensure-indexes.js:5-6` claiming parity) | n/a | ownership of the gate switch value = corporate (its seed script) |
+| `accessgates`, `accesswhitelists`, `accessclicks`, `accessrequests` | corporate runtime; portal carries dead models + 2 ops scripts | corporate only | corporate `ensure-indexes.js:34-40` (unchanged) | code-enforced expiry (no TTL by design) | move `scripts/seed-access-gate.js` + `scripts/whitelist-access-ip.js` → corporate `scripts/` (retarget to corporate models + `wc.logger`, npm scripts `seed:access-gate`, `whitelist:ip`); delete affiliate `server/models/Access{Click,Gate,Request,Whitelist}.js` |
+| `mediatoraccess` | corporate `mediatorGate.js:25,154,171`; portal dead (only `scripts/ensure-indexes.js:15,34-36`) | corporate only | corporate `ensure-indexes.js:38-40` | — | delete affiliate `server/models/MediatorAccess.js` + `ensure-indexes.js:34-36` entry |
+| `refreshtokens`, `tokenblacklists` | portal | portal | portal ensure-indexes MODELS += RefreshToken, TokenBlacklist (TTL declarations inert on ADB) | portal sweep script also runs `TokenBlacklist.cleanupExpired()` (`TokenBlacklist.js:66-68`, no caller today) and `RefreshToken.deleteMany({ expiresAt: { $lt: now } })` | closes the unbounded-growth gap |
+| portal domain collections (`bags`, `orders`, …) | portal | portal | portal `ensure-indexes.js:28-36` (+ Affiliate, Administrator, Transaction added to MODELS) | — | no cross-app coupling |
+
+#### 7.6.2 Provisioning and sweeping — who runs what
+
+- **Portal:** `scripts/ensure-indexes.js` (MODELS as above; still `createIndexes()`, never `syncIndexes`). New `scripts/ops/sweep-rate-limits.js`: `require('../../server/middleware/rateLimiting')` (populates the registry), then `wc.rateLimiting.sweepExpired({ names: APP_LIMITER_NAMES })`, the token purges above, and `--drop-orphans` (drops `ratelimit_*` collections whose suffix is not in `APP_LIMITER_NAMES`; prints, does nothing without the flag). Cron on **oci1** only: `5 * * * *`; idempotent, so oci2 may also run it. npm script `sweep:rate-limits`.
+- **Corporate:** `scripts/ensure-indexes.js` unchanged model list; `db.js:25` gains `{ autoIndex: false }`; new `scripts/sweep-rate-limits.js` for its prefix (its policy module registers `api`, `contact_burst`, `contact_hourly`); same cron cadence.
+- Nothing provisions a TTL index anywhere (`RATE_LIMIT_TTL_INDEX` stays unset); correctness continues to come from `increment()`'s `_expiresAt` filter (`rateLimitMongoStore.js:79-99`).
+
+#### 7.6.3 The dead `rate_limits` reset paths (fixed, not removed)
+
+All three delete from a collection the store never writes, filtering a `key` field that does not exist (the store writes `ratelimit_<name>` keyed by `_id`), so "Reset rate limits" reports `Reset 0` and nobody can clear a jammed bucket without raw DB access.
+
+- `server/routes/administratorRoutes.js:202-228` (inline handler): **delete**; the route becomes `router.post('/reset-rate-limits', checkAdminPermission(['system.manage']), administratorController.resetRateLimits)` (`administratorController.js:692` is defined but unwired today).
+- `server/services/systemHealthService.js:90-112`: `const names = type ? APP_LIMITER_NAMES.filter(n => n.includes(type)) : APP_LIMITER_NAMES; const results = await wc.rateLimiting.resetBuckets({ names, idPattern: ip ? new RegExp(escapeRegExp(ip)) : undefined });` → returns `{ deletedCount: sum, collections: results }`; the `ADMIN_RESET_RATE_LIMITS` audit event keeps its shape.
+- `scripts/admin/reset-rate-limits.js:36`: same helper; `--type` now names a limiter (`auth`, `pwreset`, `register`, `api`, `sensitive`, `admin_login`, `bag-resolve`, `claim-resolve`, `email-verify`, `scan_actions`, `bag_codes`); help text updated.
+- **Test** `tests/integration/resetRateLimits.test.js`: seed `ratelimit_auth` `{ _id: '203.0.113.7', hits: 9, _expiresAt: future }`; admin `POST /api/v1/administrators/reset-rate-limits { ip: '203.0.113.7' }` → 200, `deletedCount: 1`, doc gone; `{ type: 'auth' }` leaves `ratelimit_register` docs untouched. Existing `administratorControllerRateLimits.test.js` / `simpleRouteHandlers.test.js` are updated to the service contract.
+
+#### 7.6.4 `codeAttemptLockout.js`
+
+`L19` → the store shim (B7) then `require('@crhs/web-core').rateLimitMongoStore` (B14); `L48-50` → `mongoose.connection.collection(getStore().collectionName).findOne({ _id: key })` — the hand-built `ratelimit_${STORE_NAME}` disappears, so a prefix change can never diverge from the store. `'bag_codes'` is listed in `APP_LIMITER_NAMES` (the lockout constructs its store directly so that it runs under test, `L6-8`). **Test:** with `RATE_LIMIT_COLLECTION_PREFIX=rl_test_` (module reload) `registerFailure`/`isLockedOut` round-trip through `rl_test_bag_codes`.
+
+#### 7.6.5 `access_gate_enabled` and single ownership
+
+Seeding moves to corporate's boot (7.2.2) and its seed script; the affiliate's `scripts/seed-access-gate.js`, `scripts/whitelist-access-ip.js`, the four `Access*` models and `MediatorAccess` are deleted in B13 (`tests/unit/branding-guard.test.js` allowlist updated accordingly). Corporate is the only process that registers those five models and the only ensure-indexes owner.
+
+#### 7.6.6 Environment keys introduced or re-purposed by Item B
+
+| App | Key | Value |
+|---|---|---|
+| corporate | `RATE_LIMIT_COLLECTION_PREFIX` | `ratelimit_corp_` |
+| corporate | `SESSION_COOKIE_NAME` | `crhsent.sid` (D14b) |
+| corporate | `LOG_DIR` | `/var/www/crhs-corporate/logs` (uncomment `.env.example:65`) |
+| corporate | `LOG_SERVICE_NAME` | `crhs-corporate` |
+| corporate | `CORS_ORIGIN` | empty |
+| affiliate | `CORS_ORIGIN` | `https://portal.atxwashdryfold.com` (B11; replaces the inline list) |
+| affiliate | `RATE_LIMIT_COLLECTION_PREFIX`, `SESSION_COOKIE_NAME` | **unset** — defaults keep the live collection and the code passes `'portal.sid'` |
+| affiliate | `LOG_DIR=logs`, `LOG_SERVICE_NAME=crhs-portal` | already present (`.env.example:97,101`) |
+| both | `RATE_LIMIT_TTL_INDEX` | unset (TTL createIndex stays off on ADB) |
+
+Production `.env` edits remain confirm-first.
+
+---
+
+### 7.7 Item B acceptance criteria ("no duplicated functionality anywhere")
+
+1. `diff -r` between any affiliate `server/` file and a web-core `src/` file finds no shared implementation: the only affiliate modules that mention `@crhs/web-core` are the six composition modules (`server/models/SystemConfig.js`, `server/middleware/rateLimiting.js`, `server/config/csrf-config.js`, `server/services/email/{transport,template-manager}.js`, `server/utils/cspHelper.js`) and direct call sites; zero 5-line shims remain (B14).
+2. The 12 duplicate suites are gone; the affiliate suite runs green without `--forceExit`; web-core's suite is green at the `v0.2.0` count recorded in the tag; corporate's suite is green with `webcore.smoke` = 26.
+3. `tests/brandNeutral.test.js` in web-core: zero matches for the host/brand regex across `src/`.
+4. On both boxes, in both consumer dirs: `wc.SystemConfig.base === require('mongoose')` and driver identity `true`; `mongoose.modelNames()` contains one `SystemConfig`; corporate logs `Access gate cache loaded:`.
+5. Live DB: `db.getCollectionNames()` shows `ratelimit_corp_*` and `sessions_corporate` for corporate, unchanged `ratelimit_*`/`sessions` for the portal, no `rate_limits`, no orphaned `ratelimit_{contact_*,concierge,email_verify,upload,admin_op}` after the portal sweep's `--drop-orphans`; `systemconfigs` holds exactly the 3 core + 24 app keys with no `WaveMAX` substring in any `description`.
+6. Admin "Reset rate limits" with a seeded bucket reports `deletedCount ≥ 1`; `logs/audit.log` in the affiliate repo dir (not `node_modules/`) receives a `CSRF_VALIDATION_FAILED` event; corporate's `combined.log` lives under `/var/www/crhs-corporate/logs`.
+7. Marketing hosts emit exactly the `marketing` profile header of 7.2.5; the portal's re-captured golden matches its live header; `frame-ancestors 'self'` on every host.
+8. Both pm2 apps online with restart counters flat across the post-deploy hour; no `ORA-04036`.
+
+---
+
+## 8. Edge and infrastructure + 9. Cutover sequence
+
+### 8. Edge and infrastructure
+
+Everything in this section lives on the two OCI boxes, in Cloudflare, on the Mailcow host or in Firebase — not in any repo. The boxes' nginx trees are byte-identical today (md5 of every `sites-enabled/*`, `snippets/*.conf`, `conf.d/*.conf` file matched on oci1 and oci2 on 2026-09-09; the only difference is `conf.d/zz-origin-box.conf`, which stamps `X-Origin-Box: oci-phx` on oci1 and `oci-phx-ad1` on oci2 by design). Every edit below is therefore applied to both boxes in lockstep, oci1 first.
+
+#### 8.1 Layer ownership after cutover
+
+| Concern | Owner after cutover | Evidence today |
+|---|---|---|
+| TLS termination, LB, cache | Cloudflare (Full-strict, Always-HTTPS, one pool `wavemax-oci` `1e3795c02e98b9506cfab578c9cb7c97`, both origins active-active) | live pool read 2026-09-09: oci1 161.153.71.201 + oci2 144.24.4.202, both `healthy:true` |
+| Host → process selection | nginx on each box (`include /etc/nginx/sites-enabled/*`, `nginx.conf:60`) | `portal.atxwashdryfold.com` → `snippets/proxy-node-app.conf` → :3000; `crhsent.com` → inline `proxy_pass http://localhost:3001` |
+| `www.<host>` → apex 301 | nginx (`return 301 https://<apex>$request_uri`, path+query preserved) — unchanged | verified externally with `x-origin-box` present (followups[4]) |
+| Unknown Host / raw IP | nginx `default_server` → 444 (new, §8.2.6) | today: first `listen 443 ssl` block in include order = `www.atxwashateria.com` → 301 `https://atxwashateria.com$request_uri` (no `default_server` directive exists anywhere; `sites-available/default` is not enabled) |
+| Legacy app paths on marketing hosts (B7) | crhs-corporate Express 301 → `https://portal.atxwashdryfold.com` + `req.originalUrl` | the affiliate app's own precedent `server.js:207-214` |
+| Store-IP → portal 302 (D7) | crhs-corporate Express, keyed on `cf-connecting-ip` (web-core `src/utils/clientIp.js:44`) | today `server.js:958-965` + `partnerLanding.js:119` on :3000 |
+| `wavemax.promo` | nobody — DNS-dark by decision (authoritative NODATA; zone `2f9f47cdcb4a3b2582e074dfc983a368` keeps only MX/SPF/mail records) | followups[4]; the retired vhost sits in `/etc/nginx/removed-2026-08-26/` and stays there |
+| Mail | Mailcow on Ultahost 158.62.198.7 (`mail.crhsent.com`) — unchanged | the `mail.*` :8443 blocks on OCI proxy a staged, un-flipped Mailcow and are left untouched |
+
+#### 8.2 nginx (both boxes)
+
+##### 8.2.1 Inventory and the two facts every edit depends on
+
+- `sites-enabled` holds exactly five regular files (not symlinks): `atxwashateria.com` (md5 `21788c53…`), `atxwashdryfold.com` (`71814c09…`), `crhsent.com` (`f668927a…`), `portal.atxwashdryfold.com` (`16566383…`, mtime 2026-09-08 16:17 UTC), `rundberglaundry.com` (`393466fb…`). There is no `runberglaundry.com` file and no `wavemax` file (OCI-PRIMARY-INSTALL.md:78-84 is stale on both counts).
+- Each marketing apex block is the same 5-block file: `:80 apex+mail` (ACME + 301 https), `:80 www` (301 apex), `:443 www` (301 apex), `:443 apex` (gate check → maintenance include → **`location = / { rewrite ^ /austin-tx/… last; }`** → `include /etc/nginx/snippets/proxy-node-app.conf;`), `:443 mail.*` (→ `https://localhost:8443`). The rewrite targets are `/austin-tx/` (rundberglaundry, atxwashateria) and `/austin-tx/wash-dry-fold/` (atxwashdryfold). Those paths were deleted in Phase 4b; today they are masked because the app answers by Host (`partnerLanding.js:115-138`, `server.js:958-965`). The content app has no `/austin-tx` handler, so **the rewrite must die in the same reload that retargets the proxy**, or every bare `/` on a flipped host 404s.
+- **Backups never go inside `sites-enabled`.** `nginx.conf:60` is `include /etc/nginx/sites-enabled/*;` — the glob loads every file, so `rundberglaundry.com.bak` would load as a second `server_name rundberglaundry.com` block (nginx warns `conflicting server name … ignored` and keeps the first one it parsed, which is whichever sorts first). This bit on 2026-09-08 during the portal-vhost edit. Backups go to `/etc/nginx/backups/<UTC-timestamp>/`, outside every include path.
+- nginx is **1.18.0** on both boxes (`nginx -v`): `ssl_reject_handshake` (1.19.4+) is not available, so the 444 default block must carry a certificate for the TLS handshake to complete.
+- `conf.d/wavemax-gate.conf` (`geo $allowed { default 1; … }`) makes `$access_allowed` always 1; the `if ($access_allowed = 0) { return 503; }` lines and `snippets/wavemax-maintenance.conf` are inert and are **left alone in the flip** (minimal diff). Note for Phase 2 hygiene: the maintenance snippet's 503 body carries the bare `WaveMAX` mark ("WaveMAX is in invite-only mode") — unreachable today, but it is litigation residue and should be deleted with the gate in the Phase 2 nginx hygiene pass (open question 3).
+
+##### 8.2.2 New file: `/etc/nginx/snippets/proxy-node-content.conf`
+
+Sibling of `proxy-node-app.conf` (md5 `f6309bc3…`, header set verified live); identical header semantics so the content app sees the same `Host`, `X-Forwarded-*` and `X-Original-URI` the portal app does.
+
+```nginx
+# Proxy to the crhs-corporate content app on localhost:3001 — the four marketing
+# hosts (rundberglaundry.com, runberglaundry.com, atxwashateria.com,
+# atxwashdryfold.com). crhsent.com proxies to :3001 inline in its own vhost.
+# Use inside an HTTPS server block. Header set is identical to
+# proxy-node-app.conf (:3000, portal only) so both apps see the same request shape.
+location / {
+    proxy_pass http://localhost:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Original-URI $request_uri;
+    proxy_cache_bypass $http_upgrade;
+}
+```
+
+`snippets/cloudflare-real-ip.conf` (`real_ip_header CF-Connecting-IP; real_ip_recursive on;` over the CF ranges) is included by every apex block, so `$remote_addr` is already the visitor IP; the raw `CF-Connecting-IP` header is forwarded untouched, which is what web-core's `clientIp` reads.
+
+##### 8.2.3 Edited apex blocks — `rundberglaundry.com`, `atxwashdryfold.com`, `atxwashateria.com`
+
+The edit to each file is exactly two hunks inside the `:443` apex block: (1) swap the include, (2) delete the four-line rewrite (its comment plus the three-line `location = /`). Nothing else in the file changes — the `:80` blocks, the two `www` 301 blocks and the `mail.*` :8443 block are byte-identical before and after. Applied with an indent-anchored sed so the file-header comment (which also contains the words "Default route") is not touched:
+
+```bash
+HOST=rundberglaundry.com          # then atxwashateria.com, then atxwashdryfold.com — one host per step (§9.4)
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+sudo mkdir -p /etc/nginx/backups/$TS
+sudo cp -a /etc/nginx/sites-enabled/$HOST /etc/nginx/backups/$TS/$HOST
+sudo sed -i \
+  -e 's#include /etc/nginx/snippets/proxy-node-app.conf;#include /etc/nginx/snippets/proxy-node-content.conf;#' \
+  -e '/^    # Default route → Austin franchise/d' \
+  -e '/^    location = \/ {$/,/^    }$/d' \
+  /etc/nginx/sites-enabled/$HOST
+sudo diff /etc/nginx/backups/$TS/$HOST /etc/nginx/sites-enabled/$HOST   # MUST be exactly: -4 lines (comment + location block), -1/+1 include
+sudo nginx -t && sudo nginx -T | grep -c "server_name $HOST;"          # MUST print 1 (duplicate-block guard)
+```
+
+Resulting `:443` apex block for `rundberglaundry.com` (the other two are identical except `server_name` and `access_log` name):
+
+```nginx
+# HTTPS — apex → crhs-corporate content app (:3001).
+server {
+    server_name rundberglaundry.com;
+
+    include /etc/nginx/snippets/cloudflare-real-ip.conf;
+    access_log /var/log/nginx/rundberglaundry.com.access.log combined;
+
+    if ($access_allowed = 0) {
+        return 503;
+    }
+    include /etc/nginx/snippets/wavemax-maintenance.conf;
+
+    include /etc/nginx/snippets/proxy-node-content.conf;
+
+    listen 443 ssl;
+    ssl_certificate /etc/ssl/cloudflare/origin.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/origin.key;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+```
+
+Untouched in every file: the `www.<host>` `:80` and `:443` blocks (`return 301 https://<apex>$request_uri;`) and the `mail.<host>` `:443 ssl http2` block proxying `https://localhost:8443`. The `access_log … combined` line is kept as-is; note `combined` logs the full request line including query — the reason the expediter device is re-pointed BEFORE the rundberglaundry flip (§9.2, item P-11).
+
+##### 8.2.4 New file: `/etc/nginx/sites-enabled/runberglaundry.com`
+
+The typo-guard domain has a CF zone (`ef0cdde7562734ddeda436bda564f6e7`) and an LB on the same pool but no vhost, so today it hits the implicit default block and 301s to `atxwashateria.com`. Per D8 it serves the partner page like the other three (canonical `https://atxwashdryfold.com` in the page, so no SEO duplication). No `mail.runberglaundry.com` block: no web service is meant to answer that name on OCI (open question 4). Gate/maintenance includes are omitted — they are no-ops (`geo $allowed default 1`).
+
+```nginx
+# runberglaundry.com — typo-guard for rundberglaundry.com. Serves the same
+# content app (:3001) as the other marketing hosts; the pages carry
+# rel=canonical https://atxwashdryfold.com/ so this host is never canonical.
+# www → apex owned here (nginx), matching the sibling vhosts.
+
+server {
+    listen 80;
+    server_name runberglaundry.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 80;
+    server_name www.runberglaundry.com;
+    return 301 https://runberglaundry.com$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name www.runberglaundry.com;
+
+    ssl_certificate /etc/ssl/cloudflare/origin.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/origin.key;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 301 https://runberglaundry.com$request_uri;
+}
+
+server {
+    server_name runberglaundry.com;
+
+    include /etc/nginx/snippets/cloudflare-real-ip.conf;
+    access_log /var/log/nginx/runberglaundry.com.access.log combined;
+
+    include /etc/nginx/snippets/proxy-node-content.conf;
+
+    listen 443 ssl;
+    ssl_certificate /etc/ssl/cloudflare/origin.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/origin.key;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+```
+
+The CF origin certificate (12 SANs, 15-year) already covers `runberglaundry.com`/`www` — OCI-PRIMARY-INSTALL.md:80 bundled this vhost with the same cert on 2026-05-23.
+
+##### 8.2.5 New file: `/etc/nginx/sites-enabled/00-default.conf` (default_server → 444)
+
+```nginx
+# Catch-all for any Host not matched by an explicit server block: direct-IP
+# probes, retired names (wavemax.promo, lb-test.rundberglaundry.com), scanner
+# noise. 444 closes the connection without a response.
+#
+# Safe for the Cloudflare LB monitor be6953d2e0cfd7b40c4f414b5ddf20d9: it sends
+# a real Host header (verified via the account API 2026-09-09; repointed to
+# portal.atxwashdryfold.com at gate G1) and never lands here. If that monitor is
+# ever recreated, it MUST keep header.Host set — an IP-Host probe would 444 and
+# mark BOTH origins unhealthy.
+#
+# nginx 1.18.0 has no ssl_reject_handshake, so the TLS block needs a cert for
+# the handshake to complete before the 444. IPv4 only, matching the sibling
+# vhosts (none of them listen on [::]:443; CF reaches the origins over IPv4).
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+
+    ssl_certificate /etc/ssl/cloudflare/origin.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/origin.key;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    return 444;
+}
+```
+
+Behaviour change it introduces (deliberate): `Host: 161.153.71.201`, `127.0.0.1`, `wavemax.promo`, `lb-test.rundberglaundry.com` go from `301 https://atxwashateria.com/…` to a closed connection. `runberglaundry.com` is unaffected because §8.2.4 lands in the same reload (§9.4 step 1). This file is installed with the first Phase 1 step, not in Phase 0b: installing it earlier would 444 `runberglaundry.com` for the interval before its vhost exists, and it must be live before the three real hosts flip so any mis-routed Host during Phase 1 fails closed instead of reaching `:3000` and `locationQuarantine`'s franchisor redirect (`quarantineConfig.js:13-14`).
+
+##### 8.2.6 Apply / verify / rollback procedure (per box, per step)
+
+```bash
+# 0. Pre-flight (once per box, before Phase 1)
+sudo nginx -t
+sudo md5sum /etc/nginx/sites-enabled/* /etc/nginx/snippets/*.conf      # compare oci1 vs oci2 — must match except zz-origin-box.conf
+sudo ls /etc/nginx/sites-enabled | grep -E '\.(bak|orig|save)' && echo "STOP: stray file in sites-enabled"   # must print nothing
+
+# 1. Backup OUTSIDE sites-enabled, then write/edit (§8.2.2–8.2.5)
+TS=$(date -u +%Y%m%dT%H%M%SZ); sudo mkdir -p /etc/nginx/backups/$TS
+sudo cp -a /etc/nginx/sites-enabled /etc/nginx/snippets /etc/nginx/backups/$TS/
+
+# 2. Validate and reload (reload, never restart — keeps live connections)
+sudo nginx -t && sudo systemctl reload nginx
+
+# 3. Verify on-box through nginx (SNI + Host via --resolve; -k because the origin cert is a CF origin cert)
+curl -sk --resolve $HOST:443:127.0.0.1 -o /dev/null -w '%{http_code} %{content_type} %{redirect_url}\n' https://$HOST/
+curl -sk --resolve $HOST:443:127.0.0.1 -o /dev/null -w '%{http_code} %{redirect_url}\n' "https://$HOST/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef"
+curl -sk --resolve www.$HOST:443:127.0.0.1 -o /dev/null -w '%{http_code} %{redirect_url}\n' "https://www.$HOST/x?y=1"   # 301 https://$HOST/x?y=1 (unchanged)
+curl -sk --resolve portal.atxwashdryfold.com:443:127.0.0.1 -o /dev/null -w '%{http_code}\n' https://portal.atxwashdryfold.com/health   # 200 (unchanged)
+
+# 4. Rollback (instant): restore the one file from the backup dir and reload
+sudo cp -a /etc/nginx/backups/$TS/sites-enabled/$HOST /etc/nginx/sites-enabled/$HOST && sudo nginx -t && sudo systemctl reload nginx
+```
+
+`nginx -t` must print `syntax is ok` / `test is successful` with **zero** `conflicting server name` warnings; `sudo nginx -T | grep -c 'server_name rundberglaundry.com;'` must be 1 after every edit. All nginx edits are production config edits: **confirm-first** with the human before each `systemctl reload`.
+
+#### 8.3 Cloudflare
+
+##### 8.3.1 Live state (read via the account token 2026-09-09)
+
+Monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` ("wavemax web /health"): `type:https`, `method:GET`, `path:/health`, `header:{Host:["rundberglaundry.com"]}`, `expected_codes:"200"`, `expected_body:""`, `follow_redirects:false`, `allow_insecure:true`, `interval:60`, `retries:2`, `timeout:5`. Pool `1e3795c02e98b9506cfab578c9cb7c97` (`wavemax-oci`) → origins `oci1 161.153.71.201`, `oci2 144.24.4.202`, both `enabled:true, healthy:true`. Because the probe carries a real Host, it hits the `rundberglaundry.com` apex block (its per-server access log holds 100% of the Cloudflare-Traffic-Manager hits; the global log has zero — followups[6]), and today the affiliate app's `partnerLanding` answers it with 200 HTML (`/health` is not in `isExempt`, `partnerLanding.js:90-113`), not the JSON at `server.js:413-424`. `expected_body` is empty, so any 200 satisfies it.
+
+##### 8.3.2 Gate G1 — repoint the monitor Host to `portal.atxwashdryfold.com`
+
+Why: after `rundberglaundry.com` flips to :3001 the pool's health would be decided solely by crhs-corporate; a crash-looping `wavemax` (the ORA-04036 class) would stay in rotation and portal users would get 502s from that origin. Repointing makes the monitor exercise the real `server.js:413-424` JSON route through the portal vhost (gate `geo $allowed default 1` → allowed). The inverse blind spot (corporate unmonitored by the LB) is accepted — the LB plan caps at 2 origins and one pool (DEFERRED: portal HA).
+
+```bash
+CF=https://api.cloudflare.com/client/v4; ACCT=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2e0cfd7b40c4f414b5ddf20d9
+AUTH="Authorization: Bearer $(tr -d '\n\r ' < ~/.cf_api_token)"
+# PATCH = partial update; only these two fields change. Everything else in §8.3.1 is preserved.
+curl -s -X PATCH "$CF/accounts/$ACCT/load_balancers/monitors/$MON" -H "$AUTH" -H 'Content-Type: application/json' \
+  --data '{"description":"portal web /health","header":{"Host":["portal.atxwashdryfold.com"]}}'
+# Verify the object
+curl -s "$CF/accounts/$ACCT/load_balancers/monitors/$MON" -H "$AUTH" | python3 -c 'import sys,json;m=json.load(sys.stdin)["result"];assert m["header"]=={"Host":["portal.atxwashdryfold.com"]} and m["expected_body"]=="" and m["expected_codes"]=="200" and m["follow_redirects"] is False and m["path"]=="/health" and m["type"]=="https";print("monitor OK")'
+# Wait 3 intervals (180 s), then assert both origins still healthy
+sleep 180; curl -s "$CF/accounts/$ACCT/load_balancers/pools/1e3795c02e98b9506cfab578c9cb7c97" -H "$AUTH" | python3 -c 'import sys,json;p=json.load(sys.stdin)["result"];assert all(o["healthy"] for o in p["origins"]),p["origins"];print("pool OK")'
+```
+
+On-box confirmation (each box): `sudo tail -n 300 /var/log/nginx/portal.atxwashdryfold.com.access.log | grep -c Cloudflare-Traffic-Manager` > 0 and the count in `rundberglaundry.com.access.log` stops growing. Rollback: the same PATCH with `{"header":{"Host":["rundberglaundry.com"]}}` (only meaningful before the rundberglaundry flip). Record the new Host in memory `production_systems_access.md` §1 and fix `docs/ops/HA-FAILOVER-PLAN.md:29,51` (which describes a `/api/health` + `database: connected` monitor that never existed).
+
+##### 8.3.3 Post-flip cache purge, per zone
+
+Marketing HTML is uncacheable (`partnerLanding.js:123,130,136` `no-store` today; `crhsentHandler.js:35` `no-cache, no-store, must-revalidate` after), but `/assets/*` is served `immutable, max-age=1y` from both origins, so the edge may hold app-origin bytes for a URL the content app now serves differently. After BOTH boxes are flipped for a host, purge that zone:
+
+| Host | Zone id |
+|---|---|
+| runberglaundry.com | `ef0cdde7562734ddeda436bda564f6e7` |
+| atxwashateria.com | `1125550accfbb111c00197318a179fef` |
+| rundberglaundry.com | `f9973da433e827fe393d6b28adba7593` |
+| atxwashdryfold.com | `0510e274f6f53b040032c2d83f55ccc9` |
+
+```bash
+curl -s -X POST "$CF/zones/$ZONE/purge_cache" -H "$AUTH" -H 'Content-Type: application/json' --data '{"purge_everything":true}'
+# expect {"success":true,...}; on {"code":10000} or {"code":1000} the token lacks Cache Purge → purge from the dashboard
+# (zone → Caching → Configuration → Purge Everything) and note the gap in production_systems_access.md.
+```
+
+**Cache Purge is untested on this token** — the first purge (runberglaundry.com, lowest value) doubles as the permission test. `portal.atxwashdryfold.com` needs no purge (its bytes do not change at the flip). "Manage robots.txt" stays OFF on all six zones (origin-served robots keeps SEO 100).
+
+##### 8.3.4 Token facts (probed 2026-09-09) and what is NOT done at the edge
+
+- `~/.cf_api_token` is account-owned: `GET /user/tokens/verify` → `code 1000 Invalid API Token` (expected for account tokens; verify with `GET /accounts/$ACCT/tokens/verify`). Account LB monitors and pools: read works (§8.3.1). `GET /zones/f9973da…/load_balancers` → `code 10000 Authentication error` — **no Zone Load Balancers Read**, so the per-hostname LB objects (including the portal LB `a910f800…`) cannot be listed or edited with it. Nothing in this cutover needs them.
+- No DNS, LB, pool or steering change. Host → port selection is nginx-side only.
+- `wavemax.promo` stays dark: do not add A/AAAA/CNAME records; do not re-enable `/etc/nginx/removed-2026-08-26/wavemax`. (Re-adding DNS without a vhost would route bag QRs into the 444 block after §8.2.5.)
+- No edge Redirect Rule for the B7 paths is built; the Express rule in crhs-corporate is the single owner (open question 1 records the defense-in-depth option).
+
+#### 8.4 Mailcow (158.62.198.7, `/opt/mailcow-dockerized`)
+
+| Item | State | Action |
+|---|---|---|
+| Aliases `support@`, `privacy@`, `legal@`, `affiliates@rundberglaundry.com` → `admin@crhsent.com` | **DONE 2026-09-09** | none; the legal pages' addresses no longer bounce (they still consolidate to crhsent.com identities under D3a) |
+| `pickups@atxwashdryfold.com` (alias) → `pickups@rundberglaundry.com` (mailbox; last login 2026-07-31 via SOGo, never IMAP — followups[3]) | **OPEN — human** | change the alias `goto` (Mailcow admin `https://mail.crhsent.com/` → Mail Setup → Aliases → `pickups@atxwashdryfold.com`) to a mailbox someone reads; the only mailbox with recent logins is `administrator@wavemax.promo` (2026-09-02, the target behind `admin@crhsent.com`). `goto` is comma-separated, so the pickups mailbox can be kept as a second recipient. Do the same for the `pickups@rundberglaundry.com` self-row if any code path still defaults there. Must be closed before Phase 1 step 4 (the public form host) — a lead that lands unread is worse than the old page. |
+| Corporate SMTP identity: prod `EMAIL_USER=EMAIL_FROM=no-reply@wavemax.promo`; `GATE_FROM='"WaveMAX" <admin@rundberglaundry.com>'` (`crhs-corporate/server/middleware/accessGate.js:54`) works only via the single `sender_acl` row `no-reply@wavemax.promo → admin@rundberglaundry.com` | change in Phase 0 (P-8) | corporate `.env`: `EMAIL_USER=EMAIL_FROM=no-reply@crhsent.com` (existing mailbox), `EMAIL_HOST=158.62.198.7`, `EMAIL_PORT=587`, `EMAIL_TLS_SERVERNAME=mail.crhsent.com`; code: `GATE_FROM` → `'"CRHS Enterprises" <no-reply@crhsent.com>'` and the relative `<img src="/assets/images/brand/logo.png">` at `accessGate.js:250` → absolute `${BASE_URL}/assets/images/brand/logo.png`, alt text without the bare mark. **sender_acl consequence:** From now equals the authenticated login, so no ACL row is needed; leaving `GATE_FROM` on `admin@rundberglaundry.com` while switching the login would reproduce the 2026-08-24 `553 5.7.1 Sender address rejected: not owned by user` outage. The old ACL row becomes unused (delete at leisure; the `no-reply@wavemax.promo` mailbox itself stays — it is the staged OCI Mailcow relay login). |
+| Intake recipients (D2a) | Phase 0 (P-7) | corporate `.env`: `PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com`, `AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com`; both notifications carry `Reply-To: <lead email>`; service defaults, `partner-inquiry.js:101,106` fallbacks and `partner.form.errGeneric/errNetwork` in all four locales say `pickups@atxwashdryfold.com`. |
+| Ops alerts (affiliate app) | Phase 0b | `ALERT_EMAIL=admin@crhsent.com` explicitly on both boxes (today falls to `DEFAULT_ADMIN_EMAIL=admin@wavemax.promo` → `admin@rundberglaundry.com`, last login 2026-08-10). |
+
+Verification of a delivered intake mail is done on the mail host: `sudo ssh wavemax-promo 'docker compose -f /opt/mailcow-dockerized/docker-compose.yml logs --since 10m postfix-mailcow | grep -E "status=(sent|bounced)"'` showing `to=<pickups@atxwashdryfold.com>` (orig) → `status=sent`, then open the message and confirm the `Reply-To:` header equals the lead's address.
+
+#### 8.5 Firebase (project `wavemax-bag-registration`)
+
+- **DONE 2026-09-09:** `portal.atxwashdryfold.com` added to Authentication → Settings → Authorized domains. This closed the already-live gap (every label printed since 2026-08-23 and every emailed claim link encode the portal origin; the SMS step was hard-blocked there — followups[2]).
+- Keep `rundberglaundry.com` / `www.rundberglaundry.com` authorized until Phase 1 step 3 (rundberglaundry flip) has verified that a real pre-8/23 label 301s to portal and completes SMS verification there. Their removal is an optional Phase 2 hardening step (§9.5, item 2-13); when done, update `docs/setup/firebase-phone-verification.md:31-33` to list `portal.atxwashdryfold.com` + `localhost`.
+- Test tool: a Firebase test phone number (bypasses throttle and real SMS — memory `firebase_phone_auth_prod.md`) on `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=<unclaimed token>`.
+
+#### 8.6 Process layout on the boxes (unchanged shape, new roles)
+
+| | oci1 161.153.71.201 (PHX-AD-2, job leader) | oci2 144.24.4.202 (PHX-AD-1) |
+|---|---|---|
+| `wavemax` pm2 cluster ×2, :3000, `/var/www/wavemax/wavemax-affiliate-program` | serves `portal.atxwashdryfold.com` only (after Phase 1) | same |
+| `crhs-corporate` pm2 cluster ×2, :3001, `/var/www/crhs-corporate` (boxes run 0.1.1; repo is 0.1.2 — Phase 0a brings them forward) | serves `crhsent.com` + the four marketing hosts | same |
+| `@crhs/web-core` source at `/var/www/crhs-web-core` | delivered by `rsync` from the dev checkout, then `npm install --install-links` in BOTH consumers (install-links packs and copies, so a re-install is required after every rsync) | same |
+| cron | `/etc/cron.d` holds only `e2scrub_all` — there is no Hibu cron to remove; `scripts/ops/refresh-hibu.sh` is a repo-only deletion | same |
+
+Deploy commands used throughout §9 (one ssh invocation per box; `SHA` = the pushed commit):
+
+```bash
+# affiliate
+cd /var/www/wavemax/wavemax-affiliate-program && git fetch --quiet && git reset --hard origin/main && npm install --install-links --no-audit --no-fund && pm2 reload wavemax --update-env && git rev-parse HEAD
+# corporate
+cd /var/www/crhs-corporate && git fetch --quiet && git reset --hard origin/main && npm install --install-links --no-audit --no-fund && pm2 reload crhs-corporate --update-env && git rev-parse HEAD
+# web-core (from the dev machine, per box)
+rsync -az --delete --exclude node_modules --exclude .git -e 'ssh -i ~/.ssh/oci_wavemax' /mnt/c/Users/rickh/GitHub/crhs-web-core/ ubuntu@<box-ip>:/var/www/crhs-web-core/
+```
+
+`.env` edits on either app are production config edits: **confirm-first**, byte-identical across boxes except `RUN_BACKGROUND_JOBS`, and the affiliate `.env` backups live in `/var/www/wavemax/env-backups/` (never in the repo tree — memory `gitignore_env_bak_exposure_2026-08-24.md`); create `/var/www/crhs-corporate-env-backups/` for corporate the same way.
+
+---
+
+### 9. Cutover sequence
+
+Principles: (1) every step has a verify command and an instant rollback; (2) the two boxes move in lockstep, oci1 → verify → oci2, never both at once; (3) Phase 1 flips ONE host per step; (4) the affiliate app keeps `partnerLanding`, the store fall-through and `locationQuarantine` until Phase 2 so `proxy_pass` back to :3000 is always a valid rollback; (5) nothing that rewrites production `.env` or nginx runs without the human's go-ahead.
+
+#### 9.1 Phase 0 — prerequisites and gates
+
+Code (all repos, in this order; each is its own ≤500-line PR with a failing test first):
+
+- [ ] **P-1 web-core release (Item B topology + core fixes needed by the cutover):** `mongoose`, `express-session`, `connect-mongo`, `express-rate-limit` → `peerDependencies` (kept as devDependencies for the 541 tests), direct `mongodb` dropped/peered; `buildSessionMiddleware({ collectionName, cookieName })` returns `{ middleware, store }`; `RATE_LIMIT_COLLECTION_PREFIX` + `LIMITER_NAMES` + `sweepExpired(prefix)`; `buildCspDirectives` profile/host parameter with `frameAncestors` override; `auditLogger` honours `LOG_DIR`; stale legal copies deleted; `storeIPs`/`previewUnlockCookie`/3 dead limiters deleted. Tag the release; both consumers regenerate and commit `package-lock.json`; affiliate adds `.npmrc` `install-links=true`.
+- [ ] **P-2 corporate multi-host content app** (host → content-root map; partner page + `/affiliate`; per-host robots/sitemap/security.txt/favicon; `/locales` + `i18n.js`; `/assets` incl. `logo.png`, `logo-wavemax.png` → 410; `/wavemax-affiliate` → 301 `/affiliate`; strict CSP profile; marketing hosts skip session/accessGate/mediatorGate/apiLimiter).
+- [ ] **P-3 G2 — corporate `/health` above session.** Move `app.get('/health', …)` from `crhs-corporate/server.js:80` to immediately after the CSP middleware (after line 58, before `app.use(cors(wc.corsConfig))` at line 62), i.e. above `wc.buildSessionMiddleware` (lines 65-69), because web-core `src/config/sessionStore.js:98` is `saveUninitialized: true` and the monitor probes ~11/s once any marketing host reaches :3001 (the 2026-05-25 incident class). Test in corporate: `GET /health` → 200 `{"status":"ok"}` and no `set-cookie`. Same test added to the affiliate suite against `server.js:413-424`.
+- [ ] **P-4 B7 middleware in corporate**, mounted before accessGate/mediatorGate/crhsentHandler (`server.js:85-87`): for Host ∈ {`rundberglaundry.com`, `runberglaundry.com`, `atxwashateria.com`, `atxwashdryfold.com`} (+`www.` for safety; nginx already collapses www), method GET/HEAD, path ∈ {`/embed-app-v2.html`, `/admin`, `/admin/`, `/operator`, `/operator/`, `/operator-scan-embed.html`, `/scanbag`, `/scanbag/`, `/scanbag-manifest.json`, `/scanbag-sw.js`, `/monitoring-dashboard.html`} plus GET `/api/v1/customers/verify-email/*` → `res.redirect(301, 'https://portal.atxwashdryfold.com' + req.originalUrl)`. Never `/api/*` or `/assets/*` wholesale. Tests: query preserved byte-for-byte for `?route=/claim&bag=<32hex>` and `?route=/order-expediter&k=x`; `POST /api/v1/x` is NOT redirected; `portal.atxwashdryfold.com`/`crhsent.com` Hosts are untouched.
+- [ ] **P-5 D7 store-IP → portal 302 in corporate** (after B7 in mount order; keyed on web-core `clientIp`, entries from `STORE_IP_ADDRESS`/`ADDITIONAL_STORE_IPS`/`STORE_IP_RANGES` via `ipGate.parseList/entryMatches`; marketing hosts only; GET/HEAD; `302 https://portal.atxwashdryfold.com + req.originalUrl`).
+- [ ] **P-6 intake endpoints in corporate:** `POST /api/partner-inquiry`, `POST /api/affiliate-application` (validators lifted from `server/routes/partnerInquiryRoutes.js:11-48` and `affiliateApplicationRoutes.js:12-53`; same `{success,message,errors[]}` shape as `partnerInquiryController.js:15-46`), email relay only, `Reply-To` = lead, recipients from env; locale strings + JS fallbacks aligned to `pickups@atxwashdryfold.com` in en/es/pt/de in the same commit.
+- [ ] **P-7 corporate env keys documented in `.env.example`** and the on-box values prepared (confirm-first when written): `BRAND_DISPLAY_NAME=WaveMAX Austin`, `BASE_URL=https://portal.atxwashdryfold.com` (switch to `https://atxwashdryfold.com` only after P-2's `logo.png` on marketing roots is verified live), `EMAIL_TEMPLATE_ROOT=/var/www/crhs-corporate/templates/email` (corporate-owned copy of `base-template.html`), `EMAIL_USER=EMAIL_FROM=no-reply@crhsent.com`, `EMAIL_PASS`, `EMAIL_HOST=158.62.198.7`, `EMAIL_PORT=587`, `EMAIL_TLS_SERVERNAME=mail.crhsent.com`, `PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com`, `AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com`, `STORE_IP_ADDRESS=72.190.1.227`, `ADDITIONAL_STORE_IPS=<same as affiliate .env>`, `STORE_IP_RANGES=2603:8080:db00:21b9::/64` (copy the affiliate values exactly — memory `admin_clean_url_gate.md:13`), `LOG_SERVICE_NAME=crhs-corporate`, `LOG_DIR=/var/www/crhs-corporate/logs`, `SESSION_COOKIE_NAME=crhsent.sid`, `RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_`; remove `https://wavemax.promo` from `CORS_ORIGIN` and drop `FRONTEND_URL`. Note `crhs-corporate/.env.example:3-4` claims "no dotenv" but `server.js:15` does `require('dotenv').config()` — the `.env` file IS read at boot; fix the comment in the same PR.
+- [ ] **P-8 corporate gate mail From fix** (`accessGate.js:54`, `:250`; §8.4) + `tests/accessGate.test.js:204` updated.
+- [ ] **P-9 affiliate fixes shipped in Phase 0b's PR set:** `ops.js:44,65` → `${BASE_URL}/monitoring-dashboard.html`; cross-link #20 `passwordResetService.js:78` → `${BASE_URL}/embed-app-v2.html?route=/reset-password&token=` (the `/reset-password` clean path is not served and `FRONTEND_URL` still names rundberglaundry.com on both boxes); `.env.example:184` expediter URL → portal; `ALERT_EMAIL` documented.
+- [ ] **P-10 corporate session collection pre-created on ADB** (`db.createCollection('sessions_corporate')` via the admin IP 70.114.167.145 on the ACL) BEFORE the first corporate boot with `collectionName` set — ADB cannot upsert-create the sessions collection the way connect-mongo expects (memory: never `drop()` sessions; use `createCollection`). `ratelimit_corp_*` needs no pre-creation (lookups by `_id`, `createIndex` opt-in and off on ADB).
+
+Ops (human-executed or confirm-first):
+
+- [ ] **P-11 device re-point checklist — executed and ticked BEFORE Phase 1 step 3 (rundberglaundry flip):** (a) store expediter display opened at `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/order-expediter&k=<EXPEDITER_TOKEN>` (token rides the page-load query, `order-expediter-init.js:12`, and would otherwise land in the content vhost's `combined` access log on every reload); (b) kiosk `/operator` home/bookmark → `https://portal.atxwashdryfold.com/operator` (gate is IP-based, host-agnostic — `operatorIpGate.js:23-31`); (c) admin bookmark → `https://portal.atxwashdryfold.com/admin` (`adminIpGate.js:25-34`); (d) uninstall any `/scanbag` PWA installed from rundberglaundry.com and reinstall from `https://portal.atxwashdryfold.com/scanbag` (`scanbag-manifest.json` `scope:/scanbag` binds the install to its origin); (e) if `operator-scan-embed.html` was ever installed as a PWA (`public/manifest-scan.json`, scope `/`), reinstall from portal. Each item is verified by loading it on the device and confirming the address bar shows the portal host.
+- [ ] **P-12 G1 monitor repoint** (§8.3.2) — PATCH, verify object, wait 180 s, pool both healthy, portal access log receiving the probes.
+- [ ] **P-13 Mailcow `pickups@` goto re-point** (§8.4) — closed by the human, or explicitly accepted as "leads land in `pickups@rundberglaundry.com` and someone now reads it" before Phase 1 step 4.
+- [ ] **P-14 DONE items (2026-09-09, do not re-plan):** Firebase Authorized Domains includes `portal.atxwashdryfold.com`; Mailcow aliases `support@/privacy@/legal@/affiliates@rundberglaundry.com` → `admin@crhsent.com`; fresh account-owned CF token installed at `~/.cf_api_token` (Account LB Monitors & Pools read/write verified; no Zone LB Read; Cache Purge untested); prod `BASE_URL=https://portal.atxwashdryfold.com` on both boxes verified 2026-09-08.
+
+Exit criteria for Phase 0: P-1…P-10 merged with green suites in all three repos (`npm test` clean, `madge --circular server/` zero, ESLint clean); P-11…P-13 ticked; P-12's pool check passed. Only then does Phase 0a start.
+
+#### 9.2 Phase 0a — corporate dark deploy on :3001 (both boxes)
+
+"Dark" = nginx still sends every marketing host to :3000; the new corporate build is reachable only by Host-header curls on the box. Nothing public changes.
+
+1. Deliver web-core (rsync, §8.6) to oci1; `npm install --install-links` in `/var/www/crhs-corporate` AND `/var/www/wavemax/wavemax-affiliate-program` (the affiliate must still boot against the new core's peerDependency layout); write the corporate `.env` from P-7 (confirm-first; backup to `/var/www/crhs-corporate-env-backups/`); corporate deploy command (§8.6); assert `git rev-parse HEAD` == pushed SHA.
+2. Boot verification on the box (both required by the BINDING):
+   ```bash
+   cd /var/www/crhs-corporate && node -e "const wc=require('@crhs/web-core');const m=require('mongoose');const MA=require('./server/models/MediatorAccess');console.log(m===wc.SystemConfig.base && MA.base===wc.SystemConfig.base ? 'single mongoose instance' : (process.exitCode=1,'SPLIT INSTANCE'))"
+   pm2 logs crhs-corporate --lines 200 --nostream | grep -m1 'Access gate cache loaded' || grep -rl 'Access gate cache loaded' /var/www/crhs-corporate/logs/ || echo 'STOP: gate cache not loaded'
+   pm2 jlist | python3 -c 'import sys,json;[print(p["name"],p["pm2_env"]["status"],p["pm2_env"]["restart_time"]) for p in json.load(sys.stdin)]'   # record restart counts; re-check after 10 min — must not climb
+   ```
+3. On-box per-host matrix (run for `H` in `rundberglaundry.com runberglaundry.com atxwashateria.com atxwashdryfold.com`; `B=http://127.0.0.1:3001`; `W='-o /dev/null -w %{http_code}\ %{content_type}\ %{redirect_url}\n'`):
+
+   | Check | Command | Must be |
+   |---|---|---|
+   | Home page | `curl -s $W -H "Host: $H" $B/` | `200 text/html` — body contains `<link rel="canonical" href="https://atxwashdryfold.com/">`; `content-security-policy` header contains `'nonce-` and `frame-ancestors 'self'` and its `script-src` lacks `'unsafe-inline'`; `grep -c logo-wavemax` = 0; body equals the content-root file with the nonce substituted (parity test) |
+   | Recruitment page | `curl -s $W -H "Host: $H" $B/affiliate` | `200 text/html`, same CSP assertions |
+   | D5 redirect | `curl -s $W -H "Host: $H" $B/wavemax-affiliate` | `301 … https://$H/affiliate` (or relative `/affiliate`) |
+   | robots | `curl -s -H "Host: $H" $B/robots.txt` | `200 text/plain`; contains `User-agent:` and `GPTBot`; contains no `Content-Signal`; identical on both boxes |
+   | sitemap | `curl -s $W -H "Host: $H" $B/sitemap.xml` | `200 application/xml`; well-formed (`python3 -c 'import sys,xml.dom.minidom as m;m.parseString(sys.stdin.buffer.read())'`) |
+   | security.txt | `curl -s -H "Host: $H" $B/.well-known/security.txt` | `200`; contains `Contact: mailto:`; `grep -ci franchise` = 0 |
+   | favicon / logo | `curl -s $W -H "Host: $H" $B/assets/images/brand/logo.png` | `200 image/png`, `md5sum` = `7f5332b870fe36482e4b8d27f5c9334f` (5137 B) |
+   | DMCA asset | `curl -s $W -H "Host: $H" $B/assets/images/brand/logo-wavemax.png` | `410` — never 200, never 301 |
+   | i18n | `curl -s $W -H "Host: $H" $B/locales/de/common.json` | `200 application/json`; `partner.*` key count equals en/es/pt (parity script) |
+   | B7 bag QR | `curl -s $W -H "Host: $H" "$B/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef"` | `301 … https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=0123456789abcdef0123456789abcdef` (query byte-identical) |
+   | B7 others | `/admin`, `/operator/`, `/scanbag-manifest.json`, `/monitoring-dashboard.html`, `/api/v1/customers/verify-email/abc` | each `301 https://portal.atxwashdryfold.com<same path>` |
+   | B7 negative | `curl -s $W -X POST -H "Host: $H" $B/api/v1/customers/verify-email/abc` and `GET $B/api/v1/anything` | NOT 301 (404) |
+   | D7 store IP | `curl -s $W -H "Host: $H" -H 'CF-Connecting-IP: 72.190.1.227' "$B/?x=1"` | `302 … https://portal.atxwashdryfold.com/?x=1`; same request with `CF-Connecting-IP: 203.0.113.10` → `200` |
+   | Health, no cookie | `curl -si -H "Host: $H" $B/health \| grep -ciE '^set-cookie'` | `0`; status 200 body `{"status":"ok"}`; same with `Host: crhsent.com` |
+   | Unknown Host | `curl -s $W -H 'Host: example.invalid' $B/` | `404` |
+   | crhsent unchanged | `curl -s $W -H 'Host: crhsent.com' $B/` | `200`, `set-cookie` name `__Host-crhsent.sid`, gate behaviour unchanged |
+   | Intake POST | `curl -s -X POST -H "Host: atxwashdryfold.com" -H 'Content-Type: application/json' -H 'CF-Connecting-IP: 203.0.113.10' $B/api/partner-inquiry -d '{"firstName":"Cutover","lastName":"Test","email":"admin@crhsent.com","phone":"5125550100","businessName":"Phase 0a verification","volume":"just-exploring","message":"on-box verification, ignore","source":"cutover-verify"}'` | `{"success":true,…}`; on the mail host `status=sent` to `pickups@atxwashdryfold.com`; the received notification has `Reply-To: admin@crhsent.com`, From `"WaveMAX Austin" <no-reply@crhsent.com>`, logo `<img>` loads (absolute URL). Repeat for `/api/affiliate-application` with `{"firstName":"Cutover","lastName":"Test","email":"admin@crhsent.com","phone":"5125550100","affiliation":"other","transport":"car","source":"cutover-verify"}` → `admin@crhsent.com` |
+   | Validation error | same POST with `"email":"nope"` | `400 {"success":false,"message":"Validation failed","errors":[…]}` |
+4. Repeat 1-3 on oci2. Both boxes must produce identical bodies for `/`, `/affiliate`, `robots.txt`, `sitemap.xml`, `security.txt` (`diff` of the curl outputs after stripping the nonce).
+5. Lighthouse on the dark host is not possible through CF yet; run it locally against a box with `--resolve` is not supported by Lighthouse, so the Lighthouse gate is taken in Phase 1 per host. What IS taken now: `npx lighthouse` against `http://127.0.0.1:3001/` with an `/etc/hosts` entry is out of scope; instead run the moved pages' existing static checks (no external origins, nonce-only scripts, fonts self-hosted).
+
+Rollback: `git reset --hard <previous SHA>` (0.1.2 tree) + `npm install --install-links` + `pm2 reload crhs-corporate --update-env`, restore the `.env` backup. `crhsent.com` is the only live consumer of :3001 during 0a, so the blast radius of a bad 0a is crhsent.com alone.
+
+#### 9.3 Phase 0b — affiliate portal-only hygiene (no visible change)
+
+In this deploy: cross-links #1, #2, #9, #11, #17, #18, #20, #22, #23, #25, #26 (scope §2.2); D4a (`EMBED_PAGES['/']` → `/affiliate-login`, embed-landing retired); D9a (iframe bridges deleted); D12a (portal `robots.txt` `Disallow: /`, no sitemap); D16a golden CSP re-capture (one deliberate reviewed commit); `ALERT_EMAIL` + `FRONTEND_URL` env edits (confirm-first, both boxes, byte-identical). **Explicitly NOT in this deploy:** `partnerLanding` (`server.js:362-363`), the store fall-through (`server.js:958-965`), `locationQuarantine` (`server.js:488,538`), the three marketing pages, the intake routes, `RETIRED_HOSTS` — they are the rollback path for Phase 1 and leave in Phase 2.
+
+Deploy: affiliate command (§8.6) on oci1, verify, then oci2. Verification (through CF, plus on-box):
+
+- [ ] `curl -s -o /dev/null -w '%{http_code}\n' "https://portal.atxwashdryfold.com/?lh=$(date +%s)"` → 200; `https://portal.atxwashdryfold.com/health` → 200 `{"status":"UP",…}` with no `set-cookie`; `robots.txt` → `Disallow: /`; a real unclaimed label URL on portal completes the SMS step with a Firebase test number.
+- [ ] **Rollback path intact (on-box, both boxes):** `curl -s -o /dev/null -w '%{http_code} %{content_type}\n' -H 'Host: atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/` → `200 text/html` (partner page still served by `partnerLanding`); `-H 'Host: rundberglaundry.com'` → 200 (hold page); `-H 'Host: rundberglaundry.com' -H 'CF-Connecting-IP: 72.190.1.227' http://127.0.0.1:3000/anything` → 302 `/embed-app-v2.html` (`server.js:958-965`).
+- [ ] Portal login page loads with zero CSP violations in the browser console (cross-link #1 fix; Playwright config exists).
+- [ ] `pm2 jlist` restart counts flat after 10 minutes on both boxes.
+
+Rollback: `git reset --hard <previous SHA>` + `npm install --install-links` + `pm2 reload wavemax --update-env`; restore the `.env` backup.
+
+#### 9.4 Phase 1 — nginx flip, one host at a time
+
+Order and minimum soak before the next host: **1. `runberglaundry.com`** (canary; also installs `00-default.conf`) → soak ≥ 24 h → **2. `atxwashateria.com`** → soak ≥ 1 h → **3. `rundberglaundry.com`** (bag labels, expediter, admin bookmarks all name this host — P-11 must be ticked) → soak ≥ 24 h → **4. `atxwashdryfold.com`** (the live public partner form; P-13 closed). Each step: oci1 → verify → oci2 → verify → through-CF verify → purge zone → Lighthouse → record.
+
+Per-step procedure (`HOST` set per step):
+
+1. **oci1:** `nginx -t` pre-flight; backup dir; edit per §8.2.3 (steps 2-4) or install §8.2.4 + §8.2.5 (step 1); `nginx -t` (zero warnings; `server_name $HOST;` count = 1); confirm-first; `systemctl reload nginx`.
+2. **oci1 on-box verify** (through nginx, `--resolve $HOST:443:127.0.0.1`, `-k`): `/` → 200 text/html partner page (NOT the "Coming soon" HTML, NOT a 404 — a 404 here means the `/austin-tx` rewrite survived); `/affiliate` → 200; `/robots.txt`, `/sitemap.xml`, `/.well-known/security.txt` → 200; `/embed-app-v2.html?route=/claim&bag=<32hex>` → 301 portal with query; `/wavemax-affiliate` → 301; `-H 'CF-Connecting-IP: 72.190.1.227' /` → 302 portal; `https://www.$HOST/x?y=1` → 301 `https://$HOST/x?y=1`; `https://portal.atxwashdryfold.com/health` → 200 (untouched); `Host: 127.0.0.1` on 443 → curl exit 52/empty reply (444) once `00-default.conf` is in.
+3. **Through CF, pinned to oci1:** `curl -sk --resolve $HOST:443:161.153.71.201 https://$HOST/ -o /dev/null -w '%{http_code}\n'` → 200 (direct-to-origin with SNI; proves the box independently of the LB).
+4. **oci2:** repeat 1-3 with `144.24.4.202`.
+5. **Through CF, both boxes exercised:** run `for i in $(seq 1 8); do curl -sI "https://$HOST/?lh=$RANDOM" | grep -iE '^(HTTP|x-origin-box)'; done` — every response 200 and both `oci-phx` and `oci-phx-ad1` observed (`__cflb` is not sent by curl, so round-robin applies); same loop for `/affiliate`; one bag-QR URL → `301` `location: https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=…`; `https://www.$HOST/` → 301 apex; from the store network (human, phone on store Wi-Fi): `https://$HOST/` → lands on portal (302).
+6. **Purge the zone** (§8.3.3); re-fetch `/assets/css/partner-program.css?v=<current>` through CF and confirm `cf-cache-status: MISS` then `HIT` with the content app's bytes.
+7. **Lighthouse (mobile + desktop, all four categories)** on `https://$HOST/?lh=<ts>` and `https://$HOST/affiliate?lh=<ts>` using the commands in `docs/development/LIGHTHOUSE-QUALITY-BAR.md:20,25` with the host substituted (the doc hardcodes rundberglaundry.com); scores recorded next to the pre-flip baseline; any regression fixed or explained before the next host. Only `atxwashdryfold.com` (canonical, public form) must meet the release bar before step 4 is declared done; the other three must not regress from their pre-flip measurement.
+8. **Soak watch:** `sudo tail -f /var/log/nginx/$HOST.access.log` on both boxes for 5xx and for 404s on `/` or `/austin-tx*` (the rewrite tell); `pm2 jlist` restart counts flat; corporate logs free of `ORA-` errors; `db.sessions_corporate.countDocuments()` not climbing faster than real visitors (the G2 tell).
+
+Step-specific additions:
+
+- **Step 1 (`runberglaundry.com` + `00-default.conf`):** after reload, `curl -sk --resolve wavemax.promo:443:127.0.0.1 https://wavemax.promo/` → empty reply (444) instead of yesterday's 301 to atxwashateria; the CF monitor is unaffected (it carries Host portal — G1); pool stays `healthy:true` at +180 s (§8.3.2 check re-run).
+- **Step 3 (`rundberglaundry.com`):** P-11 ticked; a **real pre-2026-08-23 bag label** scanned with a phone camera lands on `portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=…` and completes SMS verification (Firebase test number); the expediter board reloads without error; `sudo grep -c 'k=' /var/log/nginx/rundberglaundry.com.access.log` shows no new `?k=` requests after the flip (device was re-pointed); the CF monitor keeps hitting portal (its Host is no longer this vhost, so this flip cannot trip it — that was the whole point of G1).
+- **Step 4 (`atxwashdryfold.com`):** a real partner-inquiry submission through the public page → notification `status=sent` to the re-pointed `pickups@atxwashdryfold.com` target with `Reply-To` = the submitted address; thank-you mail to the lead renders the WaveMAX Austin brand and a loading logo.
+
+Per-host instant rollback (either box): `sudo cp -a /etc/nginx/backups/$TS/sites-enabled/$HOST /etc/nginx/sites-enabled/$HOST && sudo nginx -t && sudo systemctl reload nginx` — the :3000 app still carries `partnerLanding`, so the host is back to its pre-flip behaviour within one reload. For step 1, rollback = swap the include in the new file back to `proxy-node-app.conf` (or remove the file; with `00-default.conf` present the host then 444s, which is the pre-existing "no vhost" state minus the accidental atxwashateria 301). `00-default.conf` is rolled back only if the pool goes unhealthy, which G1 makes impossible for the monitor.
+
+Phase 1 is complete when all four hosts are flipped on both boxes, all four zones purged, Lighthouse recorded, and the soak windows have passed with no 5xx. `docs/ops/OCI-PRIMARY-INSTALL.md:74-92` gets a "superseded 2026-09" note and memory `production_systems_access.md` §3 host map is rewritten (marketing hosts → `crhs-corporate` :3001; portal → `wavemax` :3000; monitor Host = portal).
+
+#### 9.5 Phase 2 — app-side deletion (≥ 1 week after step 4), env removal, token rotation
+
+All code changes strict TDD, one concern per PR, ≤ 500-line diffs, move-then-delete; the app suite's 12 duplicate suites are Item B's, not this phase's.
+
+- [ ] **2-1** Delete `partnerLanding` (`server/middleware/partnerLanding.js`, mount `server.js:362-363`), the store fall-through (`server.js:958-965` + comments `:955-957`), `locationQuarantine` + `quarantineConfig` (`server.js:488,538`; the franchisor `CORPORATE_SITE_URL` default at `quarantineConfig.js:13-14` goes with it), `PARTNER_PREVIEW_ALLOWLIST` handling, `/affiliate` + `/wavemax-affiliate` routes (`server.js:753-759`), the three marketing pages, `partner.*` locale keys from all four locales in one commit, marketing CSS/fonts/OG images/flyers, the 450 MB `public/assets/images/locations/*` tree except `austin-tx` if still referenced, `products-placeholder.html`, marketing robots/sitemap variants (`server.js:835-907` → portal-only), marketing origins in CORS (`server.js:289-294`) and `allowedHosts`.
+- [ ] **2-2** Delete the dead retired-host code: `RETIRED_HOSTS` middleware `server.js:207-214`, the three `wavemax.promo` entries in `allowedHosts` `server.js:178-180`, and the unknown-host fallback `server.js:193` → `https://portal.atxwashdryfold.com`; remove the `rundberglaundry.com`/`www` entries from `allowedHosts` (`:175-176`); delete the wavemax assertions in `tests/integration/domainMigration.test.js:17-27` (keep `:28-31` portal-served and the CSP cases). D11a: the app answers 404 for any non-portal Host (new `tests/integration/hostRouting.test.js`).
+- [ ] **2-3** Intake routes/controllers/services + `/api/v1/maps-config` + design-explorer + `/api/concierge` + `@anthropic-ai/sdk` + `build:explorer` deleted (D6a; source archived privately); iframe-bridge minification entries removed from `scripts/build-assets.js:26-27`.
+- [ ] **2-4** Tests per scope §7.1 (partnerLanding/marketingHostFallthrough/locationQuarantine/seoCrawlability/phase4bKeepSet/securityHeaders slices; `tests/unit/scanbag.test.js:60-67` `gate exemptions` block removed; `sensitivePathProbes.test.js` extracted from `locationQuarantine.test.js:342-363`).
+- [ ] **2-5 Production `.env` scrub (confirm-first, both boxes, byte-identical):** remove `QUARANTINE_NON_AUSTIN`, `CORPORATE_SITE_URL`, `EXPLORER_TOKEN`, `ANTHROPIC_API_KEY`, `PARTNER_PREVIEW_ALLOWLIST`, `PARTNER_INQUIRY_RECIPIENT`/`AFFILIATE_APPLICATION_RECIPIENT` (if present), `GOOGLE_PLACES_API_KEY`/`GOOGLE_PLACES_LOCATION_PLACE_ID` (unless PSI measurement still uses the key — then keep and document), `FRONTEND_URL` (folded into `BASE_URL` in P-9), `https://wavemax.promo` from `CORS_ORIGIN`; keep `STORE_IP_*` (gates), `EXPEDITER_TOKEN`, `BASE_URL`, `ALERT_EMAIL`.
+- [ ] **2-6 Rotate `EXPEDITER_TOKEN`:** new 32+ byte random value in both `.env` files → `pm2 reload wavemax --update-env` both boxes → re-open the store display with the new `?k=` → old token confirmed rejected (`expediterGuard.js:19-26`, GET-only stats, so the rotation is cheap).
+- [ ] **2-7** `.env.example` cleaned of `:163-171` quarantine, `:173-179` explorer, `:186-189` Anthropic, `:125-152` Places (per 2-5), expediter URL text.
+- [ ] **2-8 nginx hygiene (confirm-first, both boxes, backups outside sites-enabled):** delete `conf.d/wavemax-gate.conf`, the `if ($access_allowed = 0)` blocks and `include …/wavemax-maintenance.conf` lines in `rundberglaundry.com`, `atxwashdryfold.com`, `atxwashateria.com`, `portal.atxwashdryfold.com`, then delete `snippets/wavemax-maintenance.conf` (bare "WaveMAX" mark in its 503 body); fix the stale file-header comments; `nginx -t` + reload; on-box matrix re-run. (Open question 3 gates this.)
+- [ ] **2-9** Docs: `HA-FAILOVER-PLAN.md:29,51`, `OCI-PRIMARY-INSTALL.md:74-92`, `PHASE4A-CUTOVER-RUNBOOK.md` rollback text, `LIGHTHOUSE-QUALITY-BAR.md:20,25,42,122` (portal and content baselines separately), `crhs-corporate/deploy/nginx-crhsent.conf` rollback comment (":3000 still ships the crhsent handler" is false since `e2107288`), memory files.
+- [ ] **2-10** Corporate: delete the temporary tolerance for both apps answering the marketing hosts (none should exist — the app now 404s them), and confirm `tests/server.integration.test.js:92-97` covers the five served hosts + unknown → 404.
+- [ ] **2-11** Affiliate models `server/models/Access{Click,Gate,Request,Whitelist}.js` deleted; `scripts/seed-access-gate.js` + `scripts/whitelist-access-ip.js` moved to corporate (shared DB); `MediatorAccess` single-owner (corporate `ensure-indexes`).
+- [ ] **2-12** `scripts/ops/refresh-hibu.sh` deleted (no cron exists on the boxes — verified `/etc/cron.d` holds only `e2scrub_all`).
+- [ ] **2-13 (optional hardening)** Remove `rundberglaundry.com`/`www` from Firebase Authorized domains after step 3's label test; update `docs/setup/firebase-phone-verification.md:31-33`.
+
+Rollback after Phase 2: `git revert` of the deletion PRs + `npm install --install-links` + `pm2 reload wavemax --update-env` restores `partnerLanding`; then the nginx per-host rollback (§9.4) is valid again. The env scrub is reversed from the `/var/www/wavemax/env-backups/` copy.
+
+#### 9.6 Item B kickoff (after Phase 2)
+
+PRs in dependency order, one module per PR, shim files kept until the following PR: topology (P-1 already landed) → core fixes → no-dependency modules (`errorHandler`, `sanitization`, `mongoCursorRetry`, `mongoOracleDiagnostics`, `brand` per D13b, CORS after core strips its literals) → `auditLogger` (LOG_DIR first — the live bug drops CSRF audit events into `node_modules/@crhs/web-core/logs/`) → `rateLimiting` + `rateLimitMongoStore` (`codeAttemptLockout.js:49` → `store.collectionName`; the dead `rate_limits` admin reset paths fixed to iterate `LIMITER_NAMES`) → `SystemConfig` (`registerDefaults`; app registers its 24, core seeds 3, corporate seeds `access_gate_enabled`) → session (`{ middleware, store }` + maxAge fixer; `cookieName: 'portal.sid'`; `installOracleDiagnostics` survives) → email transport/template-manager (brand by parameter) → remove shims + delete the 12 duplicate suites. Each PR's on-box deploy is the §8.6 pair of commands; each is reverted independently.
+
+#### 9.7 Rollback table
+
+| Phase / step | What changed | Rollback action | Time to effect | Blast radius while broken |
+|---|---|---|---|---|
+| P-12 G1 monitor | monitor `header.Host` | PATCH back to `rundberglaundry.com` (only sensible before Phase 1 step 3) | 1 API call + ≤ 180 s | none (pool stays healthy either way; expected_body empty) |
+| P-7 / 0a corporate `.env` + deploy | corporate build + env | `git reset --hard <prev SHA>`; `npm install --install-links`; restore `.env` backup; `pm2 reload crhs-corporate --update-env` | ~1 min per box | crhsent.com only (marketing hosts still on :3000) |
+| P-1 web-core on the boxes | `/var/www/crhs-web-core` + consumers' `node_modules` | rsync the previous tag; `npm install --install-links` in both consumers; `pm2 reload` both apps | ~2 min per box | both apps on that box (do oci1 first, verify, then oci2) |
+| 0b affiliate hygiene | app build + `ALERT_EMAIL`/`FRONTEND_URL` env | `git reset --hard <prev SHA>`; `npm install --install-links`; restore `.env`; `pm2 reload wavemax --update-env` | ~1 min per box | portal only |
+| Phase 1 step N (one host, one box) | one vhost file (+ `00-default.conf` at step 1) | copy the file back from `/etc/nginx/backups/<ts>/`; `nginx -t`; `systemctl reload nginx` | seconds | that host, that box (LB keeps the other box serving) |
+| Phase 1 zone purge | CF edge cache | none needed (cache refills from whichever origin nginx routes to) | — | — |
+| Phase 2 code | app deletions | `git revert` the PRs; `npm install --install-links`; `pm2 reload wavemax`; then nginx rollback per host if content must go back to :3000 | ~5 min per box | portal (during revert) |
+| Phase 2 env scrub / token rotation | affiliate `.env` | restore from `/var/www/wavemax/env-backups/<file>`; `pm2 reload wavemax --update-env`; re-open the expediter board with the restored `k` | ~1 min per box | expediter board / alerts only |
+| Item B PR | one module + its shim | `git revert` that PR; `npm install --install-links`; `pm2 reload` | ~2 min per box | the module's consumers |
+
+#### 9.8 Validation gate — "all services consistent and functional after cutover"
+
+Ticked once, after Phase 1 step 4's soak, before Phase 2 starts; re-ticked after Phase 2 and after the last Item B PR.
+
+- [ ] Per-host external matrix through Cloudflare AND per box (`--resolve <host>:443:<box-ip>`): `/`, `/affiliate`, `/robots.txt`, `/sitemap.xml`, `/.well-known/security.txt` → 200 with the §9.2 body assertions; `/wavemax-affiliate` → 301; `www.` → 301 apex with `$request_uri`; both `x-origin-box` values observed on every host.
+- [ ] Intake: one real submission per form → mail `status=sent` to the configured recipient, `Reply-To` = lead, brand "WaveMAX Austin", logo loads; the lead's thank-you delivered.
+- [ ] Bag flow: a pre-8/23 label (rundberglaundry.com) and a post-8/23 label (portal) both reach `portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=…` and complete SMS verification; kiosk wedge scan and `/scanbag` PWA (reinstalled from portal) still resolve tokens.
+- [ ] Store IP: from the store network every marketing host `/` → 302 portal; `/operator` and `/admin` on portal answer 200 for store/admin IPs and 404 otherwise.
+- [ ] `/health`: `https://portal.atxwashdryfold.com/health` → `{"status":"UP"}`; `https://crhsent.com/health` and each marketing host `/health` → `{"status":"ok"}`; none sets a cookie; CF monitor Host = portal; pool both origins healthy; `sessions_corporate` and `sessions` document counts stable over 10 minutes of probe traffic.
+- [ ] Lighthouse mobile + desktop recorded for `atxwashdryfold.com/`, `/affiliate`, and `/` on the other three hosts; portal login page zero CSP violations.
+- [ ] i18n parity: `partner.*` present in all four content locales with equal key counts; absent from all four affiliate locales after Phase 2; `npm run check:i18n` green in both repos.
+- [ ] Golden CSP re-captured deliberately in both repos (D16a) and both suites green; strict CSP (nonce, no `'unsafe-inline'` in `script-src`, `frame-ancestors 'self'`) observed live on every marketing path.
+- [ ] Both pm2 apps `online` on both boxes with restart counts flat over 24 h; corporate boot log shows `Access gate cache loaded`; the single-mongoose-instance one-liner prints `single mongoose instance` on both boxes.
+- [ ] No cross-app collections: `ratelimit_corp_*` present and `ratelimit_*` (portal) untouched by corporate; `sessions_corporate` ≠ `sessions`; `access_gate_enabled` present and read by corporate only.
+- [ ] `Host: 127.0.0.1`, `wavemax.promo`, raw-IP on :443 → 444 on both boxes; `wavemax.promo` still NODATA at the authoritative NS.
+- [ ] Docs and memory updated (2-9); `production_systems_access.md` §1 records the monitor Host and the token's permission set.
+
+---
+
+## 10. Validation gate + 11. Test migration, i18n, Lighthouse
+
+### 10.0 What the gate is and when it runs
+
+The gate is a single executable checklist, `scripts/ops/cutover-gate.sh` (new, affiliate repo, next to the existing `scripts/ops/refresh-hibu.sh`), whose check IDs are the cell IDs of the matrix in §10.1. Every check prints `PASS <id>` / `FAIL <id> <evidence>` and the script exits non-zero on any FAIL. It takes two modes: `--via-box <ip>` (curl `--resolve <host>:443:<ip>` straight at one origin, `-k` because the origin presents the Cloudflare origin certificate) and `--via-cf` (plain DNS through Cloudflare). Every cell must pass in **both** modes on **both** boxes (oci1 `161.153.71.201`, oci2 `144.24.4.202`).
+
+It runs at five points; the cutover does not advance past a point until the cells scheduled for it pass:
+
+| Stage | When | Cells that must pass |
+|---|---|---|
+| **S0** | Phase 0 prerequisites/gates done, before any deploy | P6 (monitor Host = portal), P14 (Firebase, DONE 2026-09-09), baseline Lighthouse captured (§11.6 step 0) |
+| **S1** | Phase 0a: corporate multi-host DARK on :3001, both boxes | every marketing-host cell in `--on-box` form (`curl -H 'Host: <h>' http://127.0.0.1:3001/…`), P1–P5, P7–P13 |
+| **S2** | Phase 0b: affiliate portal-only hygiene deployed (partnerLanding still present) | R6 row unchanged from S0 (portal regression), P1, P8 |
+| **S3** | Phase 1: after **each** per-host nginx flip on **each** box, order oci1 → verify → oci2, hosts `runberglaundry.com → atxwashateria.com → rundberglaundry.com → atxwashdryfold.com` | that host's full row `--via-box`; after both boxes: the row `--via-cf`, C14 Lighthouse, P11 purge |
+| **S4** | Phase 2 (≥ 1 week later) app-side deletion + Item B PRs | R6/R8 rows (404 behaviour), P2–P5, P9, P10, P12, P13, and the §11 suites green in all three repos |
+
+Pass rule: a cell passes only on the exact expected value below — "non-error" is not a pass (today the marketing hosts answer a missing image with a 302 HTML body, followups[5] `server.js:958-965`, so status **and** content-type are asserted).
+
+### 10.1 Host × check matrix
+
+Rows: **R1** `rundberglaundry.com`, **R2** `runberglaundry.com`, **R3** `atxwashateria.com`, **R4** `atxwashdryfold.com`, **R5** the four `www.` variants, **R6** `portal.atxwashdryfold.com`, **R7** `crhsent.com`, **R8** unknown `Host` / bare IP. `MKT` below = R1–R4.
+
+| # | Check | R1–R4 (marketing) | R5 (`www.`) | R6 portal | R7 crhsent.com | R8 unknown Host |
+|---|---|---|---|---|---|---|
+| C1 | `GET /` | 200 `text/html`; body contains `data-i18n="partner.hero.title"`; every `/wavemax/i` hit is `WaveMAX Austin` (bare mark count 0); `Cache-Control` has no `immutable` | 301 → `https://<apex>/` (`$request_uri` preserved, nginx) | 200 SPA shell with the affiliate-login default route (`tests/integration/affiliatePortalRoot.test.js:13-23`); zero CSP violations in the browser console | 200 crhsent home (`tests/server.integration.test.js:19-26`), unchanged | nginx: connection closed (444); on-box :3000 and :3001 with `Host: other.invalid`: 404 |
+| C2 | `GET /affiliate`, `GET /wavemax-affiliate` | `/affiliate` 200 `text/html`; `/wavemax-affiliate` 301 → `https://<same host>/affiliate` (D5) | 301 → apex | S2: 200 (partnerLanding still in place); S4: **404** both paths (D11a) | 404 both | 404 |
+| C3 | `GET /robots.txt` | 200 `text/plain`; no `Content-Signal` line; the nine AI-bot `Disallow: /` blocks (`server.js:848-856`); `Disallow: /api/`; **no** `Disallow: /` for `*`; `Sitemap: https://<host>/sitemap.xml` | 301 → apex | 200 `text/plain`, exactly `User-agent: *` / `Disallow: /`, no `Sitemap:` line (D12a) | 200, unchanged from today's `content/robots.txt` | 404 |
+| C4 | `GET /sitemap.xml` | 200 `application/xml`; well-formed; every `<loc>` is an absolute `https://` URL that returns 200 | 301 → apex | 404 (D12a, no sitemap) | 200, unchanged | 404 |
+| C5 | `GET /.well-known/security.txt` | 200 `text/plain`; `Contact: mailto:` present; `Expires:` in the future; `grep -ci franchis` = 0 and `grep -ci wavemax` = 0 | 301 → apex | 200, same file, same two greps = 0 | 200 | 404 |
+| C6 | Intake `POST /api/partner-inquiry`, `POST /api/affiliate-application` | 200 `{"success":true}`; mail delivered to the resolved recipient with `Reply-To: <lead email>`; the page JS fetches `/api/partner-inquiry` (not `/api/v1/…`); `POST /api/v1/partner-inquiry` → 404 | n/a (301) | S2: 200 (still mounted); S4: 404 both (`/api/v1/…` and `/api/…`) | 404 (host-scoped) | 404 |
+| C7 | Bag-QR chain `GET /embed-app-v2.html?route=/claim&bag=<32hex>` | 301, `Location` **byte-equal** to `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=<32hex>`; same for HEAD; then on portal → claim form → Firebase **test number** → registration completes; negatives: `POST /api/v1/customers/register` → 404 (never 301), `/assets/images/brand/logo.png` → 200 `image/png` (never 301), `/assets/images/brand/logo-wavemax.png` → **410** | 301 → apex first (nginx), then the same 301 | 200 shell; claim flow completes (Firebase authorized domain DONE 2026-09-09) | 404 | 404 |
+| C8 | Store-IP → portal 302 (D7) | request with client IP ∈ `STORE_IP_ADDRESS`/`ADDITIONAL_STORE_IPS`/`STORE_IP_RANGES` → 302 `Location: https://portal.atxwashdryfold.com<originalUrl>` for `/`, `/affiliate`, `/anything?x=1`; non-store IP → C1 result | 301 → apex | **no** 302 (portal serves the store normally) | **no** 302 (crhsent unaffected by store IP) | 444/404 |
+| C9 | `GET /health` | 200 `application/json` `{"status":"ok"}`; **no** `Set-Cookie` header | 301 → apex | 200 `{"status":"UP",…}` (`server.js:418`); no `Set-Cookie` | 200 `{"status":"ok"}`; no `Set-Cookie` (`/health` above session, gate G2) | 444/404 |
+| C10 | Strict CSP on `/` and `/affiliate` | `script-src` is exactly `'self' 'nonce-<n>'`; no `'unsafe-inline'` in `script-src`; `style-src 'self' 'unsafe-inline'`; header contains none of the dropped origins (list in §10.2); prod header carries `upgrade-insecure-requests`; the served HTML has `<meta name="csp-nonce" content="<n>">` filled and no nonce-less `<script src>` | n/a | `/embed-app-v2.html` header = the re-captured golden (`tests/integration/webCoreConsumptionGolden.test.js`) | `/wavemax/` strict per `tests/server.integration.test.js:30-45`; `/` header = re-captured golden | n/a |
+| C11 | `frame-ancestors` | exactly `'self'` | n/a | exactly `'self'` (`tests/integration/securityHeaders.test.js:91-97`) | exactly `'self'` (was the franchisor default, `crhs-web-core/tests/security/cspGolden.test.js:61`) | n/a |
+| C12 | `rel=canonical` | exactly one tag; `/` → `https://atxwashdryfold.com/`; `/affiliate` → `https://atxwashdryfold.com/affiliate` (today both point at rundberglaundry.com: `public/partner-program.html:10`, `public/affiliate.html:10`) | n/a | none required (noindex host) | `https://crhsent.com/…` unchanged | n/a |
+| C13 | i18n switch | `/locales/{en,es,pt,de}/common.json` 200 `application/json`, identical key sets, `partner.*` = 109 keys, no bare `wavemax`; clicking `.ap-lang[data-lang="es"]` (`partner-program.html:317`) changes `[data-i18n="partner.hero.title"]` (`:87`) to the `es` value and flips `aria-pressed`; `/affiliate` is English-only (no `data-i18n`) — cell N/A, backlog (§11.5) | n/a | portal SPA i18n unchanged (`tests/unit/i18nParity.test.js`) | n/a (no locales) | n/a |
+| C14 | Lighthouse mobile + desktop | `/` and `/affiliate` on **each** of the four hosts: Accessibility 100, Best Practices 100, SEO 100, Performance ≥ the recorded baseline (mobile 98 / desktop 95, `docs/development/LIGHTHOUSE-QUALITY-BAR.md:122-127`) or explained in the PR | n/a | `/`: A11y 100, BP 100, Perf ≥ S0 baseline; SEO reported with `is-crawlable` failing **by decision D12a** — no other failing SEO audit | `/`: unchanged from the S0 baseline (100s) | n/a |
+
+### 10.2 Proof per column (the command or test that decides the cell)
+
+All commands assume `H` = the row's host, `IP` ∈ `{161.153.71.201, 144.24.4.202}`, and the helper `req() { curl -sk --resolve "$H:443:$IP" "$@"; }` in `--via-box` mode (drop `--resolve` and `-k` in `--via-cf` mode). On-box S1 form: `curl -s -H "Host: $H" http://127.0.0.1:3001/…`.
+
+- **C1** — `req -o /tmp/p.html -w '%{http_code} %{content_type}' "https://$H/?lh=$(date +%s)"` → `200 text/html…`; `grep -c 'data-i18n="partner.hero.title"' /tmp/p.html` = 1; bare-mark guard: `grep -oi 'wavemax[a-z ]*' /tmp/p.html | grep -vic 'WaveMAX Austin'` = 0. Portal zero-CSP-violation proof: Playwright spec `tests/e2e/portal-login-csp.spec.js` (new; `playwright.config.js` `testDir ./tests/e2e`, `testMatch **/*.spec.js`) that does `page.goto('https://portal.atxwashdryfold.com/?lh=' + Date.now())` with a `page.on('console')` collector and asserts zero messages matching `/Content Security Policy|Refused to/`. Repo-side: corporate `tests/hostRouting.test.js` (§11.3) and affiliate `tests/integration/hostRouting.test.js` (§11.1).
+- **C2** — `req -o /dev/null -w '%{http_code} %{redirect_url}' https://$H/wavemax-affiliate` → `301 https://$H/affiliate`; `req -o /dev/null -w '%{http_code}' https://$H/affiliate` → `200`. Portal S4: `curl -s -o /dev/null -w '%{http_code}' https://portal.atxwashdryfold.com/affiliate` → `404`. Tests: corporate `tests/legacyRedirects.test.js`; affiliate `tests/integration/phase4bKeepSet.test.js:29-37` rewritten to 404.
+- **C3** — `req https://$H/robots.txt | tee /tmp/r.txt | grep -c 'Content-Signal'` = 0; `grep -c '^Disallow: /$' /tmp/r.txt` = 9 (the nine AI-bot blocks); `grep -A1 'User-agent: \*' /tmp/r.txt | grep -c '^Disallow: /$'` = 0; `grep -c "Sitemap: https://$H/sitemap.xml" /tmp/r.txt` = 1. Portal: `printf 'User-agent: *\nDisallow: /\n' | diff - <(curl -s https://portal.atxwashdryfold.com/robots.txt)` empty. Cloudflare "Manage robots.txt" stays OFF (dashboard-only; keep as a manual line item). Tests: corporate `tests/seo.test.js` (moved `seoCrawlability` cases), affiliate `tests/integration/seoCrawlability.test.js` rewritten for the portal.
+- **C4** — `req https://$H/sitemap.xml | xmllint --noout -` exit 0; `req https://$H/sitemap.xml | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g' | while read u; do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done` all `200`.
+- **C5** — `req https://$H/.well-known/security.txt | tee /tmp/s.txt | grep -Eic 'franchis|wavemax'` = 0; `grep -c '^Contact: mailto:' /tmp/s.txt` ≥ 1; `date -d "$(grep -oP '^Expires: \K.*' /tmp/s.txt)" +%s` > `date +%s`.
+- **C6** — marker `M=gate-$(date +%s)`; `req -X POST -H 'content-type: application/json' -d "{\"firstName\":\"Gate\",\"lastName\":\"Check\",\"email\":\"rick.houlihan@gmail.com\",\"phone\":\"5125550100\",\"businessName\":\"$M\",\"message\":\"$M\"}" https://$H/api/partner-inquiry` → `{"success":true…}` (fields per `server/routes/partnerInquiryRoutes.js:12-47`; affiliate form: `firstName,lastName,email,phone` per `affiliateApplicationRoutes.js:13-17`). Delivery + Reply-To, on the mail host (`158.62.198.7`, `/opt/mailcow-dockerized`): resolve the recipient first — `docker exec $(docker ps -qf name=mysql-mailcow) mysql -N -e "select goto from mailcow.alias where address='pickups@atxwashdryfold.com'"` → the terminal mailbox `T`; then `docker logs --since 10m $(docker ps -qf name=postfix-mailcow) | grep -E "to=<$T>.*status=sent"` = 1 line, and `docker exec $(docker ps -qf name=dovecot-mailcow) doveadm fetch -u "$T" hdr mailbox INBOX subject "$M" | grep -i '^Reply-To:'` = `Reply-To: rick.houlihan@gmail.com`. Same for `admin@crhsent.com` (→ `administrator@wavemax.promo` today). Page-JS path proof: `req https://$H/assets/js/partner-inquiry.js | grep -c "fetch('/api/partner-inquiry'"` = 1 and `grep -c '/api/v1/'` = 0 (today `public/assets/js/partner-inquiry.js:85` and `affiliate-inquiry.js:51` call `/api/v1/…`). Test: corporate `tests/intake.test.js` with the web-core transport mocked, asserting `replyTo` = the lead's email and `to` = `process.env.PARTNER_INQUIRY_RECIPIENT` / `AFFILIATE_APPLICATION_RECIPIENT`.
+- **C7** — `B=$(node scripts/seed-claim-bag.js …)` (a minted, unclaimed bag; prod write, confirm with Rick); `req -o /dev/null -w '%{http_code}\n%{redirect_url}\n' "https://$H/embed-app-v2.html?route=/claim&bag=$B"` → `301` and **exactly** `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=$B` (string compare, not regex — the query must be byte-preserved via `req.originalUrl`, followups[0]); repeat with `-I` (HEAD). Also each of `/admin`, `/admin/`, `/operator`, `/operator/`, `/operator-scan-embed.html`, `/scanbag`, `/scanbag/`, `/scanbag-manifest.json`, `/scanbag-sw.js`, `/monitoring-dashboard.html`, `/api/v1/customers/verify-email/abc` → 301 to the same path on portal. Negatives: `req -X POST -o /dev/null -w '%{http_code}' https://$H/api/v1/customers/register` → `404`; `req -o /dev/null -w '%{http_code} %{content_type}' https://$H/assets/images/brand/logo.png` → `200 image/png` and `md5sum` of the body = `7f5332b870fe36482e4b8d27f5c9334f` (followups[5]); `req -o /dev/null -w '%{http_code}' https://$H/assets/images/brand/logo-wavemax.png` → `410`. SMS step (manual, once per box in S3 and once via CF): open the 301'd URL on a phone, complete the claim with a Firebase **test phone number** (Console → Authentication → Sign-in method → Phone → "Phone numbers for testing"; bypasses throttle/reCAPTCHA/real SMS, memory `firebase_phone_auth_prod.md`), confirm the registration succeeds (no `auth/*` error appended on-page, `claim.js:916-926`), then retire the test bag and deactivate the test customer from the admin UI (never `clear-customer-data`). Test: corporate `tests/legacyRedirects.test.js`.
+- **C8** — `req -H 'cf-connecting-ip: 72.190.1.227' -o /dev/null -w '%{http_code} %{redirect_url}' 'https://$H/affiliate?x=1'` → `302 https://portal.atxwashdryfold.com/affiliate?x=1` (web-core `clientIp` prefers `cf-connecting-ip`, `crhs-web-core/src/utils/clientIp.js:10`); the same header against `https://crhsent.com/` → not 302; from the store network in a browser: `https://rundberglaundry.com/` lands on the portal login. Test: corporate `tests/storeIpRedirect.test.js` (host-scoped positive, crhsent negative, `STORE_IP_RANGES` CIDR case).
+- **C9** — `req -D - -o /tmp/h.json https://$H/health | grep -ic '^set-cookie'` = 0 and `jq -e '.status=="ok"' /tmp/h.json` (portal: `.status=="UP"`). Tests: corporate `tests/server.integration.test.js:77-83` gains `expect(res.headers['set-cookie']).toBeUndefined()`; affiliate new `tests/integration/health.test.js` same assertion.
+- **C10 / C11** — `req -D - -o /dev/null "https://$H/?lh=$(date +%s)" | grep -i '^content-security-policy:' > /tmp/csp`; `grep -oP "script-src [^;]*" /tmp/csp` must match `^script-src 'self' 'nonce-[A-Za-z0-9+/=_-]+'$`; `grep -c "'unsafe-inline'" <(grep -oP "script-src [^;]*" /tmp/csp)` = 0; `grep -oP "frame-ancestors [^;]*" /tmp/csp` = `frame-ancestors 'self'`; `grep -Eic 'facebook|local-marketing-reports|cloudflareinsights|jsdelivr|cdnjs|jquery|googleapis|gstatic|recaptcha|matterport|walibu|openstreetmap|wikimedia|flagcdn|firebaseapp|challenges\.cloudflare|stackpath|wavemaxlaundry|wavemax\.promo|osrm|graphhopper|openrouteservice|valhalla|nominatim' /tmp/csp` = 0 (the dropped-origin list, followups[7] "Dropped-origin list"); `grep -c upgrade-insecure-requests /tmp/csp` = 1 in prod. Same for `/affiliate`. Repo proof: corporate `tests/marketingCsp.test.js` pins the marketing-profile header byte-for-byte (nonce normalized) per marketing `Host`, plus the negative-origin assertion; web-core `tests/security/cspGolden.test.js` gains a marketing-profile pin; both re-captured deliberately (D16a, §11.4).
+- **C12** — `grep -o '<link rel="canonical" href="[^"]*">' /tmp/p.html` = exactly one line = `<link rel="canonical" href="https://atxwashdryfold.com/">`; for `/affiliate` → `https://atxwashdryfold.com/affiliate`. Test: corporate `tests/seo.test.js` (per host, per page).
+- **C13** — `for l in en es pt de; do req "https://$H/locales/$l/common.json" | node -e 'const j=JSON.parse(require("fs").readFileSync(0));const f=(o,p="")=>Object.entries(o).flatMap(([k,v])=>v&&typeof v==="object"?f(v,p+k+"."):[p+k]);console.log(f(j).filter(k=>k.startsWith("partner.")).length, /wavemax/i.test(JSON.stringify(j)))'; done` → four lines of `109 false`; key-set equality via corporate `npm run check:i18n` (§11.5). Browser step in `tests/e2e/partner-i18n.spec.js` (new): click `.ap-lang[data-lang="es"]`, assert `[data-i18n="partner.hero.title"]` text equals `es.partner.hero.title` and `aria-pressed="true"` moved to the ES button.
+- **C14** — the commands in §11.6, one JSON per (host, page, form-factor); the gate script parses `.categories.{performance,accessibility,best-practices,seo}.score` and applies the thresholds in the matrix. Portal: additionally assert the only failing SEO audit id is `is-crawlable`.
+
+### 10.3 Process-level checks
+
+| # | Check | Proof | Stage |
+|---|---|---|---|
+| P1 | Both pm2 apps online, `restart_time` not climbing, on both boxes | `pm2 jlist \| jq -r '.[]\|select(.name=="wavemax" or .name=="crhs-corporate")\|"\(.name) \(.pm_id) \(.pm2_env.status) \(.pm2_env.restart_time)"'` captured at T and T+15 min: every row `online`, identical `restart_time`; no `ORA-04036` / `buffering timed out` lines in `pm2 logs <app> --nostream --lines 500` | S1, S2, S3, S4 |
+| P2 | Corporate model identity + gate cache | `cd /var/www/crhs-corporate && node -e "const wc=require('@crhs/web-core');const m=require('mongoose');const AG=require('./server/models/AccessGate');console.log(AG.base===wc.SystemConfig.base, wc.SystemConfig.base===m)"` → `true true`; after `pm2 reload crhs-corporate`: `pm2 logs crhs-corporate --nostream --lines 300 \| grep -c 'Access gate cache loaded'` ≥ 2 (two workers, `ecosystem.config.js` `instances: 2`) and `grep -c 'Access gate cache load failed'` = 0 (`server/middleware/accessGate.js:74-75`); repo-side `tests/models.test.js:88-95` green | S1, every Item B deploy |
+| P3 | Single mongoose instance + single driver, both apps, both boxes | affiliate: `cd /var/www/wavemax/wavemax-affiliate-program && node -e "const wc=require('@crhs/web-core');const m=require('mongoose');const SC=require('./server/models/SystemConfig');console.log(SC.base===m, wc.SystemConfig.base===m, m.mongo.Collection===require('mongodb').Collection, require('@crhs/web-core/package.json').version)"` → `true true true 0.1.3`; corporate: the P2 one-liner plus the `Collection` identity → `true`; `cat .npmrc` in the affiliate dir = `install-links=true`; `ls -ld node_modules/@crhs/web-core` is a real directory (not a symlink); repo-side `tests/setup.js` hard-asserts `initializeDefaults()` resolved and `require('mongoose') === require('@crhs/web-core').SystemConfig.base` (replacing the swallow at `tests/setup.js:159-164`) | after the Item B topology PR, then every Item B deploy |
+| P4 | `ratelimit_*` collections namespaced, no cross-app writes | from the affiliate dir: `node -e "require('dotenv').config();const m=require('mongoose');m.connect(process.env.MONGODB_URI).then(async()=>{console.log((await m.connection.db.listCollections().toArray()).map(x=>x.name).filter(n=>/^ratelimit_\|^sessions/.test(n)).sort());process.exit(0)})"` → portal names unchanged (`ratelimit_api`, `ratelimit_auth`, … per followups[1] item 3) and corporate names all prefixed `ratelimit_corp_`; write probe: `countDocuments` on `ratelimit_api` and `ratelimit_corp_api`, then `curl -s https://crhsent.com/api/probe-$(date +%s)` ×3 → only `ratelimit_corp_api` grew; `curl -s https://portal.atxwashdryfold.com/api/v1/firebase-config` ×3 → only `ratelimit_api` grew; `codeAttemptLockout.js:49` uses `store.collectionName` (web-core `tests/middleware/rateLimitMongoStore.test.js:27,77` assert via `store.collectionName`); no `ratelimit_email_verify` / `_upload` / `_admin_op` collection exists after D17b | S4 (after the rateLimiting PR) |
+| P5 | Sessions per-app collection | the P4 listing shows `sessions` and `sessions_corporate`; `curl -s -o /dev/null https://crhsent.com/` mints one doc in `sessions_corporate` and none in `sessions`; a portal login mints one in `sessions` only; the portal cookie is still `__Host-portal.sid` (`tests/integration/domainMigration.test.js:46-55`, `webCoreConsumptionGolden.test.js:67-76`) and corporate's is `__Host-crhsent.sid` (D14b) — `curl -sI https://crhsent.com/ \| grep -i '^set-cookie: __Host-crhsent.sid'` | S4 (after the session PR) |
+| P6 | CF monitor repointed (gate G1) | `TOKEN=$(cat ~/.cf_api_token); curl -s -H "Authorization: Bearer $TOKEN" https://api.cloudflare.com/client/v4/accounts/b69ef162d008b11492296d3b35cad2fe/load_balancers/monitors/be6953d2e0cfd7b40c4f414b5ddf20d9 \| jq -e '.result.header.Host==["portal.atxwashdryfold.com"] and .result.path=="/health" and .result.expected_codes=="200" and ((.result.expected_body//"")\|length)==0 and .result.follow_redirects==false'`; pool: `PID=$(curl -s -H "Authorization: Bearer $TOKEN" …/accounts/b69ef162d008b11492296d3b35cad2fe/load_balancers/pools \| jq -r '.result[]\|select(.name=="wavemax-oci")\|.id'); curl -s -H "Authorization: Bearer $TOKEN" …/pools/$PID/health \| jq -e '[.result.pop_health[].healthy]\|all'`; on-box: `tail -n 200 /var/log/nginx/portal.atxwashdryfold.com.access.log \| grep -c 'Cloudflare-Traffic-Manager'` > 0 and the same grep on `rundberglaundry.com.access.log` (new lines only) = 0 | S0, re-check S3 |
+| P7 | nginx correctness, both boxes | `sudo nginx -t`; `sudo nginx -T \| grep -c 'austin-tx'` = 0; `sudo nginx -T \| grep -c 'proxy-node-content.conf'` = 4 (three retargeted vhosts + the explicit `runberglaundry.com` vhost); `sudo nginx -T \| grep -A2 'default_server' \| grep -c 'return 444'` = 1; `curl -sk --resolve bogus.invalid:443:$IP https://bogus.invalid/health; echo $?` = 52 (empty reply); `diff <(ssh oci1 sudo nginx -T) <(ssh oci2 sudo nginx -T)` shows only the `zz-origin-box.conf` lines; www → apex: `curl -sI --resolve www.rundberglaundry.com:443:$IP 'https://www.rundberglaundry.com/affiliate?x=1' \| grep -i '^location'` = `https://rundberglaundry.com/affiliate?x=1` | S2 (444), S3 (per host) |
+| P8 | Golden CSP tests green after the deliberate re-capture (D16a) | `cd crhs-web-core && npm test -- tests/security`; affiliate `npm test -- tests/integration/webCoreConsumptionGolden.test.js tests/integration/securityHeaders.test.js`; corporate `npm test -- tests/server.integration.test.js tests/marketingCsp.test.js`; and `git log --oneline -1 -- tests/security/cspGolden.test.js` (web-core), `-- tests/integration/webCoreConsumptionGolden.test.js` (affiliate), `-- tests/marketingCsp.test.js` (corporate) each name the single re-capture commit `golden(csp): deliberate re-capture (D16a)` whose diff touches only `EXPECTED_*` strings and origin-list assertions — verified by the reviewer, not by a script | S2 (affiliate/web-core), S1 (corporate), S4 |
+| P9 | Web-core export surface = 26 keys | `node -e "console.log(Object.keys(require('@crhs/web-core')).length)"` = `26` from both consumer dirs (28 minus `storeIPs` `src/index.js:40` and `previewUnlockCookie` `:44`); `crhs-web-core/tests/index.smoke.test.js:11-39` list and comment `:4` updated; corporate `tests/webcore.smoke.test.js:10` → 26 | S4 (web-core cleanup PR) |
+| P10 | No `console.*` in server code | affiliate: `npx eslint server/ server.js --rule '{"no-console":"error"}'` exit 0 (the root rule is only `warn`, `.eslintrc.js:15`; the same PR adds an `overrides` block making it `error` for `server/**` and `server.js`); corporate and web-core: `npm run lint` (`.eslintrc.js:18` is already `error` in both) | every PR; S4 |
+| P11 | No franchisor string; CF purge landed | affiliate `npm test -- tests/unit/branding-guard.test.js tests/unit/domain-guard.test.js` (both extended per §11.1 to fail on `EXCLUDED_FILES` entries missing from `git ls-files`); corporate `npm test -- tests/marketingBrandGuard.test.js` (zero bare `WaveMAX` / `wavemaxlaundry.com` in the marketing content root; crhsent root exempt by design); web-core `npm test -- tests/noHostLiterals.test.js` (`git grep -inE 'rundberglaundry\|runberglaundry\|atxwash\|wavemax\|crhsent' -- src/` = 0 hits); raw: `git grep -inE 'wavemaxlaundry\.com' -- server/ server.js public/` in the affiliate = 0. Purge: after each host flip, `curl -sI https://$H/assets/css/partner-program.css \| grep -i '^cf-cache-status'` = `MISS` or `EXPIRED` on the first request and the body `md5sum` equals the repo file's | S3 (purge), S4 (guards) |
+| P12 | Device re-point + `EXPEDITER_TOKEN` rotation | before the flip: the store display opens `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/order-expediter&k=<token>`, the kiosk home is `https://portal.atxwashdryfold.com/operator`, the admin bookmark is `https://portal.atxwashdryfold.com/admin`, the `/scanbag` PWA is reinstalled from portal (checklist signed off by Rick); after: `curl -s -o /dev/null -w '%{http_code}' -H "x-expediter-token: $OLD" https://portal.atxwashdryfold.com/api/v1/expediter/summary` ≠ 200 and with `$NEW` = 200; `grep -c 'rundberglaundry' server/services/email/dispatcher/ops.js` = 0 (`ops.js:44,65` → `BASE_URL`) | S3 (pre-flip), S4 (rotation) |
+| P13 | Full suites green, no cycles | `npm test` in all three repos (affiliate 0 failures without re-runs; re-run a failing suite alone before debugging per memory); `npx madge --circular server/` = `No circular dependency found`; affiliate `npm run check:i18n` and corporate `npm run check:i18n` exit 0 | every PR; S4 |
+| P14 | Phase-0 prerequisites DONE (do not re-plan) | Firebase Authorized Domains contains `portal.atxwashdryfold.com` (proved by C7's SMS completion); Mailcow aliases `support@/privacy@/legal@/affiliates@rundberglaundry.com` → `admin@crhsent.com` (`mysql -N -e "select address,goto from mailcow.alias where address like '%@rundberglaundry.com'"` shows the four rows); `~/.cf_api_token` verifies via `/accounts/b69ef162d008b11492296d3b35cad2fe/tokens/verify` → `active` | S0 |
+
+### 10.4 Sign-off record
+
+The gate script writes `tasks/cutover-gate-<stage>-<date>.log` (PASS/FAIL lines plus the raw evidence) and the S3 Lighthouse JSONs to `tasks/lighthouse/<host>-<page>-<mobile|desktop>-<date>.json`; the Phase-1 "done" commit links both. A stage is signed off only when every scheduled cell is `PASS` on both boxes and via Cloudflare.
+
+### 11.1 Affiliate repo — Item A test dispositions
+
+Bindings applied to the §7.1 scope table: D8 (no hold page, no preview allowlist), D5 (`wavemax-affiliate.html` retired, 301 on the content app), D6a (explorer/concierge deleted), D11a (app 404s non-portal hosts after Phase 2), D12a (portal robots `Disallow: /`), D4a (embed-landing retired), the wavemax.promo deletion, and D7 (store-IP 302 lives in corporate).
+
+| File | Disposition | Detail |
+|---|---|---|
+| `tests/unit/partnerLanding.test.js` (18 tests) | MOVE 4 blocks / DELETE the rest, in the SAME commit that deletes `server/middleware/partnerLanding.js` (Phase 2) | MOVE to corporate `tests/hostRouting.test.js`: host-matching (`:25-72`), `x-forwarded-host` handling and CIDR parsing (`:190-225`, now feeding `tests/storeIpRedirect.test.js`). DELETE: preview-allowlist and hold-page cases (`:108-139`, no such mechanism under D8), app-surface exemptions (`:83-99`), store-IP bypass (`:144-185`). REWRITE `:227-232` into the affiliate negative "a marketing `Host` never receives the SPA shell". Never move the test before the middleware — the stub fallback `partnerLanding.js:38-42` makes the moved cases pass vacuously (scope §7.1) |
+| `tests/integration/marketingHostFallthrough.test.js` (4) | DELETE with `server.js:958-965` | keep `:45-49` ("API 404 stays JSON") by moving it into `tests/integration/hostRouting.test.js` |
+| `tests/integration/locationQuarantine.test.js` (453 lines) | DELETE with `locationQuarantine` + `quarantineConfig` | first EXTRACT `:342-363` (13 sensitive-path 404 cases against `server.js:520-535`) into new `tests/integration/sensitivePathProbes.test.js`, plus the M-13 negatives and a first test for the WP-scanner block (`server.js:922-948`) |
+| `tests/integration/seoCrawlability.test.js` (4) | MOVE `:11-25` (robots on `Host: rundberglaundry.com`) and `:27-38` (apex-only sitemaps) to corporate `tests/seo.test.js`; REWRITE the affiliate file | affiliate version asserts `Host: portal.atxwashdryfold.com` `/robots.txt` = `User-agent: *\nDisallow: /\n` (no `Sitemap:`), `/sitemap.xml` → 404 |
+| `tests/integration/phase4bKeepSet.test.js` | REWRITE `:29-37` | `/affiliate` and `/wavemax-affiliate` → 404 (D11a; keep the "never 500" assertion); keep `:24-27` and `:40-52` |
+| `tests/integration/affiliatePortalRoot.test.js` | EXTEND | `:13-23` sends no `Host`; add `Host: portal.atxwashdryfold.com` → shell, and each of the four marketing hosts → 404 (Phase 2) |
+| NEW `tests/integration/hostRouting.test.js` | ADD | portal `Host` → shell; each marketing `Host` (+`www.`) → 404; `Host: other.invalid` → 404; `RETIRED_HOSTS` gone: `Host: wavemax.promo` → 404 (not 301); the HTTPS-upgrade `allowedHosts` function (`server.js:174-198`) unit-tested outside the `NODE_ENV=production` gate with no marketing host in the list and the unknown-host default = portal |
+| `tests/integration/domainMigration.test.js` | EDIT | DELETE `:17-28` (wavemax.promo 301 assertions — the middleware `server.js:207-214` is deleted); KEEP `:46-55` (cookie name) and `:95-108` (`[BASE_URL]` template render — needs `EMAIL_TEMPLATE_ROOT` or the wrapper when template-manager moves to core, §11.2) |
+| `tests/integration/webCoreConsumptionGolden.test.js` | RE-CAPTURE once (D16a) | `:23-38` bakes the four marketing origins into `img-src`/`connect-src`; after the CORS/CSP host strip the new golden drops them; `:67-76` cookie name unchanged |
+| `tests/integration/securityHeaders.test.js` | SPLIT | DELETE `:104-119` (Meta Pixel origins — dead code, origin removed from the marketing profile); KEEP `:91-97` (`frame-ancestors 'self'`) and `:124-131` (reCAPTCHA — portal claim page); MOVE the `/affiliate` and `/wavemax-affiliate` cases of `:141-152` to corporate `tests/marketingCsp.test.js` (with a marketing `Host`, and `/wavemax-affiliate` becomes a 301 assertion); KEEP `/scanbag` |
+| `tests/integration/partnerInquiry.test.js` (3), `affiliateApplication.test.js`, `tests/unit/partnerInquiryForm.test.js` (9), `affiliateApplicationForm.test.js` (9), `interestFormEmailBranding.test.js` (2) | MOVE to corporate `tests/intake.test.js` + `tests/intakeForms.test.js` (D2a) | page AND validator move together (the form↔validator contract at `affiliateApplicationForm:23-30`, `partnerInquiryForm:26-36`); recipients become `process.env.PARTNER_INQUIRY_RECIPIENT` / `AFFILIATE_APPLICATION_RECIPIENT` (pinned defaults at `partnerInquiry.test.js:9`, `affiliateApplication.test.js:9` change to `pickups@atxwashdryfold.com` / `admin@crhsent.com`); add the `Reply-To` assertion; the "ZERO WaveMAX" guards (`:48`, `:53`) survive in corporate; the path assertions change to `/api/partner-inquiry` / `/api/affiliate-application` |
+| `tests/unit/wavemaxAffiliatePage.test.js` (7) | DELETE entirely (D5) | `:12-36` tested the retired page; `:38-50` grepped `server.js` text for gates being removed; corporate `tests/legacyRedirects.test.js` asserts `/wavemax-affiliate` → 301 `/affiliate` |
+| `tests/unit/design-explorer/{build,concierge,content-model,explorerGuard,explorerIntegration,render}.test.js` | DELETE (D6a) | add `/design-explorer/*` and `/api/concierge` → 404 to `tests/integration/pr2RemovedRoutes.test.js` |
+| `tests/unit/turnstile.test.js` | DELETE with `server/utils/turnstile.js` | — |
+| `tests/unit/branding-guard.test.js` | EDIT (same commit as each removal) | prune `EXCLUDED_FILES` `:24-27` (Access*/MediatorAccess/concierge), `:30` (`wavemax-affiliate.html`), `:32`, `:36`, `:52`, `:62`, `:65`; prune `INFRA_ALLOW` `:83` (`wavemaxlaundry.com` — after `quarantineConfig` goes, nothing legitimate may reference the franchisor host), `:92-93` (iframe-bridge identifiers, D9a), `:109`, `:111`; ADD a test that fails when any `EXCLUDED_FILES` entry is absent from `git ls-files` (today only baseline staleness is checked, `:148-151`) |
+| `tests/unit/domain-guard.test.js` | EDIT | drop `:14` `crhsent/` (directory gone), `:20` (`wavemax-affiliate.html`), `:32` (`wavemax.promo` quoted-literal allowance — `RETIRED_HOSTS`/`allowedHosts` entries are deleted, so the literal must trip); add the missing-entry check to `:69-72` |
+| `tests/unit/scanbag.test.js` | EDIT | DELETE the gate-exemption block `:60-65` (`partnerLanding._isExempt`, `quarantine.isAllowed`) with the middleware; keep the manifest/SW assertions |
+| NEW `tests/integration/legalPages.test.js` | ADD (zero coverage today) | `/terms-of-service`, `/terms-and-conditions`, `/privacy-policy`, `/refund-policy` on `Host: portal…` → 200 + nonce meta filled + no unresolved `{{BRAND_NAME}}` + `EMBED_PAGES` resolves; single contact address per D3a (fails on `legal@rundberglaundry.com` vs `admin@crhsent.com` disagreement, followups[3]); `grep -c '12.2'`/franchise-license text = 0 |
+| NEW `tests/integration/health.test.js` | ADD | `GET /health` → 200, no `Set-Cookie`, unaffected by `Host` |
+| NEW `tests/integration/pr2RemovedRoutes.test.js` additions | ADD | `/api/v1/partner-inquiry`, `/api/v1/affiliate-application`, `/api/v1/maps-config`, `/partner-program.html`, `/embed-landing.html`, `/wavemax-affiliate` → 404 on the portal host (Phase 2) |
+| `tests/setup.js` | EDIT | `:20-21` `EMAIL_FROM=test@wavemax.promo` / `BASE_URL=https://wavemax.promo` → `no-reply@crhsent.com` / `https://portal.atxwashdryfold.com` (domain-guard will otherwise trip once `:32` is pruned); `:159-164` becomes a hard `await SystemConfig.initializeDefaults()` plus the mongoose identity assertion (P3) |
+| Fixtures | EDIT opportunistically | `affiliateCustomerFiltering:80,162,203`, `kioskAdvance:141`, `labelSheet4x6:86`, `adminCleanUrl:70` host literals → portal |
+
+Rule for every row: red first (the new/rewritten assertion fails on HEAD for the intended reason), then the implementation, then the deletion — one concern per PR, ≤ 500-line diff, move-then-delete.
+
+### 11.2 Affiliate repo — Item B test plan
+
+Order follows the dependency chain (topology → core fixes → no-dep modules → auditLogger → rateLimiting → SystemConfig → session → email → shim/dup removal). Per module: **(1)** port the affiliate-only describe blocks into web-core and turn them green there; **(2)** shim the affiliate path to core; **(3)** delete the duplicate affiliate suite in the same PR as the shim.
+
+- **Topology PR (first):** `tests/setup.js` identity + hard-seed assertions (P3); corporate `tests/models.test.js:88-95` stays the guard; web-core keeps mongoose/express-session/connect-mongo/express-rate-limit as devDependencies so its own 541 tests still run.
+- **rateLimiting (before shimming):** `tests/unit/rateLimitingMiddleware.test.js` cannot survive a shim (its relative-path mock `:29` and `express-rate-limit` mock `:2` cannot intercept web-core's requires). PORT into `crhs-web-core/tests/middleware/rateLimiting.test.js`: `createMongoStore` (`:61-108`), `createCustomLimiter` (`:339-414`), `keyGenerator wiring` (`:415-460`); DEDUPE `:116-151` and `:234-273` against core's existing key-gen cases; DELETE `:153-232` and `:275-337` (email-verification/file-upload key generators and admin-operation skip functions — the three limiters are deleted under D17b). ADD in core: a `RELAX_RATE_LIMITING` + production-guard `jest.resetModules` reload test (untested anywhere today), `LIMITER_NAMES` export shape, `sweepExpired(prefix)` against MongoMemoryServer, `collectionPrefix` → `store.collectionName`, and the opt-in TTL `createIndex`. Then delete `rateLimitingMiddleware.test.js`, `rateLimitKeyGen.test.js`, `rateLimitMongoStore.test.js`. The affiliate keeps one seam test: its named limiters resolve to core's `createCustomLimiter` and `codeAttemptLockout.js:49` reads `store.collectionName`.
+- **SystemConfig:** core `tests/models/systemConfig.test.js` gains `registerDefaults(list)` (D15b: core seeds only `maintenance_mode`, `access_gate_enabled`, `system_timezone`) and the de-branded `L175` description; the affiliate replaces `tests/unit/systemConfig.test.js` with a seam test that its 24 registered keys seed through `registerDefaults` and that `access_gate_enabled` is no longer seeded by the app; `tests/unit/systemConfigRoutes.test.js` automock `:19` and `resetModules :244,318` keep targeting the shim path; grep guard test: no `require('@crhs/web-core').SystemConfig` outside `server/models/SystemConfig.js` while relative-path mocks (`adminDashboard.test.js:62`, `administratorController.test.js:169`, `administratorControllerEnhanced.test.js:10`) exist.
+- **session (D18a):** core `tests/config/sessionStore.test.js` gains `{ middleware, store }` return, `collectionName` option, `cookieName`, the post-session maxAge fixer, and "`saveUninitialized` never mints on a route registered before the middleware"; affiliate keeps `domainMigration.test.js:46-55` + `webCoreConsumptionGolden.test.js:67-76` (cookie name) and adds `tests/integration/health.test.js`; `mongoOracleDiagnostics.test.js` is deleted only after `installOracleDiagnostics` is fed by the returned `store`.
+- **auditLogger:** core `tests/utils/auditLogger.test.js` gains the `LOG_DIR` case; affiliate adds an integration assertion that a `CSRF_VALIDATION_FAILED` event lands in `logs/audit.log` (today it lands under `node_modules/@crhs/web-core/logs/`); then delete `tests/unit/auditLogger.test.js` and migrate the 15 `jest.mock('../../server/utils/auditLogger')` sites (they already target the shim path).
+- **email (D13b):** core `tests/email/transport.test.js` gains `replyTo` and `displayName`/`fromName`/`logo` parameters and loses every rundberglaundry literal; affiliate replaces `tests/unit/emailTransport.test.js` with a wrapper seam test (TLS servername `mail.crhsent.com`, brand params passed through) and keeps `email-brand.test.js`, `domainMigration.test.js:95-108`; `brand-config.test.js` is **kept** (brand stays app-owned).
+- **CSRF (D20b):** web-core `tests/config/csrfConfig.test.js` (47) is diffed against the affiliate's existing `tests/unit/csrfConfig.test.js` (333 lines, already testing `server/config/csrf-config`); missing cases are ported into the affiliate file, the web-core suite is replaced by a primitive test of `doubleCsrf(tables)`; prune `/api/concierge`, partner-inquiry and affiliate-application rows from the tables in the same PR.
+- **The 12 duplicate suites to delete** (scope §5 "Duplicate test suites"; one per shim PR): `tests/unit/{systemConfig,rateLimitMongoStore,rateLimitKeyGen,rateLimitingMiddleware,sanitization,errorHandler,auditLogger,storeIPs,mongoCursorRetry,mongoOracleDiagnostics,logger,emailTransport}.test.js`. Survivors: `webCoreConsumptionGolden`, `domainMigration`, `brand-config`, and the seam tests named above.
+
+### 11.3 Corporate repo — suite fixes and new suites
+
+Fixes to the existing suite (each in the same commit as the change that invalidates it):
+
+- `tests/crhsent-parity.test.js` — **DELETE.** `:29` hardcodes `/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program/crhsent`, which no longer exists (ENOENT, already red); `content/` is now the authority, so the parity claim has no source to compare against. `tests/server.integration.test.js:19-26` and `content-manifest.test.js:44-51` keep the "served bytes come from `content/`" guarantee.
+- `tests/content-manifest.test.js` — REWORK from one pinned count (`:17` = 49) to one manifest per content root: iterate the unique roots of the host→root map exported by the routing module, and for each root pin its file count and key-file list (crhsent root keeps `:34-42`; the marketing root's key files are the moved partner page, the affiliate page, `assets/css/partner-program.css`, `assets/css/affiliate.css`, `assets/js/partner-inquiry.js`, `assets/js/affiliate-inquiry.js`, `assets/js/i18n.js`, the self-hosted fonts under `assets/fonts/`, `assets/images/locations/austin-tx/hero-1.webp`, `assets/images/brand/logo.png`, `locales/{en,es,pt,de}/common.json`, `.well-known/security.txt`). Assert `assets/images/brand/logo-wavemax.png` is absent from every root.
+- `tests/server.integration.test.js` — KEEP `:92-97` (`Host: other.com` → 404 remains true); ADD marketing-host positives next to it (`Host: rundberglaundry.com` `/` → 200 partner page); `:77-83` gains the no-`Set-Cookie` assertion and a second `/health` probe with a marketing `Host`.
+- `tests/webcore.smoke.test.js:10` — 28 → 26, in the same corporate commit that bumps the web-core version.
+- `tests/accessGate.test.js` — `:93` fixture `logo-wavemax.png` → `logo.png` (the exempt path is `accessGate.js:96`); `:204` From assertion → the `no-reply@crhsent.com` identity with no bare `WaveMAX` display name, plus an absolute-logo-URL assertion on the gate mail body (`accessGate.js:250` today embeds a relative `src`).
+- `tests/crhsentHandler.test.js:71-74` — unchanged (a non-mapped host still falls through).
+
+New suites (TDD: each is red on HEAD):
+
+| Suite | Asserts |
+|---|---|
+| `tests/hostRouting.test.js` | host→root map: each of the eight marketing `Host` values → marketing root; `crhsent.com`/`www.crhsent.com` → crhsent root; `other.invalid` → 404; marketing hosts skip session (no `Set-Cookie`), accessGate, mediatorGate and `apiLimiter` (host-scoped); `x-forwarded-host` precedence |
+| `tests/legacyRedirects.test.js` | the B7 list (GET and HEAD) → 301 `https://portal.atxwashdryfold.com` + `req.originalUrl` byte-preserved (bag token and `k=` cases); `/wavemax-affiliate` → 301 `/affiliate` same host; negatives: `POST /api/v1/*` → 404, `/assets/*` never 301, `logo-wavemax.png` → 410, none of the rules fire for `Host: crhsent.com` |
+| `tests/storeIpRedirect.test.js` | `STORE_IP_ADDRESS`, `ADDITIONAL_STORE_IPS`, `STORE_IP_RANGES` (CIDR) → 302 portal + originalUrl on marketing hosts only; `crhsent.com` unaffected; non-store IP → page |
+| `tests/intake.test.js`, `tests/intakeForms.test.js` | moved from §11.1; env-driven recipients; `replyTo` = lead; thank-you From = `BRAND_DISPLAY_NAME`; validators unchanged; `/api/v1/…` paths → 404 |
+| `tests/marketingCsp.test.js` | byte-pinned marketing-profile header (nonce normalized) on `/` and `/affiliate` for a marketing `Host`; `frame-ancestors 'self'`; negative-origin list; crhsent header unchanged (`server.integration.test.js:30-45` stays the crhsent pin); nonce meta filled by `cspHelper.readHTMLWithNonce` |
+| `tests/seo.test.js` | per-host robots (moved cases), per-host sitemap (well-formed, absolute `<loc>`), canonical `https://atxwashdryfold.com/` and `/affiliate` on every marketing host, `security.txt` free of `franchis`/`wavemax`, `Sitemap:` line per host |
+| `tests/i18n.test.js` | structural parity of the four `locales/*/common.json` (clone of `tests/unit/i18n-brand-token.test.js:13-18`), `partner.*` = 109 keys, no bare `wavemax`, `{{brandName}}` token present where the affiliate copy has it |
+| `tests/assetCaching.test.js` | `/assets/*` on marketing hosts: `Cache-Control: public, max-age=31536000, immutable`, `Cross-Origin-Resource-Policy: cross-origin`; HTML never `immutable` (mirrors affiliate `tests/integration/assetCaching.test.js:11-42`) |
+| `tests/marketingBrandGuard.test.js` | zero bare `WaveMAX` / `wavemaxlaundry.com` / `logo-wavemax` in the marketing content root (`WaveMAX Austin` allowed); crhsent root exempt by design; fails on stale exclusion entries |
+| `tests/health.test.js` | `/health` registered above session: no `Set-Cookie` on any `Host`; body `{status:"ok"}` |
+
+### 11.4 Web-core — suite changes
+
+- `tests/index.smoke.test.js:4,11-39` → 26 keys; delete `tests/config/storeIPs.test.js`, `tests/utils/previewUnlockCookie.test.js`; the `assets/legal/*` deletion removes the three stale legal copies (`assets/legal/{privacy-policy,refund-policy,terms-and-conditions}.html`) and the iframe bridges `assets/js/{iframe-bridge-v2,parent-iframe-bridge-v3}.js` (D9a) — `tests/assets/i18n.test.js` keeps `assets/js/i18n.js`.
+- `tests/security/cspGolden.test.js` — deliberate re-capture (D16a): `EXPECTED_STRICT_CSP` `:50-65` loses the franchisor `frame-ancestors` (`:61`) and `wavemax.promo` self-origins (`:54-55`); `:202-205` flips to `'self'`; `:213-223` (pixel/reCAPTCHA spot checks) and `:248-266` (clickjacking-demo widening to `wavemaxlaundry.com`) are re-evaluated against the stripped template; `:144-149` (`parent-iframe-bridge-v3.js` ACAO carve-out) is deleted with the bridge (D9a); ADD the marketing-profile pin (`profile` parameter output, `frame-ancestors 'self'`, no third-party origin).
+- `tests/security/cspMonorepoParity.test.js:23-30,35-50` — re-captured to the post-strip affiliate header (it must equal the affiliate's re-captured `webCoreConsumptionGolden`).
+- `tests/security/corsConfig.test.js` (5) — rewritten for env-only origins (`CORS_ORIGIN`, `CORS_EXTRA_ORIGINS`), asserting no literal host in `src/security/corsConfig.js`.
+- NEW `tests/noHostLiterals.test.js` — the P11 grep guard.
+- Remaining additions are listed per module in §11.2 (sessionStore, rateLimiting, rateLimitMongoStore `:27,77`, systemConfig, auditLogger, transport/template-manager). Version bump to 0.1.3 with the topology PR; every later web-core change bumps the patch and is delivered by `rsync` to `/var/www/crhs-web-core` + `npm install --install-links` in both consumers + `pm2 reload`, then P2/P3 re-run.
+
+### 11.5 i18n obligations
+
+- **`partner.*` (109 keys × 4 locales):** added to corporate `locales/{en,es,pt,de}/common.json` in ONE corporate commit (trimmed files containing only the `partner` namespace: `meta, nav, hero, stats, steps, plant, why, who, form, footer`) and removed from the affiliate's four `public/locales/*/common.json` in ONE affiliate commit (Phase 2). Before and after each: affiliate `npm run check:i18n` (`package.json:27`) + `tests/unit/i18n-brand-token.test.js`; corporate `npm run check:i18n` + `tests/i18n.test.js`.
+- **Corporate parity script:** `scripts/check-i18n-parity.js` = the `flattenKeys`/`diffLocales` functions of the affiliate script (`scripts/check-i18n-parity.js:102-137`, already parameterized by `localesDir`) with `REQUIRED_PREFIXES = ['partner']`, no email-template section; wired as `npm run check:i18n` and required by `tests/i18n.test.js`.
+- **Copy change in the same commit as the recipient alignment (binding):** `partner.form.errGeneric` / `partner.form.errNetwork` (`public/locales/*/common.json:1696-1697`) → `pickups@atxwashdryfold.com` in all four locales, together with `partnerInquiryService.js:6` and `partner-inquiry.js:101,106`.
+- **`landing.*` (D4a):** `grep -rl 'data-i18n="landing\.' public/` must be empty after `embed-landing.html` is deleted; then delete the namespace from all four locales in one commit.
+- **Serving:** the content app serves `/locales/*` with `Cross-Origin-Resource-Policy: cross-origin` (web-core `securityHeaders.js:98-100`); `assets/js/i18n.js:15` resolves `translationsPath` to same-origin `/locales` on every host, so no client change is needed.
+- **English-only pages:** `/affiliate` (and the legal pages, which stay on the portal) carry zero `data-i18n` today; moving them verbatim is not a copy change, so the four-locale rule does not gate the cutover — it is a content backlog item (open question below).
+- Email templates `server/templates/emails/{es,pt,de}/` stay app-scoped; corporate gets only `base-template.html` (+ the four language copies of it) under `EMAIL_TEMPLATE_ROOT`.
+
+### 11.6 Lighthouse procedure per moved page
+
+Pages: `/` and `/affiliate` on each of `rundberglaundry.com`, `runberglaundry.com`, `atxwashateria.com`, `atxwashdryfold.com`; regression pages: `portal.atxwashdryfold.com/` (D4a retirement) and `crhsent.com/`. Each measured mobile **and** desktop.
+
+0. **Baseline (S0, before any change):** run the commands below against today's live URLs and record the eight scores per page in `docs/development/LIGHTHOUSE-QUALITY-BAR.md` under a new "Baseline before the content split" table (the current table `:122-127` covers only the rundberglaundry landing).
+1. **Prove the new code is live** (the doc's `:36-45` rule): `curl -s "https://$H/?lh=$(date +%s)" -o /tmp/p.html && grep -o 'partner-program.css?v=[0-9a-z]*' /tmp/p.html` shows the bumped stamp; corporate has no in-memory template cache, but `pm2 reload crhs-corporate` is still required after any server-side change; `/assets/*` is `immutable` 1y, so every changed asset gets a new `?v=` in every referencing page and the zone is purged after the flip (P11).
+2. **Measure through Cloudflare** (final gate) with the doc's commands (`:18-28`) re-pointed per host: `CHROME_PATH=/opt/google/chrome/chrome npx --yes lighthouse "https://$H/$PAGE?lh=$(date +%s)" --preset=desktop --output=json --output-path=tasks/lighthouse/$H-$PAGE-desktop-$(date +%F).json --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" --quiet` and the mobile form (`--form-factor=mobile --screenEmulation.mobile=true`). Take the median of three runs when Performance is within ±5 of the threshold.
+3. **Measure one box before the second is flipped** (S3, oci1 only): add `--host-resolver-rules="MAP $H 161.153.71.201" --ignore-certificate-errors` to `--chrome-flags` (bypasses the LB; the origin presents the CF origin cert).
+4. **Thresholds** are the C14 cells. Score-sensitive details that must be reproduced on the content origin (scope §7.5): self-hosted fonts, external-only scripts under the strict nonce CSP, canonical on `atxwashdryfold.com`, origin-served robots without `Content-Signal`, immutable `/assets`, zero console errors (a 404'd asset or a CSP-blocked script dings Best Practices).
+5. **Doc maintenance:** the three `rundberglaundry.com` URLs at `docs/development/LIGHTHOUSE-QUALITY-BAR.md:20,25,42` become per-host examples for the content origin, and a separate portal example is added; the `pm2 reload wavemax` note at `:60-62` gains `pm2 reload crhs-corporate`.
+6. **Portal:** `is-crawlable` fails by D12a; the run is accepted when it is the only failing SEO audit and A11y/BP are 100.
+
+### 11.7 Acceptance criteria for §10–§11
+
+- `scripts/ops/cutover-gate.sh --via-box <ip>` passes on both boxes and `--via-cf` passes, for every row scheduled at the stage, before the stage is declared done; logs committed under `tasks/`.
+- Every test change in §11.1–§11.4 lands red-then-green, one concern per PR, ≤ 500 lines, with the deletion in the same PR as the shim/move it depends on; no `--no-verify`.
+- All three suites green (`npm test`) with no ad-hoc re-runs at S4; `madge --circular server/` clean; P10/P11 guards green.
+- Golden CSP fixtures changed exactly once per repo, by the single reviewed re-capture commit.
+- Lighthouse JSONs for all 16 marketing runs plus the four regression runs are on disk and meet C14.
+- The i18n parity scripts exit 0 in both repos and `partner.*` exists in exactly one repo after Phase 2.
+
+---
+
+## 12. Risk register + 13. Litigation-sensitive residue + 14. Open questions + 15. Global constraints
+
+### 12. Risk register
+
+Scale: **L** likelihood, **I** impact — H/M/L. "Check" is the specific test, command or log line that proves the mitigation is in place; every check is executed at the phase named in the Mitigation column and re-run in the Validation Gate. Sources: `risks.json`, `critique.json`, follow-ups [0]–[8]. Rows are grouped by the phase in which the risk is live.
+
+#### 12.1 Cutover and edge (Phase 0 → Phase 1)
+
+| ID | Risk | L | I | Mitigation | Check that catches it |
+|---|---|---|---|---|---|
+| R-01 | **Printed bag labels break at the flip.** Every durable bag label printed 2026-06 → 2026-08-23 encodes `https://rundberglaundry.com/embed-app-v2.html?route=/claim&bag=<32hex>` (`server/modules/bags/labelSheetService.js:89,95`; live payload quoted in memory `kiosk_scanner_transmission_interval_2026-06-20.md:12`). The welcome-email "Request a pickup" button carries the same URL with no TTL (`server/services/email/dispatcher/customer.js:108-111`). crhs-corporate today passes non-crhsent hosts to the error handler (`server/crhsentHandler.js:20-21`, `server.js:87-90`). | H | H | B7 301 middleware in corporate mounted BEFORE `accessGate`/`mediatorGate`/`crhsentHandler` (`crhs-corporate/server.js:85-87`): GET/HEAD, the 12 paths in §15, `res.redirect(301, 'https://portal.atxwashdryfold.com' + req.originalUrl)`. Ships in Phase 0a, verified per host before any nginx flip. Firebase `portal.atxwashdryfold.com` authorization is DONE; keep `rundberglaundry.com` authorized until this 301 is verified live, then remove and update `docs/setup/firebase-phone-verification.md:31-33`. | Corporate integration test: for each of the 8 marketing Host values, `GET /embed-app-v2.html?route=/claim&bag=abc` → 301, `Location` byte-equal to `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/claim&bag=abc`. On-box per host: `curl -sI --resolve <host>:443:<box-ip> 'https://<host>/embed-app-v2.html?route=/claim&bag=x'`. End-to-end: scan a pre-8/23 label with a phone camera → lands on portal → SMS verification completes with a Firebase test number (`claim.js:901-927` prints the `auth/*` code on failure). |
+| R-02 | **`EXPEDITER_TOKEN` transits the content host.** The store display opens `…/embed-app-v2.html?route=/order-expediter&k=<TOKEN>` on rundberglaundry.com (`.env.example:184-186`; `public/assets/js/order-expediter-init.js:12,68-71`). After the flip every board reload hits the rundberglaundry vhost's nginx access log before the 301. Read-only blast radius (`server/middleware/expediterGuard.js:5,19-26`) but a secret in a log. | M | M | Device re-point checklist executed BEFORE the flip (expediter display → portal URL; admin bookmark; kiosk `/operator` home; reinstall `/scanbag` PWA from portal). Rotate `EXPEDITER_TOKEN` AFTER the flip (`.env` both boxes + `pm2 reload wavemax --update-env`, confirm-first). Corporate gets NO request logger; if one is ever added it must carry the affiliate redaction `.replace(/([?&](?:t|k)=)[^&]+/g, '$1<redacted>')` (`server.js:73,333-334`). | Post-flip on both boxes: `sudo grep -c 'k=' /var/log/nginx/rundberglaundry.com.access.log` (lines newer than the flip timestamp) → 0. After rotation: request with the old token → 403 from `expediterGuard`. Checklist items ticked in the cutover runbook before `nginx -s reload`. |
+| R-03 | **G2 — session bloat repeat of 2026-05-25.** Corporate registers `/health` (`crhs-corporate/server.js:80`) AFTER `buildSessionMiddleware` (`:65`) and web-core sets `saveUninitialized: true` (`crhs-web-core/src/config/sessionStore.js:98`). The CF monitor probes ~11/s; each probe would mint a session document in the shared ADB the moment any marketing host reaches :3001. | H (if unfixed) | H | Phase-0 GATE G2: move `app.get('/health')` above `app.use(wc.buildSessionMiddleware(...))` in corporate, mirroring affiliate `server.js:413-424`. Marketing hosts additionally skip session/accessGate/mediatorGate/apiLimiter (host-scoped mounts). | Corporate test `GET /health` (every Host value) → 200 and NO `set-cookie` header; same test in the affiliate suite. On-box after Phase 0a: `curl -sI http://127.0.0.1:3001/health -H 'Host: rundberglaundry.com'` shows no `Set-Cookie`; corporate session collection `countDocuments()` flat over 10 minutes of probe traffic. |
+| R-04 | **G1 — post-flip monitor blind spot.** Monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` sends `Host: rundberglaundry.com`; after the flip pool health = corporate :3001 liveness only, so a dead/crash-looping `wavemax` pm2 (the ORA-04036 class) stays in rotation and portal users round-robined to it get 502s. Today the inverse blind spot exists (crhsent.com rides a pool checked through :3000, and the probe is answered by partnerLanding's HTML, not the JSON route — `partnerLanding.js:90-113` does not exempt `/health`). | H (post-flip) | H | Phase-0 GATE G1: repoint the monitor `header.Host` to `portal.atxwashdryfold.com` using the account-owned token at `~/.cf_api_token` (has Load Balancing Monitors&Pools). `expected_body` stays EMPTY, `follow_redirects` false, `expected_codes` 200. Accepted residual: :3001 is then unmonitored by the LB — pm2 `autorestart` plus an external uptime check on `https://atxwashdryfold.com/health` (which service: §14 Q-12). | CF API GET on the monitor shows `header.Host == ['portal.atxwashdryfold.com']`. Within 2 intervals: `Cloudflare-Traffic-Manager` UA appears in `/var/log/nginx/portal.atxwashdryfold.com.access.log` and stops appearing in `rundberglaundry.com.access.log` on both boxes. Optional drill in a window: `pm2 stop wavemax` on oci2 → pool shows oci2 unhealthy → `pm2 start wavemax`. |
+| R-05 | **Mis-routed host is invisible to the monitor** (both apps answer `/health` 200). Removing partnerLanding before the flip, or a partial nginx edit, leaves marketing hosts on the login shell (`server.js:738-750`) or the content app 404ing. | M | H | Affiliate keeps `partnerLanding` + the store fall-through until Phase 2 (rollback = `proxy_pass` back to :3000). New `tests/integration/hostRouting.test.js` (portal Host → shell; marketing Host → partnerLanding during Phase 1, 404 after Phase 2; unknown Host → 404). `affiliatePortalRoot.test.js` gains Host-negative cases. | After EVERY `nginx -s reload`, per box, per host: `curl -s --resolve <host>:443:<box-ip> https://<host>/ | grep -c 'rel="canonical" href="https://atxwashdryfold.com/"'` → 1 on the 4 marketing hosts; `https://portal.atxwashdryfold.com/` → 200 with `__Host-portal.sid`; `https://crhsent.com/` unchanged. |
+| R-06 | **Dead `/austin-tx` rewrite left in a vhost.** All three marketing vhosts still carry `location = / { rewrite ^ /austin-tx/… last; }` (follow-up [4]: nginx -T lines 311-313, 515-517, 765-767). Retargeting `proxy_pass` without deleting it sends `/austin-tx/` to the content app for a bare `/` → 404. | H (if the edit is partial) | H | The proxy retarget and the rewrite deletion are ONE nginx edit per vhost (§ nginx blocks); `nginx -t` before reload; both boxes. | On each box after the edit: `sudo nginx -T | grep -c 'rewrite ^ /austin-tx'` → 0; `curl -s --resolve rundberglaundry.com:443:<box-ip> https://rundberglaundry.com/ -o /dev/null -w '%{http_code}'` → 200. |
+| R-07 | **`default_server return 444` vs the monitor.** Safe today because the monitor carries a real Host (verified: zero probe hits in the global access log). If the monitor were ever recreated without a Host header, a 444 default block fails both origins at once. Also: runberglaundry.com and wavemax.promo currently 301 to `https://atxwashateria.com$request_uri` via the implicit default block (`www.atxwashateria.com`, first `listen 443` in include order). | L | H | Pin `header.Host` in the monitor definition (R-04) and record it in `production_systems_access.md`. Create the explicit `runberglaundry.com` vhost in the same edit as the 444 block so the typo-guard host keeps serving. | Global `/var/log/nginx/access.log` receives NO `Cloudflare-Traffic-Manager` lines after the change; `curl -sk --resolve unknown.example:443:<box-ip> https://unknown.example/` → curl exit 52 (empty reply); `curl -sI --resolve runberglaundry.com:443:<box-ip> https://runberglaundry.com/` → 200 partner page, not a 301 to atxwashateria. |
+| R-08 | **CF edge keeps serving app-origin `/assets/*` bytes** (immutable 1y, `server.js:588-594`) on the marketing zones after the flip; pages mix old CSS/JS with new HTML. | M | L-M | Purge each marketing zone after its flip (token: Cache Purge scope untested — §14 Q-13) OR ship content assets under a new `?v=` (the `?v=` bump is the rule regardless). | Per host: `curl -sI https://<host>/assets/css/partner-program.css?v=<new> | grep -E 'cf-cache-status|etag'` → first MISS then HIT, etag equal to the origin's (`curl -sI --resolve …`). |
+| R-09 | **Store devices bookmarking rundberglaundry.com** land on marketing pages after the flip (`.env.example:184`, memory `admin_clean_url_gate.md:34`; kiosk `/operator` host unverified; `public/manifest-scan.json` `start_url:/operator-scan-embed.html`, `scope:/`). | M | M | D7 safety net: corporate 302s `STORE_IP_ADDRESS`/`ADDITIONAL_STORE_IPS`/`STORE_IP_RANGES` → `https://portal.atxwashdryfold.com` + `req.originalUrl` on any marketing host, mounted before B7; device re-point checklist still executed before the flip. `ops.js:44,65` fixed to `BASE_URL`. | Corporate test: request with `cf-connecting-ip: 72.190.1.227` on a marketing Host → 302 `Location: https://portal.atxwashdryfold.com<originalUrl>`; non-store IP on the same path → the marketing page/301. From the store network after the flip: `curl -sI https://rundberglaundry.com/operator` → 302 portal. |
+| R-10 | **Affiliate HTTPS-upgrade default redirect** sends unknown-Host http requests to `https://rundberglaundry.com${req.url}` (`server.js:193`) — the content app after the flip; `allowedHosts` (`:174-182`) still lists the marketing host and three dead wavemax.promo entries. Practically unreachable (nginx :80 + CF Always-HTTPS) but the wrong default for the app unit. | L | M | Phase 0b: `allowedHosts` = `['portal.atxwashdryfold.com','localhost:3000']`, default → portal; delete `RETIRED_HOSTS` (`server.js:207-214`) and the wavemax assertions in `tests/integration/domainMigration.test.js:17-27`; extract the redirect into a unit-testable function outside the `NODE_ENV==='production'` gate. | Unit test on the extracted function: unknown host → `https://portal.atxwashdryfold.com/x`; `git grep -n 'wavemax.promo' server.js tests/integration/domainMigration.test.js` → 0. |
+| R-11 | **`FRONTEND_URL=https://rundberglaundry.com` still emits password-reset links** on the marketing host (`server/services/passwordResetService.js:78`; prod value verified on both boxes, follow-up [2]). Not in B7 (`/reset-password` is not a served clean URL). | M | M | Fold `FRONTEND_URL` into the single `appUrl()` helper defaulting to portal, emitting `/embed-app-v2.html?route=/reset-password&token=…`; prod `.env` both boxes updated (confirm-first). | `tests/unit/passwordResetService` asserts the link host is `portal.atxwashdryfold.com`; on-box `grep '^FRONTEND_URL=' .env` → portal (or key removed). |
+| R-12 | **Corporate content app 404s `/` for a Host it does not map** (apex-only host map is correct only while nginx owns www→apex; `crhsentHandler.js:20` also strips `www.` — a harmless double). | L | M | Host→content-root map covers the 4 apex + 4 www marketing names + crhsent.com/www; nginx keeps the www 301 blocks. | Corporate test: each of the 10 Host values → 200 for `/`; `Host: www.rundberglaundry.com` external → 301 apex (nginx) with `x-origin-box` header present. |
+
+#### 12.2 Shared database and Item B topology
+
+| ID | Risk | L | I | Mitigation | Check that catches it |
+|---|---|---|---|---|---|
+| R-13 | **Shared `ratelimit_<name>` buckets across apps.** Web-core's store names collections `ratelimit_${name}` with no namespace (`crhs-web-core/src/middleware/rateLimitMongoStore.js:36`); corporate already mounts `wc.rateLimiting.apiLimiter` on `/api/` (`crhs-corporate/server.js:77`) against the same `MONGODB_URI`, so `ratelimit_api` is one per-IP bucket for the portal API and crhsent.com/api/*; D2a would share `ratelimit_contact_*` during Phase 1. Different `RATE_LIMIT_MAX_REQUESTS`/`RELAX_RATE_LIMITING` per process → inconsistent windows. No purge exists on ADB (TTL inert, `:58-62,80-81`). | H (present) | M | Web-core: `collectionPrefix` ctor option threaded through `createMongoStore` (`rateLimiting.js:46-49`) from `RATE_LIMIT_COLLECTION_PREFIX` (default `ratelimit_`); corporate sets `ratelimit_corp_`; export `LIMITER_NAMES` + `sweepExpired(prefix)`; per-boot TTL `createIndex` opt-in; `codeAttemptLockout.js:49` uses `store.collectionName`; web-core test asserts via `store.collectionName` (`tests/middleware/rateLimitMongoStore.test.js:27,77`). | Web-core unit test: `new MongoRateLimitStore({name:'api', collectionPrefix:'x_'}).collectionName === 'x_api'`. Live: `db.getCollectionNames().filter(n => /^ratelimit_corp_/.test(n))` non-empty after corporate traffic, and `ratelimit_api` docs carry no corporate-only keys; the affiliate's live collection names are unchanged (`ratelimit_api`, `ratelimit_bag_codes`, …). |
+| R-14 | **Mongoose instance split → silent gate failure on corporate.** Locally the affiliate's `node_modules/@crhs/web-core` is a symlink (no `.npmrc`), so web-core resolves `crhs-web-core/node_modules/mongoose` 8.24.4 vs the app's 8.24.1 (follow-up [8], SAME INSTANCE: false). On a split instance corporate's `accessGate.loadCache` catches the buffering timeout and only `logger.error`s (`crhs-corporate/server/middleware/accessGate.js:75`) — the process boots mis-gated, no crash-loop. | M | H | Topology option (c) as the FIRST Item-B PR: affiliate `.npmrc install-links=true`; web-core moves mongoose/express-session/connect-mongo/express-rate-limit to `peerDependencies` (kept in `devDependencies` for its 541 tests) and drops direct `mongodb` (`package.json:25`); corporate declares the four explicitly and rewrites `server.js:20-22`; both consumers' lockfiles regenerated and committed. Ship topology and consumption as separate deploys. | On each box, each consumer: `node -e "const m=require('mongoose');const wc=require('@crhs/web-core');console.log(wc.SystemConfig.base===m, require('@crhs/web-core/package.json').version)"` → `true <version>`. Corporate `pm2 logs crhs-corporate` shows `Access gate cache loaded:` (`accessGate.js:72`), never `Access gate cache load failed`. `crhs-corporate/tests/models.test.js:88-95` stays green; the affiliate gains the same `.base` identity assertion in `tests/setup.js` plus "`initializeDefaults` resolved" (today swallowed at `tests/setup.js:162-164`). |
+| R-15 | **Model double-registration.** Web-core `src/models/SystemConfig.js:449` and the affiliate `server/models/SystemConfig.js:449` both call `mongoose.model('SystemConfig', …)`: on one instance → `OverwriteModelError` at boot; on two → silent double registration. | M | H | Move-then-delete in ONE change: the PR that switches consumers to `wc.SystemConfig` removes the inline model's registration (the shim re-exports core, registers nothing). | Boot test: `mongoose.modelNames().filter(n => n==='SystemConfig').length === 1`; `require('./server/models/SystemConfig') === require('@crhs/web-core').SystemConfig`. |
+| R-16 | **Silent range drift (E6).** Under install-links, a future web-core range that no longer overlaps a consumer's pin makes npm nest a private copy under `node_modules/@crhs/web-core/node_modules` with no error — the split returns in production. | M | M | peerDependencies turn this into an install-time `ERESOLVE` (E7). Exact pin policy for the four packages in both consumers: §14 Q-10. | In each consumer after `npm install`: `test ! -d node_modules/@crhs/web-core/node_modules` and `npm ls mongoose express-session connect-mongo express-rate-limit` shows exactly one entry each (add as a `postinstall`-free CI step: `scripts/check-single-instance.js`). |
+| R-17 | **`mongodb` driver split makes `mongoCursorRetry` a no-op.** Web-core declares `mongodb ^6.21.0` while mongoose 8.24.x pins `~6.20.0`; verified in corporate: `mongoose.mongo.Collection === require('mongodb').Collection` → false. `crhs-web-core/src/utils/mongoCursorRetry.js:89-97` patches the driver mongoose never uses. The affiliate works today only via its inline copy (`server.js:59`). | H (present in corporate) | M | Web-core drops the direct `mongodb` dependency and patches `mongoose.mongo.Collection` (or accepts `opts.Collection`); D19a corporate adopts `installCursorRetry` before `mongoose.connect` (`server/db.js:25`). | Web-core unit test: the patched prototype is `mongoose.mongo.Collection.prototype`; on each box, each consumer: `node -e "const m=require('mongoose');console.log(m.mongo.Collection===require('mongodb').Collection)"` → `true` (or `mongodb` not resolvable at top level at all). |
+| R-18 | **Web-core version skew between consumers** (corporate lock 0.1.0 / installed 0.1.1 / source 0.1.2; on-box corporate copy still 0.1.0 = the eager index). A rsync alone changes nothing running. | M | M | Every web-core change: bump version → rsync `/var/www/crhs-web-core` → `npm install --install-links` in BOTH consumer dirs → `pm2 reload` each; each app logs the installed web-core version at boot. | Both `pm2 logs` show the same `web-core <version>` boot line; `cat /var/www/crhs-corporate/node_modules/@crhs/web-core/package.json | grep version` equals the affiliate's. |
+| R-19 | **Audit trail split.** Web-core `auditLogger` writes `__dirname`-relative (`src/utils/auditLogger.js:17,23`); the app's `CSRF_VALIDATION_FAILED` events already land in `node_modules/@crhs/web-core/logs/` on the boxes via `csrf-config.js:13`. Deduping auditLogger multiplies this. | H (live) | M | Web-core auditLogger honours `LOG_DIR` exactly as `logger.js:11` does — the FIRST core fix before any auditLogger shim. | Affiliate integration test: a CSRF failure appends to `${LOG_DIR}/audit.log`; on-box `sudo ls /var/www/wavemax/wavemax-affiliate-program/node_modules/@crhs/web-core/logs` → no such directory after the next deploy. |
+| R-20 | **Session swap loses the store handle / renames the cookie.** Adopting `buildSessionMiddleware` as-is drops the connect-mongo handle used by `installOracleDiagnostics` (`server.js:129-132`), the maxAge fixer (`:453-481`), and defaults the cookie to `wavemax.sid` (`sessionStore.js:22`) — logging every portal user out. | M | H | D18a: core returns `{ middleware, store }` and carries the fixer; affiliate passes `cookieName:'portal.sid'` and `collectionName:'sessions'` (its live name); corporate passes `SESSION_COOKIE_NAME=crhsent.sid` and its own `collectionName`. | `tests/integration/domainMigration.test.js:46-55` and `webCoreConsumptionGolden.test.js:67-76` (cookie name) stay green; new core unit test for `{middleware, store}`, `genid`, `autoRemove:'interval'`; `GET /health` → no cookie in both repos. |
+| R-21 | **Shared secrets + hidden config ownership.** Corporate requires identical `SESSION_SECRET`/`JWT_SECRET`/`ENCRYPTION_KEY` (`crhs-corporate/.env.example:11-12,28-30`); `access_gate_enabled` exists only because the portal seeds it (`server/models/SystemConfig.js:404`). Rotating an affiliate secret or splitting defaults silently breaks corporate's gate. | M | H | D15b: core seeds only `maintenance_mode`/`access_gate_enabled`/`system_timezone` via `registerDefaults`; corporate seeds `access_gate_enabled` itself; Access* seed scripts move to corporate. Secret rotation documented as a two-app procedure (whether the secrets stay shared: §14 Q-8). | Corporate test on an empty DB: boot → `SystemConfig.getValue('access_gate_enabled')` resolves without the affiliate running; `git ls-files scripts/seed-access-gate.js scripts/whitelist-access-ip.js server/models/Access*.js` in the affiliate → empty. |
+| R-22 | **Dead `rate_limits` reset paths.** `administratorRoutes.js:202-228`, `systemHealthService.js:90-112`, `scripts/admin/reset-rate-limits.js:36` `deleteMany` on a collection the store never writes — the admin reset is a silent no-op. | H (present) | L | Rewrite to iterate `LIMITER_NAMES` under the app's prefix (or remove the surface). | Integration test: seed a synthetic `ratelimit_auth` doc → admin reset → response count ≥ 1 and the doc is gone. |
+| R-23 | **Corporate autoIndex** — `server/db.js:25` passes no `autoIndex:false` although `scripts/ensure-indexes.js:5-6` claims parity; corporate boot may be provisioning indexes on shared `systemconfigs`/`mediatoraccess`. | L | M | Set `autoIndex:false` in corporate `db.connect()` in the same PR as D19a; ownership of `systemconfigs` indexes stays with the portal's `ensure-indexes.js`. | `getIndexes()` on `systemconfigs` before/after a corporate boot is unchanged (§14 Q-7 records the current state first). |
+
+#### 12.3 Mail and leads
+
+| ID | Risk | L | I | Mitigation | Check that catches it |
+|---|---|---|---|---|---|
+| R-24 | **553 "Sender address rejected" on identity change** (the 2026-08-24 outage class). Corporate prod runs `EMAIL_USER=no-reply@wavemax.promo` with a single Mailcow `sender_acl` row for `admin@rundberglaundry.com`; its `.env.example:42-44` says `no-reply@crhsent.com`; `accessGate.js:54` hardcodes `GATE_FROM='"WaveMAX" <admin@rundberglaundry.com>'`. Aligning prod to the example, or moving intake mail to corporate on the crhsent identity, breaks gate mail unless `GATE_FROM` changes in the same deploy. | M | H | Corporate `.env` (confirm-first): `EMAIL_USER=EMAIL_FROM=no-reply@crhsent.com`, `EMAIL_TLS_SERVERNAME=mail.crhsent.com`; `GATE_FROM` → `'"CRHS Enterprises" <no-reply@crhsent.com>'` in the SAME deploy; `crhs-corporate/tests/accessGate.test.js:204` updated. Startup hard check in both apps: `EMAIL_FROM` address domain must equal `EMAIL_USER` domain or the process refuses to boot. | Real test mail per host after Phase 0a (gate link + partner inquiry + affiliate application); on the mail host `grep 'status=sent' /var/log/mail.log` for each; no `553` in either app's `error.log`. |
+| R-25 | **`EMAIL_TEMPLATE_ROOT` unset → every mail renders `FALLBACK_TEMPLATE`** with only a `logger.error` (web-core `template-manager.js:9-13,41-46`); corporate's `.env.example:46` leaves it commented. Same silent class as R-24. | M | H | Corporate carries its own `templates/` copy of `base-template.html`; `EMAIL_TEMPLATE_ROOT` set explicitly; startup hard check that the root exists and contains `base-template.html`. Affiliate: thin wrapper binding `TEMPLATE_ROOT` (cspHelper pattern) when it adopts core's template-manager. | Corporate test: `loadTemplate('base-template')` is not the fallback; the sent HTML contains `<img src="https://…/assets/images/brand/logo.png"` (absolute) and no `[BRAND_LOGO]`/`[BASE_URL]` literal. |
+| R-26 | **Unread leads.** `pickups@rundberglaundry.com` (goto of `pickups@atxwashdryfold.com`) has no recorded login since 2026-07-31; Aug 29 partner inquiries sit unread. Ops alerts default to `admin@rundberglaundry.com` (last login 2026-08-10). | H | M | OPEN human action (§14 Q-1): re-point the alias goto to an actively read mailbox (comma-append `administrator@wavemax.promo` or a crhsent.com mailbox); set `ALERT_EMAIL=admin@crhsent.com` explicitly in the affiliate `.env`. | Cutover validation: a synthetic partner inquiry submitted after the flip is acknowledged from the receiving mailbox; on the mail host `sasl_log` shows an IMAP/SOGo login for the goto mailbox within 1 business day. |
+| R-27 | **Reply-To defect.** Neither transport sets `replyTo` (`server/services/email/transport.js:70`; web-core `src/email/transport.js:74`) while the notification bodies say "Reply to this email to reach <lead>" (`partnerInquiryService.js:64`, `affiliateApplicationService.js:65`) — replies go to `no-reply@crhsent.com`. | H (present) | M | Web-core `sendEmail` gains `replyTo`; both intake services pass the lead's address. | Corporate test: `sendEmail.mock.calls[0]` carries `replyTo === lead.email`; live mail header inspection on the first post-cutover lead. |
+| R-28 | **Displayed ≠ delivered address.** Page shows `pickups@atxwashdryfold.com` (`partner-program.html:35,260,321`); service default and 4 locale strings say `pickups@rundberglaundry.com` (`partnerInquiryService.js:6`; `public/locales/*/common.json:1696-1697`; `partner-inquiry.js:101,106`); tests pin the old defaults (`tests/integration/partnerInquiry.test.js:9`). | M | L | One commit: service default, JS fallbacks, and all four `partner.form.errGeneric/errNetwork` strings → `pickups@atxwashdryfold.com`; `PARTNER_INQUIRY_RECIPIENT` set explicitly in corporate env. | `git grep -n 'pickups@rundberglaundry' -- public server` → 0 in the affiliate and in the moved corporate content; `npm run check:i18n` green. |
+| R-29 | **Historical franchisor-logo email requests.** Every mail sent 2026-06-17 → 2026-08-24 embeds `[BASE_URL]/assets/images/brand/logo-wavemax.png` (37 templates, `git show 7779b5c0`), deleted 2026-08-26 (`c48785ca`, DMCA). Today rundberglaundry.com answers it with a 302 to HTML (`server.js:958-965`). | L | M (DMCA) | Content app answers `410 Gone` for `/assets/images/brand/logo-wavemax.png` on the marketing roots; portal stays 404; NEVER 301 to `logo.png`; the file is never restored. | `curl -sI https://rundberglaundry.com/assets/images/brand/logo-wavemax.png` → 410; `git ls-files | grep -c logo-wavemax` → 0 in all three repos. |
+
+#### 12.4 Tests, guards, i18n, Lighthouse
+
+| ID | Risk | L | I | Mitigation | Check that catches it |
+|---|---|---|---|---|---|
+| R-30 | **Golden-test drift (D16a).** `tests/integration/webCoreConsumptionGolden.test.js:23-57` and web-core `tests/security/{cspGolden,cspMonorepoParity}.test.js` pin the 4 marketing origins in img/connect-src and the location block; their "never edit" rule assumed the hosts stay. An ad-hoc edit hides a real CSP regression. | H | M | ONE deliberate, reviewed re-capture commit per repo, titled `golden: re-capture CSP after marketing-origin removal (D16a)`, touching only the fixture strings; the web-core `profile` parameter must leave the default output byte-identical so corporate `server.integration.test.js:30-45` stays green without edits. | CI diff check: any later PR that modifies a golden fixture fails unless its title starts with `golden:`; the re-capture commit's diff contains no non-fixture hunks. |
+| R-31 | **`tests/unit/rateLimitingMiddleware.test.js` (451 lines) breaks wholesale on a rateLimiting shim** (relative-path mocks at `:2,:29` cannot intercept web-core's requires); its `createMongoStore`/`skip`/`createCustomLimiter` coverage exists nowhere in core; `RELAX_RATE_LIMITING` + the prod guard are untested anywhere. | H | M | Port the unique describe blocks (`:61-108, 275-414`) into `crhs-web-core/tests/middleware/rateLimiting.test.js` plus a RELAX/prod-guard module-reload test BEFORE the shim; then delete the app suite. | Web-core test count rises by the ported blocks; `git ls-files tests/unit/rateLimitingMiddleware.test.js` → empty only after the core tests exist. |
+| R-32 | **Corporate's own guards fail on multi-host arrival**: `content-manifest.test.js:17` pins 49 files, `server.integration.test.js:92-97` expects non-crhsent Host → 404, `crhsent-parity.test.js` is already red (ENOENT `:29`), `webcore.smoke.test.js:10` pins 28 keys; README/`nginx-crhsent.conf` rollback story (nginx back to :3000) is false since `e2107288`. | H | M | Fix/delete each in the same commit as the feature it guards (B1–B12); rewrite the rollback note: the only valid marketing-host rollback is the nginx flip while the affiliate still carries partnerLanding. | `npm test` in corporate green at every PR; README rollback section cites `proxy-node-content.conf` → `proxy-node-app.conf` per vhost. |
+| R-33 | **Stale guard allowlists rot silently.** branding-guard `EXCLUDED_FILES` (`tests/unit/branding-guard.test.js:23-70`) and `INFRA_ALLOW` (`:77-112`), domain-guard `EXCLUDED_PREFIXES :12-17` (nonexistent `crhsent/` at `:14`), `EXCLUDED_FILES :18-25`, `ALLOW :29-33` name files/tokens that leave; the stale-entry check (`:148-151`) covers only the baseline JSON (already `[]`, `:153-154`), so a reintroduced literal under a reused filename is masked. | M | L | Both guards gain a test: every `EXCLUDED_FILES` entry must be in `git ls-files` and every `INFRA_ALLOW`/`ALLOW` regex must match ≥1 line, else FAIL. Allowlists are pruned in the same commit as each removal (§13 lists the entries). Rule: allowlists are tightened, never extended. | The new guard tests; `git diff` of any removal PR shows the matching allowlist line deleted. |
+| R-34 | **i18n orphaning.** `partner.*` (109 keys × 4, `public/locales/en/common.json:1578-1702`) is consumed only by `partner-program.html` + `partner-inquiry.js`; a one-sided move trips `tests/unit/i18n-brand-token.test.js:13-18` on one side and ships untranslated es/pt/de on the other. Corporate has no locales tree. | M | M | Remove from all four affiliate locales in ONE commit; add to all four corporate locales in ONE commit; corporate adopts `scripts/check-i18n-parity.js` and a clone of the structural-parity test; `/locales/*` + `i18n.js` served from the content origin; `i18n.js:15` hostname branch simplified to `/locales`. | `npm run check:i18n` + `i18n-brand-token` green in the affiliate; corporate structural-parity test green; per marketing host `curl https://<host>/locales/de/common.json | jq '.partner.hero'` non-null; the rendered page with `?lang=de` shows German copy. |
+| R-35 | **Lighthouse regression on moved pages** (release gate). Per-host robots (AI-bot block list, no Content-Signal), apex-only sitemaps, immutable `/assets` caching, self-hosted fonts, nonce-strict CSP, correct canonicals are generated/enforced by the affiliate today; corporate ships static crhsent-only files and `sendFile` without cache headers; `docs/development/LIGHTHOUSE-QUALITY-BAR.md:20,25,42,122` hardcodes `https://rundberglaundry.com/?lh=`. | M | M | Reproduce B4/B6 on content (cache headers, per-host SEO files); move `seoCrawlability` cases; re-point the doc to content + portal; CF "Manage robots.txt" stays OFF. | Four-category mobile+desktop Lighthouse on `https://atxwashdryfold.com/`, `/affiliate`, and each other marketing host's `/` on the NEW origin before Phase 1 is "done", each ≥ the prior measured score; `curl -sI https://atxwashdryfold.com/assets/css/partner-program.css` shows `cache-control: public, max-age=31536000, immutable`. |
+| R-36 | **Legal pages: wrong source or drift during the dispute.** Zero serving coverage today; web-core holds divergent stale copies carrying the stripped §12.2 text (§13 item 8); the two T&C documents name different contacts (`terms-and-conditions.html:139,164` vs `terms-and-conditions-embed.html:216,222`). | M | H | D3a: portal owns; delete web-core `assets/legal`; add serving tests; consolidate contacts (§14 Q-6). | New affiliate test: `/terms-of-service`, `/terms-and-conditions`, `/privacy-policy`, `/refund-policy` → 200, nonce present, no unresolved `{{BRAND_NAME}}`, and `grep -c 'WaveMAX Franchise'` → 0 on each served body. |
+| R-37 | **`embed-landing.html:314,317` loads scripts by absolute `https://rundberglaundry.com` URL** — already CSP-blocked on portal (`cspDirectives.js:158-186`), so the SPA `/` landing may be silently broken now; after the flip the host serves corporate. | H | M | D4a: retire the page in Phase 0b (`EMBED_PAGES['/']` → `/affiliate-login-embed.html`; `embed-app-v2.js:330,:889` fallbacks → `/affiliate-login`; delete `embed-navigation.js` with its franchisor `trustedOrigins` `:34-39`). | Playwright: portal login page loads with zero CSP violations; `git ls-files public/embed-landing.html public/assets/js/embed-navigation.js` → empty. |
+| R-38 | **Source-scraping tests fail at require-time on the move** (`tests/unit/wavemaxAffiliatePage.test.js:38-50` greps `server.js` text; `tests/unit/scanbag.test.js:60-67` requires `partnerLanding` and `quarantineConfig` directly). | H | L | Delete the whole `describe('gate exemptions')` block in `scanbag.test.js` and `:38-50` of the page test in the same PR as the middleware removal (Phase 2). | Suite green after Phase 2 with `git ls-files server/middleware/partnerLanding.js server/config/quarantineConfig.js` → empty. |
+
+#### 12.5 Public exposure (cross-references §13)
+
+| ID | Risk | L | I | Mitigation | Check that catches it |
+|---|---|---|---|---|---|
+| R-39 | **locationQuarantine 302s foreign-Host requests to the franchisor** (`server/config/quarantineConfig.js:13-14`, mounted `server.js:538`, active under `QUARANTINE_NON_AUSTIN=true` — memory says prod runs true). Any nginx mistake during the flip that lands a foreign Host on :3000 sends visitors to wavemaxlaundry.com. | M | H (litigation) | nginx `default_server return 444` in Phase 0b; verify `QUARANTINE_NON_AUSTIN` on both boxes; delete middleware + config + env + the 453-line test in Phase 2. | On each box: `curl -sI -H 'Host: foo.example' http://127.0.0.1:3000/anything` → no `Location` containing `wavemaxlaundry.com` (after Phase 2: 404); `grep -c 'wavemaxlaundry' /var/www/wavemax/wavemax-affiliate-program/.env` → 0. |
+| R-40 | **Publicly served leftovers on the portal origin**: 450 MB / 456 tracked franchisor location photos for 64 unrelated franchises (immutable 1y), `products-placeholder.html`, `wavemax-affiliate.html`, the token-gated design-explorer, and — with `SHOW_DOCS=true` (`.env.example:120`; `server.js:621-624`) — the entire `docs/` tree including forensic evidence. | H (present) | H | Phase 2: delete the 64 directories (git history retains them), the orphan pages, `docsRoutes`, D6a explorer + concierge; verify `SHOW_DOCS` on both boxes; purge CF marketing zones after asset changes. | `git ls-files public/assets/images/locations | grep -vc '/austin-tx/'` → 0; `curl -sI https://portal.atxwashdryfold.com/docs/` → 404; `curl -sI https://portal.atxwashdryfold.com/assets/images/locations/fort-worth-tx/` → 404; `git ls-files public/design-explorer server/controllers/conciergeController.js` → empty. |
+| R-41 | **Corporate emits a CSP/CORS that trusts the franchisor.** `buildCspDirectives` defaults `frame-ancestors` to wavemaxlaundry.com (`cspDirectives.js:139`) and self-origins to wavemax.promo (`:134-135`); corporate passes no overrides (`crhs-corporate/server.js:49-58`); web-core `corsConfig.js:15-24` grants credentialed CORS to franchisor origins on crhsent.com today. | H (present) | H (litigation) | Phase 0a: marketing profile via the web-core `profile`/host parameter (strict, `frame-ancestors 'self'`, trimmed third-party origins); web-core CORS env-only; goldens re-captured (R-30). | Corporate test per Host: the CSP header contains `frame-ancestors 'self'` exactly, no `wavemaxlaundry`, no `'unsafe-inline'` in `script-src`; `Access-Control-Allow-Origin` never echoes a `wavemaxlaundry.com` Origin. |
+
+---
+
+### 13. Litigation-sensitive residue checklist
+
+Every franchisor reference that must be gone (or reduced to the single permitted form) when the plan completes. "Proof" is the command or test that demonstrates absence; run all of them as the last step of Phase 2 and again after the last Item-B PR. The single permitted mention anywhere in marketing copy is the literal string **`WaveMAX Austin`** naming the exclusive fulfillment partner (branding-guard `INFRA_ALLOW :81` `/WaveMAX Austin/gi`); `wavemax` inside `server/utils/passwordValidator.js` (weak-password blocklist, `branding-guard.test.js:49`) is a security control and stays.
+
+| # | Residue | Where (file:line) | Disposition (phase) | Proof of absence |
+|---|---|---|---|---|
+| 1 | Franchisor redirect target | `server/config/quarantineConfig.js:13-14` (`CORPORATE_SITE_URL` default `https://www.wavemaxlaundry.com`, ALLOWLIST `:19-58` naming `/austin-tx`, `/franchise-default`, `/data/franchises.json`); `server/middleware/locationQuarantine.js`; `server.js:488,491-506,538`; `.env.example:163-171`; `tests/integration/locationQuarantine.test.js`; `tests/unit/scanbag.test.js:60-67`; prod `.env` `QUARANTINE_NON_AUSTIN`/`CORPORATE_SITE_URL` on both boxes | DELETE all (Phase 2); sensitive-path 404 cases (`locationQuarantine.test.js:342-363`) extracted first into `tests/integration/sensitivePathProbes.test.js` | `git ls-files server/config/quarantineConfig.js server/middleware/locationQuarantine.js tests/integration/locationQuarantine.test.js` → empty; `git grep -n 'wavemaxlaundry' -- server.js server/ .env.example` → 0; on both boxes `grep -cE '^(QUARANTINE_NON_AUSTIN|CORPORATE_SITE_URL)=' .env` → 0 |
+| 2 | CORS / CSP / security-header origins | Affiliate `server.js:282-328` (`wavemaxDomains` `:289-294`); web-core `src/security/corsConfig.js:15-24` (wavemaxlaundry.com ×2, wavemax.promo, 4 CRHS hosts); `src/security/cspDirectives.js:134-135` (wavemax.promo self-origins), `:139` (franchisor `frame-ancestors`), `:143` comment, `:194-195` (4 CRHS hosts hard-coded in img/connect-src), `:210` (wavemaxlaundry + rundberglaundry `frame-src`), `:108-111` comments; `src/security/securityHeaders.js:66,83-94` CORP/CORS carve-out comments naming wavemaxlaundry/rundberglaundry | Web-core: all host literals become parameters/env with empty defaults; `frameAncestors` default `['self']`; marketing profile per §12 R-41; CORS env-only; affiliate CORS → portal origin + `CORS_ORIGIN`. Goldens re-captured once (D16a). Phase 0b (affiliate) / first core-fix PR (web-core) | `git grep -nE 'wavemaxlaundry|wavemax\.promo|rundberglaundry|atxwash|runberglaundry' -- src` in crhs-web-core → 0; affiliate `git grep -n 'wavemaxDomains\|atxwashateria\|runberglaundry' server.js` → 0; header tests per host (R-41) |
+| 3 | postMessage / iframe-bridge origin lists | `public/assets/js/iframe-bridge-v2.js:19-27` (`allowedOrigins` incl. wavemaxlaundry.com) + `.min.js`; `public/assets/js/parent-iframe-bridge-v3.js:34-41,67` + `.min.js`; `scripts/build-assets.js:26-27`; `public/assets/js/embed-navigation.js:34-39` (`trustedOrigins` wavemaxlaundry.com), `:186-191` (UTM source); web-core `assets/js/{iframe-bridge-v2,parent-iframe-bridge-v3}.js`; `docs/parent-iframe-bridge.js`, `docs/IFRAME_EMBED_GUIDE.md`, `docs/CONTENT_EMBED_INTEGRATION_GUIDE.md`, `docs/examples/wavemaxlaundry-*-embed.html` | DELETE (D9a + D4a): bundles, build step, web-core copies; then review `securityHeaders.js:83-94` CORP carve-outs (keep only the `/assets/`,`/locales/` CORP:cross-origin needed for webmail images, R-29 note); docs archived to a private repo | `git ls-files | grep -E 'iframe-bridge|parent-iframe-bridge|embed-navigation'` → empty in all three repos; `git grep -n 'wavemaxlaundry' public/assets/js` → 0; `git grep -n 'postMessage' public/assets/js` shows only the resize/height uses with `'*'` target and no franchisor origin check |
+| 4 | security.txt franchise statement | `public/.well-known/security.txt:2` ("under a franchise license from WaveMAX Franchise, LLC"); served host-agnostically at `server.js:502-504` | Edit line 2 → `# Operated by CRHS Enterprises, LLC.` (Phase 0b); corporate serves its own per-host `security.txt` (Contact `security@crhsent.com`, `Canonical` = that host) with no franchise statement | `for h in portal.atxwashdryfold.com rundberglaundry.com runberglaundry.com atxwashateria.com atxwashdryfold.com; do curl -s https://$h/.well-known/security.txt | grep -ci 'franchise'; done` → all 0 |
+| 5 | `wavemax-affiliate.html` + JobPosting | `public/wavemax-affiliate.html` (mark at `:7-8,14-16,20,33,62,86`; `:36` `"hiringOrganization": {"name": "WaveMAX"}`; canonical `:10,17` on rundberglaundry.com); `public/assets/css/affiliate-ad.css`; `public/assets/images/affiliate-ad-og.png` (default `server/config/brand.js:30`); `tools/flyers/build-flyers.js:12,27` `FLYER_URL` default `…/wavemax-affiliate`; `public/assets/flyers/*.pdf`; `server.js:757-759`; `partnerLanding.js:104`; `quarantineConfig.js:38`; `tests/unit/wavemaxAffiliatePage.test.js`; `tests/integration/phase4bKeepSet.test.js:12,34-35`; branding-guard `:30,:36,:111`; domain-guard `:20`; web-core `cspDirectives.js` slug predicate coincidentally strict for it | D5 — RETIRE, **pending counsel (Miguel)**, designed as proceeding: corporate 301s `/wavemax-affiliate` → `/affiliate` on the same marketing host (GET/HEAD); delete page, CSS, OG image, flyer tooling defaults, tests, guard entries (Phase 2); `brand.js:30` repointed to an app-owned asset in Phase 0b | `git ls-files public/wavemax-affiliate.html public/assets/css/affiliate-ad.css public/assets/images/affiliate-ad-og.png tests/unit/wavemaxAffiliatePage.test.js` → empty; `curl -sI https://rundberglaundry.com/wavemax-affiliate` → 301 `Location: /affiliate` (absolute on the same host); `curl -s https://atxwashdryfold.com/affiliate | grep -c '"name": "WaveMAX"'` → 0; `git grep -n 'hiringOrganization' public/ crhs-corporate/content/` shows only `"Rundberg Laundry"`/CRHS |
+| 6 | Franchise photo tree | `public/assets/images/locations/*` — 65 directories, 456 tracked files, 450 MB; only `austin-tx/` is referenced (`partner-program.html:19,23,36,111`); `public/assets/js/wm-image-config.js:5,23,43` (wavemaxlaundry.com uploads URL, dead); `public/assets/js/faq-accordion.js` (dead) | MOVE `austin-tx/` to the corporate marketing content root; DELETE the other 64 directories + `wm-image-config.js` + `faq-accordion.js` (Phase 2; history retains them) | `git ls-files public/assets/images/locations | wc -l` → 0 (affiliate); `du -sh public/assets/images` < 5 MB; `git ls-files public/assets/js/wm-image-config.js public/assets/js/faq-accordion.js` → empty; `curl -sI https://portal.atxwashdryfold.com/assets/images/locations/garland-tx/` → 404 |
+| 7 | Corporate accessGate marks + From | `crhs-corporate/server/middleware/accessGate.js:54` (`GATE_FROM = '"WaveMAX" <admin@rundberglaundry.com>'`), `:13` comment, `:161` (`<title>WaveMAX</title>`), `:179` ("WaveMAX swirl spinner" comment), `:250` (`<img src="/assets/images/brand/logo.png" alt="WaveMAX">` — relative src in outbound mail), `:345` (subject `'Your WaveMAX access link'`); `crhs-corporate/tests/accessGate.test.js:93` (logo-wavemax.png fixture), `:204` (asserts the rundberglaundry From) | Phase 0a: From → `'"CRHS Enterprises" <no-reply@crhsent.com>'`; title/alt/subject → `CRHS Enterprises`; logo `src` → `${process.env.BASE_URL}/assets/images/brand/logo.png` (absolute); tests updated. Note: the `/wavemax` path exemption (`:103-111`) is corporate's mediator documentation package — a route slug, not display copy; it stays. Adjacent: `content/owners/index.html:30` labels the CRHS wordmark `alt="WaveMAX Laundry"` — fix to the brand the image shows (`WaveMAX Austin`); the rest of crhsent.com's owner-facing copy is deliberately outside the de-brand | `git grep -n -i 'wavemax' server/middleware/accessGate.js` in corporate → only the `/wavemax` path lines `:103-111`; `git grep -n 'admin@rundberglaundry' server/ tests/` → 0; a captured gate email has `From: "CRHS Enterprises" <no-reply@crhsent.com>` and an absolute `https://` logo URL |
+| 8 | Web-core legal copies with the stripped §12.2 text | `crhs-web-core/assets/legal/privacy-policy.html:39,186`; `terms-and-conditions.html:31,105,167` ("WaveMAX™ … trademarks of WaveMAX Franchise, LLC, used under license" / "under a franchise license"); `refund-policy.html`; served by nobody (`assetsDir` referenced only in `crhs-corporate/tests/webcore.smoke.test.js:26-28`) | DELETE the directory in the first web-core PR; portal remains the single source (`e51984ea`, `43996e1c`, `43f6dfc8`) | `test ! -d crhs-web-core/assets/legal`; `git grep -n 'WaveMAX Franchise' .` in crhs-web-core → 0; on portal `curl -s https://portal.atxwashdryfold.com/terms-and-conditions | grep -c 'WaveMAX Franchise'` → 0 |
+| 9 | Corporate `wavemax.sid` cookie + web-core default | `crhs-web-core/src/config/sessionStore.js:17-22` (`DEFAULT_COOKIE_BASE = 'wavemax.sid'`), `:35-36,46,91`; corporate passes no `cookieName` (`crhs-corporate/server.js:65-69`); live `__Host-wavemax.sid` observed on crhsent.com; affiliate `tests/integration/domainMigration.test.js:54` already asserts the portal never sets it | D14b: corporate `SESSION_COOKIE_NAME=crhsent.sid` scheduled with the Phase 0a deploy (drops live gated sessions once, accepted); web-core default base → `app.sid` (brand-neutral) in the same core PR; `sessionStore.js:17-21` comment rewritten | `curl -sI https://crhsent.com/ | grep -i set-cookie` → `__Host-crhsent.sid`; `git grep -n 'wavemax' src/config/sessionStore.js` → 0; web-core unit test `resolveSessionCookieName({}) === 'app.sid'` (with `SESSION_COOKIE_NAME` unset); portal cookie unchanged (`__Host-portal.sid`) |
+| 10 | `SystemConfig` "WaveMAX Associates" default | `crhs-web-core/src/models/SystemConfig.js:175` (description of `default_delivery_fee`); the affiliate copy says "house Associates" (`server/models/SystemConfig.js:175`) | D15b: the 24 affiliate-domain defaults (incl. `default_delivery_fee`) move to the app via `registerDefaults` with the app's wording; core keeps only `maintenance_mode`, `access_gate_enabled`, `system_timezone` | `git grep -n 'WaveMAX' src/models` in crhs-web-core → 0; live `db.systemconfigs.findOne({key:'default_delivery_fee'}).description` contains no `WaveMAX` |
+| 11 | `brand.js` defaults and duplication | `server/config/brand.js:25-31` and byte-identical `crhs-web-core/src/config/brand.js:25-31`: display defaults are already neutral (`Laundromat`); residue = `ogImagePath` default `/assets/images/affiliate-ad-og.png` (`:30`, the ad-funnel image leaving with item 5) and the duplicate module itself | D13b: brand stays app-owned; web-core `brand.js` + `tests/config/brand.test.js` deleted once email transport/template-manager take `displayName`/`fromName`/`logoPath` by parameter; affiliate `:30` → an app-owned asset (`/assets/images/brand/logo.png`) | `test ! -f crhs-web-core/src/config/brand.js`; affiliate `node -e "const b=require('./server/config/brand');require('fs').accessSync('public'+b.ogImagePath)"` exits 0; `git grep -n 'affiliate-ad-og' .` → 0 |
+| 12 | `logo-wavemax.png` (franchisor swirl) | Deleted from both repos 2026-08-26 (`c48785ca`); residual references `tests/unit/domain-guard.test.js:36` (comment), `crhs-corporate/tests/accessGate.test.js:93`; still requested by pre-2026-08-24 emails (R-29) | Content app answers **410 Gone** on the marketing roots; portal 404; never 301; test fixtures re-pointed to a neutral filename | `curl -sI https://<each marketing host>/assets/images/brand/logo-wavemax.png` → 410; `git ls-files | grep -c 'logo-wavemax'` → 0 in all three repos; `git grep -n 'logo-wavemax' server/templates` → 0 |
+| 13 | Design-explorer / concierge NAP + explorer CSP | `server/services/conciergeFaq.js:21-45` (`'WaveMAX Laundry Austin — …'`, NAP, hours, $1.20/lb); `server/controllers/conciergeController.js`; `public/design-explorer/*` + `design-explorer/*` source; `server/middleware/explorerGuard.js:28-38`; `server.js:597,642-644`; `package.json:26,48` (`build:explorer`, `@anthropic-ai/sdk`); `.env.example:173-179,186-189`; web-core `csrf-config.js:68-71` exemption; 6 test files under `tests/unit/design-explorer/`; branding-guard `:16-17,:27`, domain-guard `:13` | D6a: RETIRE; archive source to a private repo; delete env on both boxes (confirm-first) | `git ls-files public/design-explorer design-explorer server/services/conciergeFaq.js server/middleware/explorerGuard.js` → empty; `npm ls @anthropic-ai/sdk` → empty; `curl -sI https://portal.atxwashdryfold.com/design-explorer/` → 404, `POST /api/concierge` → 404; on both boxes `grep -cE '^(EXPLORER_TOKEN|ANTHROPIC_API_KEY)=' .env` → 0 |
+| 14 | Remaining franchisor-era text in app code/config | `public/products-placeholder.html` ("WaveMAX Products - Placeholder"); `server.js:857-861` robots rationale (retired franchise iframe pages); `server.js:734-736,955-957` partnerLanding/`/austin-tx` comments; `server/middleware/partnerLanding.js` (franchisor mark in the hold page; excluded at branding-guard `:52`); `scripts/ops/refresh-hibu.sh` + `/etc/cron.d/wavemax-hibu-refresh` (presence unverified, §14 Q-11); `docs/crhsent-proposal/*`, `docs/corporate-handoff/*`, `docs/seo/corporate-austin/*`, `docs/stash/crhsent-wavemax-SALES-version-2026-05-28.html`, `docs/austin-reference*`, `docs/franchise-preview-plan.md`, `docs/deployment/franchise-tracking-setup.md` (unserved once `docsRoutes` is removed) | DELETE code/config residue in Phase 2; archive the docs to a private repo; remove `docsRoutes` (`server.js:621-624`) and `SHOW_DOCS` | `git ls-files public/products-placeholder.html server/middleware/partnerLanding.js server/routes/docsRoutes.js scripts/ops/refresh-hibu.sh` → empty; on both boxes `ls /etc/cron.d/wavemax-hibu-refresh` → absent; affiliate branding-guard passes with `EXCLUDED_FILES` reduced to the entries in the note below |
+
+**Guard-tightening rule (binding for every PR in this plan).** The branding-guard baseline is already drained (`tests/fixtures/branding-guard-baseline.json` = `[]`, enforced at `branding-guard.test.js:153-154`), so the only remaining escape hatches are `EXCLUDED_FILES` (`:23-70`), `INFRA_ALLOW` (`:77-112`) and domain-guard's `EXCLUDED_PREFIXES`/`EXCLUDED_FILES`/`ALLOW` (`domain-guard.test.js:12-33`). These are **tightened, never extended**: no PR may add an entry. Each removal PR deletes its own entries in the same diff — branding-guard `:24-26` (Access*/MediatorAccess models), `:27` (concierge), `:30` (`wavemax-affiliate.html`), `:32` (`products-placeholder.html`), `:36` (`wavemaxAffiliatePage.test.js`), `:39` (`domainMigration.test.js`, once its wavemax assertions are gone and the file has no remaining hit), `:52` (`partnerLanding.js`), `:53` (`refresh-hibu.sh`, `build-flyers.js`), `:62` (`partnerLanding.test.js`), `:65` (the two form tests, which move to corporate), `:105` (`/wavemaxDomains/`), `:111` (`/\/wavemax-affiliate/`, `/wavemax-affiliate\.html/`); domain-guard `:14` (`crhsent/` prefix — nonexistent today), `:20` (`wavemax-affiliate.html`), `:32` (quoted `wavemax.promo` literals, once `RETIRED_HOSTS`/`allowedHosts` entries are deleted). The `/austin-tx` slug allowlist recorded in memory (`affiliate_email_franchisor_urls_2026-08-24`) is re-audited in the same pass. Both guards gain the missing-entry test (R-33). Corporate gains its own guard for the marketing content root: `/wavemax/i` must match nothing except the literal `WaveMAX Austin` fulfillment-partner phrase; the crhsent.com root is exempt except `server/middleware/accessGate.js` (item 7).
+
+---
+
+### 14. Open questions carried forward
+
+Closed since the scope document (do not re-open): Firebase portal authorization (DONE 2026-09-09); the four `@rundberglaundry.com` aliases (DONE); wavemax.promo (stays DNS-dark, no redirect owner); CF monitor shape (VERIFIED — Host `rundberglaundry.com`, empty `expected_body`, `follow_redirects` false); bag-label host question (answered YES → B7 is a hard prerequisite; reprinting pre-8/23 labels is DEFERRED, the 301 is permanent); nginx ownership (verified: nginx owns www→apex with `$request_uri`; `/austin-tx` rewrites present; `conf.d/wavemax-gate.conf` is a no-op); portal HA (DEFERRED); intake brand/recipients (decided in BINDING); `EXPEDITER_TOKEN` rotation (decided: after the flip); `/scanbag` ownership (portal); 404 vs 410 for `logo-wavemax.png` (410).
+
+| # | Question | Why it matters / recommended answer | Owner |
+|---|---|---|---|
+| Q-1 | **`pickups@` goto.** `pickups@atxwashdryfold.com` → `pickups@rundberglaundry.com`, a mailbox with no login since 2026-07-31 (SOGo only, never IMAP). Who reads it, and should the goto be re-pointed (comma-append `administrator@wavemax.promo`) or replaced by a crhsent.com-domain mailbox? Also `ALERT_EMAIL` (ops alerts currently terminate on `admin@rundberglaundry.com`, last login 2026-08-10). | Leads are delivered but unread (R-26). Recommend: goto → an actively read mailbox before Phase 1; `ALERT_EMAIL=admin@crhsent.com` explicit in the affiliate `.env`. | Rick (Mailcow + `.env`, confirm-first) |
+| Q-2 | **`legacy-peer-deps` on the boxes.** `npm config get legacy-peer-deps` as the deploy user, `/etc/npmrc`, `~/.npmrc` on oci1/oci2 — unverified. If set, peer auto-install (E2) does not happen and corporate boots `Cannot find module 'mongoose'` unless it declares the four packages explicitly (which option (c) does anyway). | Determines whether the corporate `package.json` change is merely defensive or load-bearing; verify before the topology deploy. | Implementer (read-only SSH) |
+| Q-3 | **Corporate autoIndex.** `crhs-corporate/server/db.js:25` passes no `autoIndex:false`; which indexes has corporate's boot actually built on `systemconfigs`, `mediatoraccess`, `access*`? And on ADB does `createIndex({_expiresAt:1},{expireAfterSeconds:0})` fail or succeed-but-inert (`rateLimitMongoStore.js:80-81` vs `sessionStore.js:76-78` disagree)? | Fixes the ownership story for shared indexes (R-23) and decides whether the store's TTL `createIndex` should be opt-in or removed. Run `db.systemconfigs.getIndexes()`, `db.ratelimit_api.getIndexes()` on the live DB. | Implementer with Rick's DB access |
+| Q-4 | **nginx `log_format` redaction.** Do the vhosts use the default `combined` format (full `$request` incl. `?k=`/`?t=` query)? If so the expediter token already lands in the portal vhost's access log today, and would land in the content vhost's after the flip until the device is re-pointed. | Decide: a redacting `map`-based `log_format` on both boxes (confirm-first nginx edit), a CF edge Redirect Rule for the B7 paths so stray hits never reach origin, or accept (token rotated post-flip). Recommend the redacting `log_format` in the same nginx edit as the flip. | Rick decides; implementer drafts the block |
+| Q-5 | **Kiosk / PWA install origin.** Which host is the kiosk tablet's `/operator` home; was `operator-scan-embed.html` ever installed as a PWA (`public/manifest-scan.json` `scope: "/"`); where was the store `/scanbag` PWA installed from; is the expediter display a bookmark/kiosk-launcher URL (who executes the re-point)? | Sizes the device re-point checklist (R-02, R-09). Assume rundberglaundry.com until checked on the devices. | Rick (on-device) |
+| Q-6 | **T&C / legal contact address target.** `terms-and-conditions.html:139,164` says `legal@rundberglaundry.com`; `terms-and-conditions-embed.html:216,222` says `admin@crhsent.com`; `privacy-policy.html:119,129,150,183` `privacy@rundberglaundry.com`; `refund-policy.html` `support@rundberglaundry.com`. The rundberglaundry.com aliases now exist as a bridge. Consolidate to one address per document — recommend crhsent.com identities (`legal@crhsent.com`, `privacy@crhsent.com`, `support@crhsent.com`; CRHS Enterprises is the named legal entity), which requires creating those aliases/mailboxes first. | Legally reviewed text during the dispute; the two T&C documents must agree (R-36). Counsel may have a view on the notice address. | Rick / Miguel |
+| Q-7 | **Corporate `BASE_URL` for intake mail.** BINDING allows either `https://portal.atxwashdryfold.com` (logo resolves to the app-owned 200 asset today; a CRHS-sent mail advertises the portal host) or `https://atxwashdryfold.com` (requires the content app to serve `/assets/images/brand/logo.png` on marketing roots — which it must anyway). | Recommend `https://atxwashdryfold.com` once the content app serves the logo (canonical host in customer-facing mail); ship Phase 0a with portal if the asset route lands later. | Rick |
+| Q-8 | **Shared secrets after separation.** Corporate gets its own session collection and cookie; does `SESSION_SECRET` (mediatorGate cookie signing, accessGate cookies) still need to be identical to the portal's, and `JWT_SECRET`/`ENCRYPTION_KEY` likewise (`crhs-corporate/.env.example:11-12,28-30`)? | If they can diverge, rotation stops being a two-app procedure (R-21). Requires reading `mediatorGate.js` cookie signing and any cross-app cookie expectations. | Implementer proposes; Rick decides |
+| Q-9 | **`MediatorAccess` in the affiliate repo.** Is `server/models/MediatorAccess.js` used by the portal at runtime (only `scripts/ensure-indexes.js:15,34` and the model were found)? | If dead, delete with the Access* models and make `mediatoraccess` single-owner (corporate). | Implementer (grep + boot check) |
+| Q-10 | **Dependency pin policy.** Should both consumers pin exact versions of mongoose/express-session/connect-mongo/express-rate-limit (as `express-rate-limit 7.1.4` already is) so both apps run one mongoose/driver on both boxes, or is web-core's peer range sufficient? Also: is lock churn on every web-core bump (copy-form lock entries) acceptable? | Today corporate runs mongoose 8.24.4 and the affiliate 8.24.1 against the same ADB. Recommend exact pins in both consumers, updated in lockstep with each web-core bump. | Rick |
+| Q-11 | **Hibu cron.** Does `/etc/cron.d/wavemax-hibu-refresh` still exist on oci1/oci2? (`scripts/ops/refresh-hibu.sh` writes a directory that no longer exists.) | Delete with the script in Phase 2 (confirm-first on the box). | Implementer (read-only SSH) |
+| Q-12 | **External uptime check for :3001.** After G1 repoints the LB monitor to portal, corporate's liveness is no longer in the pool's health signal. Which external monitor (and alert route) watches `https://atxwashdryfold.com/health`? | Accepted residual of R-04; needs an owner before Phase 1. | Rick |
+| Q-13 | **CF token scopes.** `~/.cf_api_token` lacks `Zone Load Balancers Read` and Cache Purge is untested. Purging the marketing zones after the flip (R-08) and listing per-hostname LBs need those scopes or the dashboard. | Verify with `GET /user/tokens/verify` + a dry purge on one zone before Phase 1. | Rick |
+| Q-14 | **Residual prod `.env` values still unread**: `SHOW_DOCS`, `PARTNER_PREVIEW_ALLOWLIST`, `EXPLORER_TOKEN`/`ANTHROPIC_API_KEY` presence, `CORS_ORIGIN` contents (follow-up [4] saw `https://wavemax.promo` in both units' `CORS_ORIGIN`), `GOOGLE_PLACES_API_KEY` referer lock, corporate `LOG_DIR`, per-box `RATE_LIMIT_MAX_REQUESTS`/`RELAX_RATE_LIMITING` for each pm2 app. | The Phase-2 env sweep (confirm-first) must scrub these per unit; read them first so the diff is explicit. | Implementer (read-only SSH, non-secret keys only) |
+| Q-15 | **i18n for `/affiliate` before or after the move.** `affiliate.html` carries zero `data-i18n` (English-only); the project rule requires all four locales for user-facing copy. Content backlog or cutover gate? | Recommend: not a cutover gate (the page ships as-is on the new origin, Lighthouse-measured), but a tracked corporate backlog item. | Rick |
+| Q-16 | **CF edge Redirect Rules for B7** (rundberglaundry.com zone) in addition to the Express rule, so stray bag-QR hits never reach origin. | Defense in depth; the Express rule remains the origin-side guarantee. Recommend yes, after the Express rule is verified. | Rick |
+| Q-17 | **Portal `/` and crhsent.com `/` strict CSP.** Both roots are non-strict today for the same regex reason (`cspDirectives.js:63-70`; affiliate `server.js:244-262` lacks `/`). Fix in the same pass? | App/corporate hygiene, outside the marketing-host requirement; recommend yes for portal `/` (its inline script already carries a nonce). | Rick |
+| Q-18 | **Corporate session `collectionName` value.** BINDING requires a distinct collection; this spec assumes `sessions_corporate`. | Confirm before the Phase 0a deploy (a rename later drops live gated sessions again). | Rick |
+
+---
+
+### 15. Global constraints for the implementation plan
+
+Each line is a fixed value the plan must use verbatim.
+
+- **Repos (local → on-box → process):** affiliate `/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program` (GitHub `wdf-affiliate-program`, HEAD `c70d4712`) → `/var/www/wavemax/wavemax-affiliate-program` → pm2 `wavemax` on `:3000`; corporate `/mnt/c/Users/rickh/GitHub/crhs-corporate` → `/var/www/crhs-corporate` → pm2 `crhs-corporate` on `:3001`; web-core `/mnt/c/Users/rickh/GitHub/crhs-web-core` (v0.1.2 lazy index) → rsync to `/var/www/crhs-web-core` (affiliate symlink `/var/www/wavemax/crhs-web-core` → that path) → consumed as a `file:` dep copied by `install-links`.
+- **Boxes:** oci1 `161.153.71.201` (PHX-AD-2), oci2 `144.24.4.202` (PHX-AD-1); `ssh -i ~/.ssh/oci_wavemax ubuntu@<ip>`; CF LB pool `wavemax-oci` (both origins); monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` = HTTPS GET `/health`, `expected_codes 200`, `expected_body` EMPTY, `follow_redirects false`, `header.Host` → `portal.atxwashdryfold.com` (G1); mail host `158.62.198.7` (Mailcow, untouched; `mail.*` vhost blocks → `:8443` untouched).
+- **Hosts → process after the flip:** `portal.atxwashdryfold.com` → `:3000` (the ONLY vhost on :3000); `rundberglaundry.com`, `runberglaundry.com` (new explicit vhost), `atxwashateria.com`, `atxwashdryfold.com` → `:3001` via `snippets/proxy-node-content.conf`; `www.*` → apex 301 stays in nginx (`$request_uri` preserved); `crhsent.com` → `:3001` unchanged; `default_server` on `:443` → `return 444`; `wavemax.promo` DNS-dark, no owner, no code.
+- **Canonical + brand on marketing hosts:** `<link rel="canonical" href="https://atxwashdryfold.com/…">` on every marketing page on every marketing host; atxwashdryfold theme everywhere; the only mark permitted is the literal `WaveMAX Austin` as the exclusive fulfillment partner; no hold page, no preview allowlist, no `PARTNER_PREVIEW_ALLOWLIST`.
+- **B7 (content app, mounted BEFORE accessGate/mediatorGate/crhsentHandler; GET/HEAD only; Host ∈ the 4 apex + 4 www marketing names; `res.redirect(301, 'https://portal.atxwashdryfold.com' + req.originalUrl)`):** `/embed-app-v2.html` (any query), `/admin`, `/admin/`, `/operator`, `/operator/`, `/operator-scan-embed.html`, `/scanbag`, `/scanbag/`, `/scanbag-manifest.json`, `/scanbag-sw.js`, `/monitoring-dashboard.html`, `GET /api/v1/customers/verify-email/*`. NEVER blanket-301 `/api/*` or `/assets/*`. `/wavemax-affiliate` → 301 `/affiliate` same host (D5, pending counsel). Store-IP (`STORE_IP_ADDRESS`, `ADDITIONAL_STORE_IPS`, `STORE_IP_RANGES`; store IP `72.190.1.227`) → 302 `https://portal.atxwashdryfold.com` + `req.originalUrl` on any marketing host, mounted before B7 (D7).
+- **Device checklist BEFORE the flip; token rotation AFTER:** expediter display → `https://portal.atxwashdryfold.com/embed-app-v2.html?route=/order-expediter&k=<TOKEN>`; admin bookmark → `https://portal.atxwashdryfold.com/admin`; kiosk home → `https://portal.atxwashdryfold.com/operator`; `/scanbag` PWA reinstalled from portal; then rotate `EXPEDITER_TOKEN` (`.env` both boxes + `pm2 reload wavemax --update-env`). `ops.js:44,65` → `BASE_URL`.
+- **Corporate env (exact keys):** `BRAND_DISPLAY_NAME=WaveMAX Austin`; `BASE_URL=https://portal.atxwashdryfold.com` or `https://atxwashdryfold.com` (Q-7); `EMAIL_TEMPLATE_ROOT=/var/www/crhs-corporate/templates/emails`; `EMAIL_PROVIDER=smtp`, `EMAIL_HOST=158.62.198.7`, `EMAIL_PORT=587`, `EMAIL_USER=no-reply@crhsent.com`, `EMAIL_FROM=no-reply@crhsent.com` (EMAIL_USER must own EMAIL_FROM), `EMAIL_TLS_SERVERNAME=mail.crhsent.com`; `PARTNER_INQUIRY_RECIPIENT=pickups@atxwashdryfold.com`; `AFFILIATE_APPLICATION_RECIPIENT=admin@crhsent.com`; `STORE_IP_ADDRESS`/`ADDITIONAL_STORE_IPS`/`STORE_IP_RANGES` (same values as the portal); `LOG_SERVICE_NAME=crhs-corporate`; `LOG_DIR=/var/www/crhs-corporate/logs`; `SESSION_COOKIE_NAME=crhsent.sid`; `RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_`; session `collectionName` `sessions_corporate` (Q-18); `MONGODB_URI` shared; `SESSION_SECRET`/`JWT_SECRET`/`ENCRYPTION_KEY` identical to the portal until Q-8 decides otherwise; `GATE_FROM` → `"CRHS Enterprises" <no-reply@crhsent.com>`. Corporate `/health` is registered above the session middleware (G2).
+- **Affiliate env after Phase 2:** `BASE_URL=https://portal.atxwashdryfold.com`; `FRONTEND_URL` folded into `BASE_URL`; `LOG_SERVICE_NAME=crhs-portal`; `SESSION_COOKIE_NAME=portal.sid`; `RATE_LIMIT_COLLECTION_PREFIX` unset (default `ratelimit_` keeps the live collection names); `ALERT_EMAIL=admin@crhsent.com`; DELETE `QUARANTINE_NON_AUSTIN`, `CORPORATE_SITE_URL`, `EXPLORER_TOKEN`, `ANTHROPIC_API_KEY`, `PARTNER_PREVIEW_ALLOWLIST`, `SHOW_DOCS`, the wavemax.promo entries in `CORS_ORIGIN`; `ADMIN_ALLOWLIST` unchanged.
+- **Shared-DB ownership:** `systemconfigs` shared — core seeds `maintenance_mode`, `access_gate_enabled`, `system_timezone` via `registerDefaults`; the app registers its 24 domain keys; corporate seeds `access_gate_enabled` itself; `ratelimit_*` per-app prefix with `sweepExpired(prefix)` owned by each app's `scripts/ensure-indexes.js`; sessions per-app collection; `accessgates`/`accesswhitelists`/`accessclicks`/`accessrequests`/`mediatoraccess` corporate-only; Access* seed scripts move to corporate; the dead `rate_limits` reset paths are rewritten to `LIMITER_NAMES` or removed.
+- **Cookies:** portal `__Host-portal.sid`; corporate `__Host-crhsent.sid`; web-core default base `app.sid` (brand-neutral); `/health` never sets a cookie in either app.
+- **CSP on marketing hosts (web-core `buildCspDirectives` profile/host parameter, defaults byte-identical):** strict on `/` and every path; `script-src 'self' 'nonce-<n>'` (no `'unsafe-inline'`); `style-src 'self' 'unsafe-inline'` (no nonce — `cspDirectives.js:224-240` rationale, the 14 `style=` attrs depend on it); `img-src 'self' data:`; `connect-src 'self'`; `font-src 'self'`; `frame-src 'self'` (no hold page, no map iframe); `frame-ancestors 'self'`; `form-action 'self'`; `upgrade-insecure-requests` in production. Golden tests re-captured exactly once per repo (D16a).
+- **Dependency topology (first Item-B PR):** affiliate `.npmrc` = `install-links=true`; web-core `peerDependencies` = `mongoose ^8.15.0`, `express-session ^1.18.1`, `connect-mongo ^5.1.0`, `express-rate-limit 7.1.4` (also kept in `devDependencies`); web-core drops direct `mongodb`; corporate declares the four in `dependencies` and rewrites `server.js:20-22`; both consumers commit regenerated `package-lock.json`; web-core stays at 541 green tests; each app logs the installed web-core version at boot.
+- **Item B PR order:** topology → core fixes (LOG_DIR, `replyTo`, cookie default, CSP profile, CORS env-only, `collectionPrefix`/`LIMITER_NAMES`/`sweepExpired`, `{middleware, store}`, `registerDefaults`, csrf tables → app, delete storeIPs/previewUnlockCookie/3 limiters/legal copies/bridges) → no-dependency modules (errorHandler, sanitization, mongoCursorRetry, mongoOracleDiagnostics) → auditLogger → rateLimiting → SystemConfig → session → email → remove shims + the 12 duplicate affiliate suites.
+- **Cutover order:** Phase 0 (DONE items marked; gates G1, G2) → 0a corporate multi-host DARK deploy on :3001, both boxes, verified per host with `curl --resolve` → 0b affiliate portal-only hygiene deployed WITH partnerLanding/quarantine left in place → Phase 1 nginx flip ONE host at a time, oci1 → verify → oci2, order `runberglaundry.com` → `atxwashateria.com` → `rundberglaundry.com` → `atxwashdryfold.com`; rollback per host = `proxy_pass` back to `:3000` + reload → Phase 2 (≥ 1 week later) app-side deletion, tests, env sweep, `EXPEDITER_TOKEN` rotation → Item B PRs.
+- **PR rules:** one concern per PR; ≤ 500-line diff; move-then-delete (old file stays as a shim until the next PR); strict TDD — the failing test lands first and is shown failing for the right reason; every user-facing string ships in en/es/pt/de in the same commit (`npm run check:i18n` + structural-parity test green in both repos); `logger` only in `server/` (no `console.*`, ESLint-enforced); runtime business values via `SystemConfig.getValue` (gtag id `AW-16900975513` and the `$1.40/lb` literal at `affiliate-landing-embed.html:11-17,59` become config-driven, D10a); never `--no-verify`; `madge --circular server/` = 0.
+- **Lighthouse gate:** every moved user-facing page (`atxwashdryfold.com/`, each marketing host `/`, `/affiliate`; portal login after D4a) measured mobile AND desktop, all four categories, as close to 100 as possible and never below the prior measured state, on the NEW origin, before its phase is "done"; `docs/development/LIGHTHOUSE-QUALITY-BAR.md` re-pointed to content + portal; CF "Manage robots.txt" stays OFF on all zones; portal `robots.txt` = `Disallow: /`, no sitemap (D12a).
+- **Deploy mechanics:** web-core: bump version → `rsync -a --delete --exclude node_modules --exclude .git ~/GitHub/crhs-web-core/ ubuntu@<box>:/var/www/crhs-web-core/` → `npm install --install-links` in BOTH consumer dirs → `pm2 reload <app>`; apps: `git pull --ff-only` (or `git reset --hard origin/main`) + `npm install --install-links` + `pm2 reload <app>` (`--update-env` when `.env` changed); one box at a time behind the LB; the old `e2107288` pin is lifted; after every deploy run the identity check (`wc.SystemConfig.base === require('mongoose')`) and confirm `Access gate cache loaded:` on corporate.
+- **Confirm-first (always):** production `.env` edits on either app, nginx edits on either box, CF monitor/LB/DNS/cache-purge changes, Mailcow alias/goto changes, `EXPEDITER_TOKEN` rotation, cron removal, and all destructive git operations (force-push, `reset --hard`, `filter-repo`, `branch -D`); `scripts/admin/clear-customer-data.js` is never part of this plan.
+- **Validation gate (must all pass before Phase 2 and again after the last Item-B PR):** per-host matrix externally through Cloudflare AND per-box (`curl --resolve`) for `/`, `/affiliate`, `/robots.txt`, `/sitemap.xml`, `/.well-known/security.txt`, intake POST → mail delivered with `Reply-To` = lead; bag-QR URL → 301 → portal → SMS verification completes; store-IP → 302 portal; `/health` both apps → 200 with no `Set-Cookie`; Lighthouse per R-35; i18n parity per R-34; goldens re-captured deliberately in both repos; both pm2 apps online with no restart climb; corporate `Model.base` identity + `Access gate cache loaded`; monitor repoint confirmed in the portal vhost log; no cross-app `ratelimit_`/session collisions; all §13 proofs return 0/empty/expected.
+
+---
+
+## Appendix A — Draft-stage assumptions and open questions
+_Emitted by the section authors during drafting. Real items are folded into §14; this appendix preserves the raw list for the reviewers._
+
+### S1 — 1. Goal, scope, non-goals + 2. Current state + 3. Target architecture
+
+**Assumptions:**
+- All file:line citations for the affiliate app refer to HEAD `c70d4712`, corporate to `bc86055`, web-core to v0.1.2 (`c4db167`); on-box nginx/CF/Mailcow facts are as verified in the 2026-09-08/09 follow-ups and were not re-verified by SSH in this session.
+- The web-core version that carries the §3.3 API changes is labelled 0.1.3 here for concreteness; the actual number is whatever the Item B release assigns.
+- Corporate's session collection name `sessions_crhsent` and rate-limit prefix `ratelimit_crhsent_` are concrete choices made here to satisfy BINDING ('corporate gets its own'); any distinct names satisfy the same acceptance criteria.
+- The `00-default` vhost reuses the certificate paths already used by `sites-enabled/portal.atxwashdryfold.com`; IPv6 `listen [::]` lines are omitted because the existing vhosts' IPv6 configuration was not read.
+- `SystemConfig` key `google_ads_conversion_id` is a new key introduced for D10a; the `$1.40/lb` literal maps to the existing `wdf_base_rate_per_pound` key.
+- The `accessGate` From display name `CRHS Enterprises` is chosen to satisfy 'strip the bare WaveMAX mark'; any non-franchisor display name on the `no-reply@crhsent.com` identity meets the requirement.
+- QUARANTINE_NON_AUSTIN=true in production is taken from memory (not re-verified on-box); the target deletes the middleware regardless of its current value.
+- The store-IP 302 and the B7 301s are specified GET/HEAD-only; a redirect on a POST would change the intake form's method, so POSTs from the store network to the marketing hosts are served normally.
+
+**Open questions:**
+- Content-root layout: this section fixes `content/` (crhsent.com, unchanged) + `content-atxwashdryfold/` (all four marketing hosts). Alternative is `content/<host>/` for both, which moves the 49-file crhsent tree and rewrites `content-manifest.test.js:17` in the same PR — decide before B1 lands.
+- Corporate `SESSION_SECRET` (and `JWT_SECRET`/`ENCRYPTION_KEY`, which corporate `.env.example:9-13,27-30` currently requires to equal the affiliate's): once corporate has its own `sessions_crhsent` collection and `crhsent.sid` cookie, `SESSION_SECRET` no longer needs to match — confirm the intent to let it diverge (recommended) and which of the other two still need parity (the access-gate password hash is PBKDF2 via `wc.encryption.verifyPassword`, `accessGate.js:36`; no cross-app encrypted payload was found).
+- `sitemap.xml` on the three non-canonical marketing hosts: this section returns 404 there (all pages carry `rel=canonical` → atxwashdryfold.com, and a sitemap listing cross-host URLs is ignored unless verified in Search Console). Alternative: serve the same atxwashdryfold-URL sitemap on every host. Rick to confirm; affects only the robots.txt `Sitemap:` line and one route.
+- D8 mention audit for `partner-program.html`: the fulfillment-partner references are at `:68` (nav 'The plant' → wavemaxlaundry.com/austin-tx), `:109` (relief link, aria-label 'WaveMAX Austin store'), `:259` (form 'The plant' row) and `:323` (footer 'WaveMAX Austin is the exclusive fulfillment partner'). Confirm all four count as 'the exclusive fulfillment partner' mention, or whether the nav/relief links should collapse to the footer mention only. Also confirm the outbound link target stays the franchisor-site URL `https://www.wavemaxlaundry.com/austin-tx` during the dispute.
+- Legal contact consolidation target: this section consolidates both T&C documents to `admin@crhsent.com` (the only crhsent.com identity that resolves today). If Rick prefers dedicated `legal@crhsent.com` / `privacy@crhsent.com` / `support@crhsent.com` identities, those aliases must be created on Mailcow before the page edit; `privacy-policy.html` (`privacy@rundberglaundry.com`, now an alias) and `refund-policy.html` (`support@rundberglaundry.com`, now an alias) would move in the same commit.
+- `security@crhsent.com` (`public/.well-known/security.txt:4`) is not in the Mailcow mailbox/alias dump — create the alias (→ `admin@crhsent.com`) or change the Contact line before the per-host `security.txt` ships (L6). Human action.
+- Corporate `BASE_URL`: this section sets `https://atxwashdryfold.com` (logo served by the content app on the marketing roots from Phase 0a; the intake thank-you mail then references the site the lead visited). BINDING also allows `https://portal.atxwashdryfold.com`; confirm the choice — it only changes the `[BRAND_LOGO]` origin in corporate-sent mail.
+- `GOOGLE_PLACES_API_KEY` / `LOCATION_PLACE_ID` (`.env.example:125-152`): `/api/v1/maps-config` is deleted, but `geocodingService` (bag-claim radius gate, Google Address Validation API) may read the same key — verify before removing it from the affiliate `.env`.
+- `refreshtokens` / `tokenblacklists` have inert TTL indexes on ADB and no sweeper (`TokenBlacklist.cleanupExpired` has no caller) — unbounded growth. Out of the separation's scope; decide whether to add a sweep to the affiliate `ensure-indexes`/cron in Phase 2 or track separately.
+- Affiliate `hostGuard` in dev/test: the suite sends requests without a `Host` header today (`affiliatePortalRoot.test.js`); confirm the guard treats a missing Host / `127.0.0.1` / `localhost` as the portal outside production so the 404 rule cannot break local runs.
+- Whether the affiliate keeps its own `public/assets/js/i18n.js` (with `?v=` cache-busting) or serves web-core's `assets/js/i18n.js` as this section states; the byte-identical copy is an Item B duplicate, but the app's SPA cache-bust convention (`?v=`) must still work off `wc.assetsDir`.
+
+### S2 — 4. Decision register
+
+**Assumptions:**
+- D22–D27 numbering is introduced by this section to continue the D1–D21 register from decisions.json; other sections that cite these outcomes by description (wavemax.promo dark, topology (c), rate-limit namespacing, CSP profile, monitor Host repoint, corporate /health above session) refer to the same decisions
+- 'HUMAN' means Rick set the outcome in the 2026-09-09 binding constraints; 'REC' means the synthesizer recommendation was ratified by Rick at the same sign-off — no decision in the register is unratified
+- D5's 301 is same-host (Location resolves to /affiliate on the requesting marketing host), consistent with the binding text '/wavemax-affiliate (all marketing hosts) -> /affiliate'; it is not a cross-host redirect to the canonical
+- D7 and D21 are reconciled by having corporate's store-IP 302 parse STORE_IP_ADDRESS / ADDITIONAL_STORE_IPS / STORE_IP_RANGES itself (the adminIpGate.js:30-32 / operatorIpGate.js:25-27 pattern) rather than reviving server/config/storeIPs.js, which D21 deletes from both repos
+- D10's rate literal is assumed to bind to the existing public SystemConfig key wdf_base_rate_per_pound rather than a new key; the gtag id key name is a proposal, not binding
+- The D26 monitor fields (Host rundberglaundry.com, expected_body empty, follow_redirects false, path /health, pool wavemax-oci = oci1+oci2) are taken from the binding block's 2026-09-09 live verification, not re-read here
+- The expected D9 CORP-carve-out review outcome (keep the /assets/ + /locales/ Cross-Origin-Resource-Policy: cross-origin stamp for webmail logo loads) is stated as the expected result of the review the binding block mandates, not as a pre-decided outcome
+- Line numbers cited for the affiliate repo are against HEAD c70d4712; web-core citations against v0.1.2 (lazy index); corporate citations against the local checkout read 2026-09-09
+
+**Open questions:**
+- pickups@ alias goto: which actively-read mailbox should pickups@atxwashdryfold.com / pickups@rundberglaundry.com deliver to (recommended: add administrator@wavemax.promo to the goto, or create pickups@crhsent.com) — gates the 'intake mail delivered and read' validation line, no code impact
+- T&C / privacy / refund contact-address consolidation target: crhsent.com identities (recommended) vs rundberglaundry.com aliases — gates the D3 copy PR touching public/terms-and-conditions.html:139,164, terms-and-conditions-embed.html:216,222, privacy-policy.html:119,129,150,183, refund-policy.html:58,114,128,158
+- Corporate BASE_URL for intake/gate mail: https://portal.atxwashdryfold.com (logo resolves day one) vs https://atxwashdryfold.com (brand host; requires the content app to serve /assets/images/brand/logo.png on marketing roots, a Phase 0a deliverable) — gates corporate .env for the 0a deploy; recommended atxwashdryfold.com
+- EXPEDITER_TOKEN rotation timing: confirm 'immediately after the rundberglaundry.com flip completes on both boxes' (recommended) vs end of Phase 1 — gates the runbook line and who re-opens the store board
+- Non-blocking: should the B7 301 rules also be mirrored as a Cloudflare zone Redirect Rule on rundberglaundry.com (edge, no origin hit) in addition to the Express rule? Recommended yes as defence in depth; Express remains the origin-side guarantee
+- Non-blocking: when to remove rundberglaundry.com / www.rundberglaundry.com from Firebase Authorized Domains — only after the /embed-app-v2.html?route=/claim 301 is verified live on all four hosts; update docs/setup/firebase-phone-verification.md:31-33 at that time
+- Non-blocking: the boxes' nginx log_format was not verified — if it is the default 'combined', any stray ?k= that reaches the rundberglaundry vhost after the flip lands in its access log; a redacting log_format map is a hygiene follow-up, not a flip prerequisite
+- Non-blocking literal choices left to the implementer within the decided design: corporate's RATE_LIMIT_COLLECTION_PREFIX value (recommended ratelimit_corp_), corporate's session collectionName (recommended crhsent_sessions), web-core's brand-neutral DEFAULT_COOKIE_BASE (recommended app.sid), and the SystemConfig key name for the D10 gtag id (recommended google_ads_conversion_id, public, empty default)
+
+### S3 — 5. Item A — corporate becomes the multi-host content app
+
+**Assumptions:**
+- nginx keeps owning www→apex for all five hosts (verified in followups[4]); the corporate host map is apex-only with a defensive in-app www strip and never emits a www redirect.
+- The web-core prerequisites named in A0 (RATE_LIMIT_COLLECTION_PREFIX, sendEmail replyTo, buildCspDirectives profile, ipGate CIDR helper independent of storeIPs, buildSessionMiddleware collectionName) are specified and delivered by the web-core section before corporate PRs A2/A6/A7/A8 land; this section only states the API it consumes.
+- The live 404 on https://crhsent.com/assets/images/brand/logo.png is caused by the boxes being behind corporate HEAD bc86055 (consistent with scope §3.1's installed web-core 0.1.1 vs source 0.1.2); the Phase-0a deploy resolves it and the acceptance check verifies it rather than assuming.
+- Corporate keeps relying on install-links hoisting for mongoose/express-session/connect-mongo/express-rate-limit during Item A; the explicit peer declarations and lockfile regeneration are the Item B topology PR.
+- The partner page's four https://www.wavemaxlaundry.com/austin-tx anchors remain as navigations to the fulfillment partner's site; the binding block constrains mentions of the mark, not links to the partner.
+- Lighthouse baselines: the /affiliate page measured 100s on rundberglaundry.com (memory affiliate_ut_page_2026-08-03); the partner page's last measured values are in docs/development/LIGHTHOUSE-QUALITY-BAR.md; 'no regression' is judged against those.
+- STORE_IP_ADDRESS=72.190.1.227 (memory admin_clean_url_gate) is the production value used in the acceptance probes.
+
+**Open questions:**
+- Naming inside the moved pages on the atxwashdryfold canonical: partner-program.html still says 'Rundberg Laundry' in og:site_name (:15), the LocalBusiness JSON-LD name (:32), the Service provider (:48) and in partner.meta.description copy (4 locales), and affiliate.html's JobPosting hiringOrganization (:36) is 'Rundberg Laundry' with sameAs https://rundberglaundry.com/. Keep (the plant address is 825 E Rundberg Ln) or rename to 'atxwashdryfold' (a copy decision touching all four locales)?
+- security@crhsent.com has no Mailcow mailbox or alias (followups[3] directory: aliases exist only for admin@/affiliates@/support@ on other domains); it is the Contact in the portal security.txt today and will be on five hosts after 5.6. Create the alias (→ the admin@crhsent.com target) before the dark deploy, or change the Contact address?
+- The crhsent.com gate email logo: the only PNG at /assets/images/brand/logo.png on crhsent is the WaveMAX Austin wordmark (5137 B), which also serves the /owners page. 5.10 points the gate mail at it with alt 'CRHS Enterprises'. Should crhsent get its own CRHS logo asset at that path (or a different path) so a corporate access email does not carry the WaveMAX Austin wordmark?
+- sitemap lastmod: 5.6 uses a constant maintained per content change instead of the affiliate's request-time date (server.js:874). Confirm, or keep request-time parity.
+- Thank-you emails: 5.5 sets Reply-To on the lead's thank-you to the form's RECIPIENT (pickups@atxwashdryfold.com / admin@crhsent.com) because the body says 'just reply to this email' and From is no-reply@crhsent.com. The binding block only mandates Reply-To on the notification; confirm the extension.
+- frame-src on the marketing profile is 'none' in 5.9 (no marketing page embeds a frame after the hold page is gone). Confirm, or keep www.google.com/maps.google.com for a future map embed.
+- Prod corporate .env currently authenticates as no-reply@wavemax.promo (followups[3]); 5.11 moves it to no-reply@crhsent.com, which needs that login's EMAIL_PASS on the corporate .env of both boxes (the affiliate .env has it). Confirm the credential handling before the dark deploy (confirm-first edit).
+
+### S4 — 6. Item A — the affiliate app becomes portal-only
+
+**Assumptions:**
+- Line numbers cite affiliate HEAD c70d4712, crhs-web-core v0.1.2 and the scope/follow-up documents; every server.js, embed-app-v2.js, affiliate-landing-embed.html, ops.js, passwordResetService.js, scanbag.test.js, i18n.js, brand.js, security.txt, .env.example, domainMigration/webCoreConsumptionGolden test and cspDirectives.js cite was re-read on disk; partnerLanding.js, quarantineConfig.js, explorerGuard.js, conciergeFaq.js, mapsConfigRoute.js and the marketing-page internals are cited from scope-sec-2/3 and followups[0],[4],[7] as verified there.
+- The landing.* split (31 keep / 90 delete of 121 leaves; single shared leaf landing.howItWorks.title) was computed by script from data-i18n* attributes in public/affiliate-landing-embed.html and public/embed-landing.html against public/locales/en/common.json; no JS reads landing.* keys (grep of public/assets/js/*.js excluding .min.js is empty).
+- The gtag at affiliate-landing-embed.html:11-17 is inert in production: the SPA extracts only <style>/<link> from a fetched page's <head> (embed-app-v2.js:354-366) and strips body <script> tags (:369-371), and the served CSP script-src (golden string webCoreConsumptionGolden.test.js:25) contains no googletagmanager.com origin.
+- brand.js ogImagePath has no runtime consumer (grep: only brand.js:14,30 and tests/unit/brand-config.test.js), so repointing its default to /assets/images/brand/logo.png needs no new asset; public/assets/images/brand/ holds only logo.png, logo-thermal.png and four favicons.
+- The web-core buildCspDirectives extension (locationOrigins with a byte-identical default, scriptSrcExtra) is delivered by the web-core section as part of the profile/host parameter the BINDING block requires; PR A-2.8 in this section depends on it and on nothing else.
+- Marketing forms never call the portal API cross-origin today (partner-inquiry.js:85 and affiliate-inquiry.js:51 fetch relative paths), so trimming CORS to the portal origin is behaviour-neutral; it is deferred to Phase 2 only to keep Phase 0b rollback-pure.
+- The store expediter display, admin bookmark, kiosk /operator home and /scanbag PWA are re-pointed to portal before the flip (BINDING device checklist), so the Phase-2 host guard's 404 for marketing Hosts never affects a store device.
+- GOOGLE_PLACES_API_KEY's only application consumer is server/routes/mapsConfigRoute.js (grep of server/, server.js, scripts/); the box value is kept for the PSI measurement tooling recorded in memory lighthouse_psi_quality_bar and only the .env.example block is removed.
+- Nothing outside these repos loads public/assets/js/iframe-bridge-v2.min.js or parent-iframe-bridge-v3.min.js (D9's own caveat asks for an access-log check before deletion; the PR description must record that check).
+
+**Open questions:**
+- Phase-2 deletion of public/wavemax-affiliate.html and tools/flyers is unconditional on the app side, but corporate's behaviour (301 /wavemax-affiliate -> /affiliate per D5a vs serve the page per D5b) is pending counsel (Miguel). Should the app's A-2.2 PR wait for that answer, or ship as soon as corporate has the 301 in place (the page then simply stops existing anywhere if counsel later says keep-and-move, and corporate re-adds it)?
+- D12a (portal robots.txt Disallow: /) makes Lighthouse's SEO category report 'page is blocked from indexing' on every portal page, which conflicts with the project rule 'as close to 100 across all four categories'. Confirm the SEO category is knowingly excepted for the authenticated portal (Perf/A11y/BP still gated), or choose D12b for the login/landing pages only.
+- Google Ads gtag AW-16900975513: it is dead today (SPA discards <head> scripts; served CSP lacks googletagmanager.com). Activating it via google_ads_conversion_id adds https://www.googletagmanager.com to the portal script-src and https://www.google-analytics.com to connect-src (a CSP widening captured in the D16 re-capture). Activate, or leave the key empty and keep the portal CSP narrower? If activated, the first measured load must confirm whether a conversion-ping origin (e.g. googleads.g.doubleclick.net) is also required — not verifiable from the repo.
+- Legal contact consolidation: the spec picks admin@crhsent.com (verified mailbox, already used in the embed T&C and /affiliate). Should a dedicated legal@crhsent.com Mailcow alias -> admin@crhsent.com be created so the legal documents display a legal@ identity instead?
+- Should the D16 re-capture also trim the portal's unused third-party CSP origins (Hibu local-marketing-reports, Meta Pixel connect.facebook.net/www.facebook.com, OSM tiles, walibu, wikimedia, matterport, Turnstile) in the same authorized commit? The spec keeps the delta to the four marketing origins (+ gtag if activated) to make the golden diff reviewable; a fuller trim needs a per-page origin audit (Firebase/reCAPTCHA, chart.js on jsdelivr, jspdf on cdnjs, Google Fonts on affiliate-landing are live) and would edit securityHeaders.test.js:104-131.
+- Which private repository receives the archived design-explorer source and the franchisor-era docs (docs/crhsent-proposal, corporate-handoff, seo/corporate-austin, stash, austin-reference*, IFRAME guides)? dc_private is the obvious candidate but is scoped to corporate-controlled parties per feedback_dc_private_scope; a separate 'wavemax-archive' private repo may be cleaner.
+- Do the printed recruitment flyers (public/assets/flyers/*.pdf, which encode rundberglaundry.com/wavemax-affiliate) get regenerated by corporate against https://atxwashdryfold.com/affiliate, or retired? Determines whether tools/flyers/build-flyers.js moves to corporate or is deleted.
+- Does /etc/cron.d/wavemax-hibu-refresh exist on oci1/oci2 (scope open question 6)? The Phase-2 ops step assumes it may; verify before the rm.
+
+### S5 — 7. Item B — web-core primitives and the end of duplicated functionality
+
+**Assumptions:**
+- Web-core's suite size of 541 is taken from the BINDING block; a grep of top-level `it(`/`test(` calls counts 506, the remainder being `it.each`/`test.each` expansions.
+- On-box state (install-links copy, versions, `legacy-peer-deps`) was not re-verified in this read-only session; 7.1.4 step 0 re-checks it before any reinstall.
+- `server/middleware/auth.js:10` imports `storeIPConfig` but never references it (grep shows the import line only), so deleting storeIPs after Item A has zero runtime effect.
+- `express-rate-limit@7.1.4` calls `store.init()` at limiter construction (`dist/index.cjs:619-620`), so requiring the app policy module populates `LIMITER_NAMES` before any sweep/reset helper runs.
+- `connect-mongo@5.1` exposes `store.options.collectionName` and `store.clientP` (`build/main/lib/MongoStore.js:79,126-127`), which the 7.2.1 tests assert.
+- `MediatorAccess` is dead in the affiliate at runtime (references only in `scripts/ensure-indexes.js:15,34-36`), so single ownership by corporate needs no data migration.
+- Corporate's `saveUninitialized:true` session on crhsent.com is out of scope; the G2 gate (`/health` above session) is the only session-volume control assumed here.
+- The `marketing` CSP profile needs no third-party origin because the three marketing pages are self-hosted (BINDING) and there is no hold page; a future maps embed would be supplied through `frameSrcExtra`, not by widening the profile.
+
+**Open questions:**
+- assetsDir export: does corporate mount `wc.assetsDir` (i18n.js / css-async.js / language-switcher.js) for the marketing hosts — keeping `assetsDir` and the 26-key surface — or does the content app carry its own copies, in which case `assetsDir` and `assets/js/*` are deleted too and the smoke count becomes 25? Depends on the content-app section's decision.
+- Live `systemconfigs` index state on the ADB: run `db.systemconfigs.getIndexes()` before B13 makes the portal's ensure-indexes own it — if corporate's autoIndex:true boot has already built the three schema indexes, the portal's `createIndexes()` is a no-op; if not, the build runs against a live collection (small, but confirm ADB build time).
+- `RATE_LIMIT_TTL_INDEX`: the follow-up could not settle whether `createIndex({_expiresAt:1},{expireAfterSeconds:0})` fails or succeeds-but-inert on the ADB (`db.ratelimit_api.getIndexes()`); the design defaults the option off either way — verify once so the env doc states the ADB behaviour accurately.
+- Portal sweep cron placement and cadence (proposed: oci1 only, hourly at :05, idempotent so oci2 may also run it) and whether the same script should own the `refreshtokens`/`tokenblacklists` purge as designed here — confirm with ops before B13.
+- The portal admin SystemConfig UI lists every `systemconfigs` document, so after 7.2.2 it displays corporate's `access_gate_enabled` (category `system`, `isEditable` unset in core `L404-411`): should the portal filter to keys it registered (`getRegisteredDefaults()` minus `CORE_DEFAULTS`) so corporate's gate switch cannot be toggled from the portal admin?
+- Version pin policy across the two consumers: both currently pin only ranges for mongoose (`^8.15.0`; corporate runs 8.24.4, the affiliate 8.24.1). Should both consumers pin the exact same mongoose version so the two apps drive the ADB with one driver build, or is the web-core peer range sufficient?
+
+### S6 — 8. Edge and infrastructure + 9. Cutover sequence
+
+**Assumptions:**
+- Corporate env values used in the verification commands are the ones this section proposes and other sections are expected to adopt: RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_, session collectionName=sessions_corporate, SESSION_COOKIE_NAME=crhsent.sid (prod cookie __Host-crhsent.sid), LOG_SERVICE_NAME=crhs-corporate, EMAIL_TEMPLATE_ROOT=/var/www/crhs-corporate/templates/email. If another section fixes different names, substitute them in §9.2/§9.8 verbatim.
+- The content-app behaviours verified in §9.2 (B7 301 list, D7 302, D5 301, per-host robots/sitemap/security.txt, logo.png 200 / logo-wavemax.png 410, strict CSP profile, intake endpoint paths /api/partner-inquiry and /api/affiliate-application) are specified in the corporate/content-app and web-core sections; this section only fixes their acceptance checks.
+- Cloudflare monitor PATCH performs a partial update (standard CF API semantics); a full PUT, if ever needed, uses the complete object captured in §8.3.1.
+- The two boxes' nginx trees are byte-identical (md5 verified 2026-09-09, only conf.d/zz-origin-box.conf differs by design), so the sed edits in §8.2.3 produce identical results on both; the diff check guards against drift.
+- The CF origin certificate on the boxes (/etc/ssl/cloudflare/origin.pem, 12 SANs) covers runberglaundry.com and www.runberglaundry.com, as it did when OCI-PRIMARY-INSTALL.md:80 bundled that vhost on 2026-05-23.
+- Firebase test phone numbers remain configured on the wavemax-bag-registration project for the SMS checks in §9.3/§9.4/§9.8.
+- web-core's clientIp (src/utils/clientIp.js:44) is what the corporate store-IP 302 keys on, so on-box tests spoof CF-Connecting-IP; nginx forwards that header unchanged and cloudflare-real-ip.conf already rewrites $remote_addr from it.
+- Lighthouse cannot be run against the dark :3001 host through --resolve, so the Lighthouse release gate for the moved pages is taken per host in Phase 1 (after both boxes are flipped), not in Phase 0a.
+
+**Open questions:**
+- Edge defense-in-depth for B7: add Cloudflare zone Redirect Rules on rundberglaundry.com (and the other three zones) for /embed-app-v2.html, /admin, /operator, /scanbag* → https://portal.atxwashdryfold.com${path}${query} so stray hits never reach origin? Not built in this design (Express in crhs-corporate is the single owner); if adopted it must be in addition to, never instead of, the Express rule, and the account token lacks Zone-level rule permissions today.
+- Mailcow pickups goto target (human): which mailbox should pickups@atxwashdryfold.com (and the pickups@rundberglaundry.com self-row) deliver to — administrator@wavemax.promo (the only mailbox with recent logins, behind admin@crhsent.com), a new pickups@crhsent.com mailbox, or the existing pickups@rundberglaundry.com read by someone via a path sasl_log does not record? Must be settled before Phase 1 step 4.
+- Phase 2 nginx hygiene (2-8): delete conf.d/wavemax-gate.conf, the inert `if ($access_allowed = 0)` blocks and snippets/wavemax-maintenance.conf (its 503 body carries the bare 'WaveMAX' mark) from all vhosts including portal, or leave them as harmless no-ops? Recommended: delete; it is the last nginx-side brand residue.
+- mail.runberglaundry.com: the new runberglaundry.com vhost deliberately has no mail.* block (the sibling mail.* blocks proxy an un-flipped staged Mailcow on OCI). Confirm no DNS record points mail.runberglaundry.com at the OCI boxes; if one does, decide whether it should get the same :8443 block or be removed.
+- Cloudflare Cache Purge permission on ~/.cf_api_token is untested; the first purge (runberglaundry.com zone) is the test. If it fails, decide between adding Zone:Cache Purge to the token and purging from the dashboard for the four zones.
+- lb-test.rundberglaundry.com (test LB from 2026-05-23) and any other stray proxied hostname will receive 444 after 00-default.conf instead of today's accidental 301 to atxwashateria.com. Delete those DNS/LB records, or accept the 444?
+- Firebase hardening timing (2-13): remove rundberglaundry.com/www from Authorized domains after the step-3 label test, or keep them for the life of the 301? Recommended: remove after two weeks of verified 301 traffic.
+- Soak windows in §9.4 (≥24 h after the canary, ≥1 h after atxwashateria, ≥24 h after rundberglaundry) are this section's recommendation; the human may compress them if the store can do the step-3 label/expediter checks on the same day.
+- Access-log query exposure: the marketing vhosts log `combined` (full request line incl. query). The device re-point (P-11) removes the routine ?k= exposure, but a redacting log_format map for [?&](k|t)= on all vhosts (portal included, where ?k= lands today) is a separate hardening decision.
+- GOOGLE_PLACES_API_KEY in 2-5: it doubles as the PSI key used to run PageSpeed from a box (memory lighthouse_psi_quality_bar.md). Keep it in the affiliate .env for measurement, move it to corporate, or drop PSI-from-box in favour of local Lighthouse?
+
+### S7 — 10. Validation gate + 11. Test migration, i18n, Lighthouse
+
+**Assumptions:**
+- Cloudflare account id `b69ef162d008b11492296d3b35cad2fe` and monitor id `be6953d2e0cfd7b40c4f414b5ddf20d9` (memory `oci_ampere_primary_host.md:16`, `cf_api_token_and_lb_monitor_2026-09-09.md:13`); the pool is looked up by name `wavemax-oci` because the recorded pool ids disagree (memory `920787f1…` vs the probe UA `1e3795c0…`).
+- Web-core lands at 0.1.3 with the topology PR; the 26-key surface = today's 28 (src/index.js:37-72) minus `storeIPs` and `previewUnlockCookie`; `csrf` stays as the doubleCsrf primitive (D20b), no `brand` export (D13b).
+- The 12 duplicate suites are those listed in scope §5 'Duplicate test suites' with `rateLimitingMiddleware.test.js` counted and `brand-config.test.js` retained (brand stays app-owned under D13b).
+- Intake POST field names are the current validator's (`partnerInquiryRoutes.js:12-47`, `affiliateApplicationRoutes.js:13-17`) and move unchanged; the moved page JS is edited to call `/api/partner-inquiry` and `/api/affiliate-application` (today `/api/v1/…` at `partner-inquiry.js:85`, `affiliate-inquiry.js:51`).
+- `pickups@atxwashdryfold.com` is still an alias whose goto is resolved at check time (the goto re-point is an open human action); `admin@crhsent.com` resolves to `administrator@wavemax.promo`.
+- The store's public IP is `72.190.1.227` (memory `admin_clean_url_gate.md`) and web-core `clientIp` prefers `cf-connecting-ip` (clientIp.js:10), so on-box checks send that header.
+- `scripts/ops/cutover-gate.sh` is a new deliverable in the affiliate repo; its cell IDs are the ones in §10.1 and it needs `curl`, `jq`, `xmllint`, `node` on the operator workstation and `ssh` access to the boxes and the mail host.
+- Marketing-root file names inside corporate `content/` (e.g. whether `partner-program.html` becomes `index.html`) are fixed by the content-inventory section; §11.3's manifest test iterates the exported host→root map so it does not depend on those names.
+
+**Open questions:**
+- Marketing-profile frame-src: `'self'` only, or keep `https://www.google.com https://maps.google.com`? Only the deleted hold page (partnerLanding.js:63 Maps iframe) used them; the partner and affiliate pages reference no third-party origin (followups[7]). The C10 byte-pin depends on the answer.
+- Non-canonical marketing hosts (rundberglaundry, runberglaundry, atxwashateria): should their sitemap.xml `<loc>` entries name the canonical `https://atxwashdryfold.com/...` URLs or their own host? C4 only asserts well-formed + every `<loc>` returns 200 until this is decided.
+- Corporate namespace values: the section assumes `RATE_LIMIT_COLLECTION_PREFIX=ratelimit_corp_` (followups[1] recommendation) and session `collectionName=sessions_corporate`; confirm or rename before the P4/P5 checks are scripted.
+- `/affiliate` (and the portal legal pages) carry zero `data-i18n`; the project's four-locale rule is applied here as a content backlog item, not a cutover gate (scope §9 Q12). Confirm, or make it a gate for the moved `/affiliate` page.
+- Test-bag lifecycle for the C7 SMS check on production: `scripts/seed-claim-bag.js` mints the bag (a prod write — confirm), and cleanup is via the admin UI (retire bag, deactivate customer); is a targeted cleanup script wanted instead?
+- Phase-1 `--via-box` Lighthouse uses `--ignore-certificate-errors` against the CF origin cert; if a publicly trusted cert is preferred for the measurement, a temporary certbot cert on the box is the alternative.
+- The S0 portal Lighthouse baseline does not exist in the repo (the doc's table :122-127 is the rundberglaundry landing); the section mandates capturing it before 0b — confirm the doc is the place to record it.
+- Corporate `.eslintrc.js:45` and web-core `:43` switch `no-console` off for some file set; confirm those overrides do not cover `server/` (P10 assumes they cover tests/scripts only).
+
+### S8 — 12. Risk register + 13. Litigation-sensitive residue + 14. Open questions + 15. Global constraints
+
+**Assumptions:**
+- Corporate's per-app rate-limit prefix is 'ratelimit_corp_' and its session collectionName is 'sessions_corporate'; the web-core brand-neutral default cookie base is 'app.sid'. BINDING fixes only that these must be distinct / brand-neutral; the exact strings are proposals (Q-18 covers the collection name).
+- Corporate's EMAIL_TEMPLATE_ROOT is '/var/www/crhs-corporate/templates/emails' and LOG_DIR '/var/www/crhs-corporate/logs' — on-box paths chosen for the spec; the implementation plan may pick different directories as long as both are explicit and the startup hard checks exist.
+- The marketing-host CSP profile uses frame-src 'self' because the hold page (the only iframe consumer, Google Maps) is deleted by D8; if any marketing page later embeds a frame, the profile's frameSrcExtra is the extension point, not a default change.
+- Line numbers cite the affiliate repo at HEAD c70d4712, crhs-corporate and crhs-web-core (v0.1.2) at their 2026-09-09 local checkouts, and the follow-up findings' on-box reads of 2026-09-08; branding-guard.test.js and domain-guard.test.js line numbers were re-verified directly in this pass.
+- The corporate accessGate '/wavemax' path exemption (accessGate.js:103-111) and the content/wavemax mediator package are deliberate litigation deliverables and are treated as route slugs, not brand residue; crhsent.com owner-facing copy naming the franchise system is likewise out of the de-brand scope except the mislabelled logo alt at content/owners/index.html:30.
+- The risk 'checks' that query the live database (getIndexes, countDocuments, systemconfigs description) assume Rick-provided ADB access during validation; none are required to be automated in CI.
+- R-04's accepted residual (corporate :3001 no longer in the LB health signal after G1) stands until Q-12 assigns an external monitor; the spec does not propose a second CF pool because the LB plan caps origins at 2.
+
+**Open questions:**
+- Q-1 pickups@ goto: who reads pickups@rundberglaundry.com (no login since 2026-07-31); re-point the alias goto to an actively read mailbox (or a crhsent.com mailbox) and set ALERT_EMAIL=admin@crhsent.com explicitly — human action before Phase 1.
+- Q-2 legacy-peer-deps on oci1/oci2 (deploy user npm config, /etc/npmrc, ~/.npmrc) — unverified; if set, corporate's explicit mongoose/express-session/connect-mongo/express-rate-limit declarations are load-bearing, not defensive.
+- Q-3 Corporate autoIndex: crhs-corporate/server/db.js:25 passes no autoIndex:false; which indexes has its boot built on systemconfigs/mediatoraccess/access*, and does createIndex({_expiresAt:1},{expireAfterSeconds:0}) fail or succeed-but-inert on ADB (rateLimitMongoStore.js:80-81 vs sessionStore.js:76-78 disagree)?
+- Q-4 nginx log_format on the boxes: does the default combined format log the full $request (so ?k= / ?t= land in the vhost access logs)? Decide redacting log_format vs CF edge Redirect Rule vs accept-with-rotation.
+- Q-5 Kiosk/PWA install origin: which host is the kiosk /operator home; was operator-scan-embed.html ever installed as a PWA (manifest-scan.json scope '/'); where was the store /scanbag PWA installed from; is the expediter display a bookmark or a kiosk-launcher setting (who executes the re-point)?
+- Q-6 T&C / legal contact address target: consolidate terms-and-conditions.html:139,164 (legal@rundberglaundry.com) vs terms-and-conditions-embed.html:216,222 (admin@crhsent.com), privacy-policy.html (privacy@rundberglaundry.com), refund-policy.html (support@rundberglaundry.com) to one address per document — recommend crhsent.com identities (requires creating those aliases first); counsel may have a view.
+- Q-7 Corporate BASE_URL for intake mail: https://portal.atxwashdryfold.com (logo resolves today) vs https://atxwashdryfold.com (requires the content app to serve /assets/images/brand/logo.png on marketing roots, which it must anyway) — recommend atxwashdryfold.com once the asset route lands.
+- Q-8 Shared secrets after separation: must SESSION_SECRET / JWT_SECRET / ENCRYPTION_KEY stay identical between corporate and the portal once corporate has its own session collection and cookie name (mediatorGate/accessGate cookie signing)? If they can diverge, rotation stops being a two-app procedure.
+- Q-9 Is server/models/MediatorAccess.js used by the portal at runtime, or dead like the Access* models (delete + make mediatoraccess corporate-only)?
+- Q-10 Dependency pin policy: exact pins for mongoose/express-session/connect-mongo/express-rate-limit in both consumers (lockstep with each web-core bump) vs web-core's peer range; and is package-lock churn on every web-core bump acceptable?
+- Q-11 Does /etc/cron.d/wavemax-hibu-refresh still exist on oci1/oci2 (delete with scripts/ops/refresh-hibu.sh in Phase 2, confirm-first)?
+- Q-12 External uptime check for :3001 after G1 repoints the LB monitor to portal (corporate liveness leaves the pool health signal) — which service and alert route watches https://atxwashdryfold.com/health?
+- Q-13 CF token scopes: ~/.cf_api_token lacks Zone Load Balancers Read and Cache Purge is untested — verify (GET /user/tokens/verify + a dry purge on one zone) before Phase 1, or plan the purges via the dashboard.
+- Q-14 Residual prod .env values still unread on both boxes: SHOW_DOCS, PARTNER_PREVIEW_ALLOWLIST, EXPLORER_TOKEN / ANTHROPIC_API_KEY presence, CORS_ORIGIN contents, GOOGLE_PLACES_API_KEY referer lock, corporate LOG_DIR, per-app RATE_LIMIT_MAX_REQUESTS / RELAX_RATE_LIMITING.
+- Q-15 i18n for /affiliate (affiliate.html has zero data-i18n): content backlog after the move or a cutover gate? Recommend backlog, not a gate.
+- Q-16 Add CF zone Redirect Rules on rundberglaundry.com for the B7 paths (edge, no origin hit) in addition to the Express rule? Recommend yes after the Express rule is verified.
+- Q-17 Make portal '/' and crhsent.com '/' strict-CSP in the same pass (both are non-strict today only because the slug regex at cspDirectives.js:63-70 rejects '/')? Recommend yes for portal '/'.
+- Q-18 Corporate session collectionName value (spec assumes 'sessions_corporate') — confirm before the Phase 0a deploy; a later rename drops live gated sessions again.
