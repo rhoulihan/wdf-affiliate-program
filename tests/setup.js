@@ -1,3 +1,21 @@
+// TOPOLOGY GUARD — runs before anything requires mongoose.
+// A dual-package install of @crhs/web-core is silent: the suite goes green
+// while the app and the library write through two different mongoose
+// instances. Fail here instead, with the offending paths named.
+// Resolution paths ONLY — loading web-core's SystemConfig to compare `.base`
+// would throw OverwriteModelError against this app's own model
+// (server/models/SystemConfig.js:449, re-registered at :160 below).
+{
+  const nodePath = require('path');
+  const { assertSingleInstance } = require('./helpers/assertSingleMongoose');
+  const APP_ROOT = nodePath.join(__dirname, '..');
+  const CORE_ENTRY = require.resolve('@crhs/web-core');
+  assertSingleInstance({
+    resolveFromApp: (n) => require.resolve(n, { paths: [APP_ROOT] }),
+    resolveFromCore: (n) => require.resolve(n, { paths: [CORE_ENTRY] })
+  });
+}
+
 // Basic test setup
 const mongoose = require('mongoose');
 require('dotenv').config();
