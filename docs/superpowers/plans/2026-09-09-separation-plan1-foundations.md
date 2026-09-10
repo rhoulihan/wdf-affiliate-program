@@ -1847,7 +1847,15 @@ EOF
 
 ---
 
-### Task 12: **HUMAN-CONFIRM** — Gate G1: repoint the Cloudflare LB monitor `Host` to `portal.atxwashdryfold.com`
+### Task 12: ~~**HUMAN-CONFIRM** — Gate G1: repoint the Cloudflare LB monitor `Host` to `portal.atxwashdryfold.com`~~ — **SUPERSEDED**
+
+> ⛔ **SUPERSEDED 2026-09-10 by the HA task group (Tasks 59–61) at the end of this plan. Do not execute this task.**
+>
+> Repointing the monitor `Host` alone does not fix the blind spot — it only *moves* it. One monitor can health-check only one service, and the affiliate app (`:3000`) and content app (`:3001`) both run on every box. Pointing it at the portal leaves a crash-looping `crhs-corporate` undetected, so crhsent.com and the marketing hosts would keep receiving 502s from a dead origin — the mirror image of the defect this task was written to close.
+>
+> Live Cloudflare read (2026-09-10) confirmed the cause: **six** load balancers all share **one** pool (`wavemax-oci`, origins `oci1`/`oci2`) with **one** monitor, on a **Basic Load Balancing ($5/mo, 2 origins)** subscription — so a second pool was rejected on cost. Rick chose **Option A**: make the origin's health signal mean *"this box can serve every hostname"* via a new `/health/origin` aggregate probe, and point the existing monitor at that.
+>
+> Gate G1 is therefore satisfied by **Tasks 59–61**, not here. Task 10 (gate G2) remains a hard prerequisite of Task 61.
 
 **HUMAN-CONFIRM.** This is production edge infrastructure: it changes which app decides whether an origin stays in the load-balancer pool. Run with Rick present. Rollback is a single PATCH (Step 8).
 
@@ -8233,3 +8241,385 @@ Plan 1 is complete when **every** line below is checked, each backed by a pasted
 - [ ] `pm2` shows `wavemax` and `crhs-corporate` `online` on both boxes with no restart-count climb, and zero `ORA-04036` / `MODULE_NOT_FOUND` / `OverwriteModelError` in either log.
 - [ ] The exit-gate document records every spec deviation Plans 2/3/4 inherit (B3g/B3j/B3k + `brandNeutral` → v0.2.1; corporate `collectionName`/cookie base → Plan 2 0a; the five CSRF intake rows → Plan 3; `securityHeaders.js:83-88` + the bridges → Plan 3; affiliate PR B7 → Plan 4; the `LOG_DIR` prod write → Plan 2 0a).
 
+
+---
+
+## Addendum — HA task group (Option A: box-level aggregate health check)
+
+**Added 2026-09-10 at Rick's direction.** Supersedes **Task 12** (the bare monitor `Host` repoint), which on its own would only *move* the health-check blind spot from the portal onto crhsent.com and the marketing hosts.
+
+### Why this shape
+
+Read live from the Cloudflare API on 2026-09-10:
+
+- **Six** load balancers — `atxwashateria.com`, `atxwashdryfold.com`, `portal.atxwashdryfold.com`, `crhsent.com`, `runberglaundry.com`, `rundberglaundry.com` — all `enabled`, `proxied`, `steering=off`, `session_affinity=cookie`.
+- All six point at **one** pool, `wavemax-oci` (`1e3795c02e98b9506cfab578c9cb7c97`), `minimum_origins=1`, fallback = itself, origins `oci1 161.153.71.201` + `oci2 144.24.4.202`.
+- That pool has **one** monitor, `be6953d2e0cfd7b40c4f414b5ddf20d9`: `https GET /health`, `expected_codes "200"`, `expected_body ""` (empty), `follow_redirects false`, `interval 60`, `header.Host = ["rundberglaundry.com"]`.
+- Subscription: **Basic Load Balancing, $5/mo** (2 origins included) — a second pool duplicating the two origins was rejected on cost.
+- **`wavemax.promo` has no load balancer**, so deprecating it frees nothing; its only records are `mail`/`smtp` → Mailcow `158.62.198.7` and must stay.
+
+One monitor cannot health-check two services. The affiliate app is `:3000` and the content app is `:3001`, and **both run on every box** — so the CF "origin" is the *box*, not a service. The health signal must therefore mean *"this box can serve every hostname"*. `/health/origin` answers exactly that: 200 only when this app **and** the content app on `127.0.0.1:3001` are both serving.
+
+Trade-off accepted: if the content app dies on oci1, oci1 leaves rotation for *all* hostnames, including the portal. With two boxes oci2 absorbs the traffic, and "oci1 is degraded" is the correct operational signal. The alternative (two pools, ~$10/mo more) remains the upgrade path if per-service isolation is ever wanted.
+
+### Ordering constraints (both are outage-class if violated)
+
+1. **Task 10 (gate G2) MUST be deployed before Task 61.** Corporate's `/health` currently sits *after* its session middleware (`crhs-corporate/server.js:80` vs `:65`), so the server-side probe would mint a corporate session on every check (2/min/box into the shared ADB). G2 hoists `/health` above session and removes that.
+2. **Task 60 MUST be deployed to BOTH boxes before Task 61 repoints the monitor.** Pointing the monitor at a path the origins do not serve yet returns 404 on both, marking every origin unhealthy at once.
+
+---
+
+### Task 59: Add `/health/origin` — box-level aggregate liveness
+
+**Files:**
+- Modify: `/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program/server.js` (insert immediately after the `/health` route ending at `:424`, and therefore before `app.use(session({…}))` at `:426`)
+- Test: `/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program/tests/integration/healthOrigin.test.js` (create)
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks. Uses Node 20's global `fetch` and the module-scope `logger` already required in `server.js`.
+- Produces: `GET /health/origin` → `200 {status:'UP', components:{portal,content}, timestamp}` when both apps serve; `503 {status:'DEGRADED', …}` otherwise. Env knobs `CONTENT_HEALTH_URL` (default `http://127.0.0.1:3001/health`) and `CONTENT_HEALTH_TIMEOUT_MS` (default `1000`). Consumed by **Task 61** (the CF monitor target).
+
+- [ ] **Step 1: Write the failing test.** Create `tests/integration/healthOrigin.test.js`:
+
+```js
+// Origin-level liveness for the Cloudflare LB monitor. The CF pool's origin is
+// the BOX, and both apps run on every box, so /health/origin must return 200
+// only when this app AND the content app on :3001 are both serving. Also pins
+// that the route mints NO session — it sits before the session middleware, like
+// /health (the 2026-05-25 ADB session-bloat incident class).
+jest.mock('../../server/utils/emailService');
+
+const request = require('supertest');
+const app = require('../../server');
+
+describe('GET /health/origin — box-level aggregate liveness', () => {
+  const realFetch = global.fetch;
+  afterEach(() => { global.fetch = realFetch; });
+
+  it('returns 200 UP when the content app answers 200', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const res = await request(app).get('/health/origin');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('UP');
+    expect(res.body.components).toEqual({ portal: 'UP', content: 'UP' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:3001/health',
+      expect.objectContaining({ signal: expect.anything() })
+    );
+  });
+
+  it('returns 503 DEGRADED when the content app returns non-2xx', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 502 });
+    const res = await request(app).get('/health/origin');
+    expect(res.status).toBe(503);
+    expect(res.body.status).toBe('DEGRADED');
+    expect(res.body.components.content).toBe('DOWN(502)');
+  });
+
+  it('returns 503 DEGRADED when the content app is unreachable', async () => {
+    global.fetch = jest.fn().mockRejectedValue(
+      Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' })
+    );
+    const res = await request(app).get('/health/origin');
+    expect(res.status).toBe(503);
+    expect(res.body.components.content).toBe('DOWN(ECONNREFUSED)');
+  });
+
+  it('returns 503 DEGRADED when the content app times out', async () => {
+    global.fetch = jest.fn().mockRejectedValue(
+      Object.assign(new Error('aborted'), { name: 'AbortError' })
+    );
+    const res = await request(app).get('/health/origin');
+    expect(res.status).toBe(503);
+    expect(res.body.components.content).toBe('DOWN(timeout)');
+  });
+
+  it('mints NO session — no Set-Cookie (route sits before the session middleware)', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const res = await request(app).get('/health/origin');
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('leaves the plain /health probe unchanged', async () => {
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('UP');
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+});
+```
+
+- [ ] **Step 2: Run the test and confirm it fails for the right reason.**
+
+Run: `npx jest tests/integration/healthOrigin.test.js`
+Expected: `Tests: 5 failed, 1 passed, 6 total`. The five `/health/origin` cases fail because the route does not exist — the app's JSON 404 catch-all answers instead, so `res.status` is `404` and `res.body.status` is `undefined`. The sixth case (`leaves the plain /health probe unchanged`) passes already; that is the control.
+
+- [ ] **Step 3: Implement the route.** In `server.js`, immediately after the closing `});` of the `/health` route (`:424`) and before `app.use(session({` (`:426`), insert:
+
+```js
+// Origin-level liveness — the Cloudflare LB monitor's target (2026-09-10 HA
+// design, Option A). The CF pool's origin is the BOX, and both apps run on every
+// box, so one monitor must answer "can this box serve EVERY hostname?" — this app
+// AND the content app on :3001. Returning 503 when the content app is down pulls
+// the whole box from rotation, which is the correct signal for a shared origin:
+// the surviving box absorbs all traffic. Handled BEFORE the session middleware
+// for the same reason /health is (no probe-minted sessions).
+const ORIGIN_PROBE_URL = process.env.CONTENT_HEALTH_URL || 'http://127.0.0.1:3001/health';
+const ORIGIN_PROBE_TIMEOUT_MS = Number(process.env.CONTENT_HEALTH_TIMEOUT_MS || 1000);
+
+app.get('/health/origin', async (req, res) => {
+  const components = { portal: 'UP', content: 'UNKNOWN' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ORIGIN_PROBE_TIMEOUT_MS);
+  try {
+    const probe = await fetch(ORIGIN_PROBE_URL, { signal: controller.signal });
+    components.content = probe.ok ? 'UP' : `DOWN(${probe.status})`;
+  } catch (err) {
+    components.content = `DOWN(${err.name === 'AbortError' ? 'timeout' : (err.code || err.message)})`;
+  } finally {
+    clearTimeout(timer);
+  }
+  const healthy = components.content === 'UP';
+  if (!healthy) {
+    logger.warn('Origin health degraded — box will be pulled from the CF pool', { components });
+  }
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'UP' : 'DEGRADED',
+    components,
+    timestamp: new Date().toISOString()
+  });
+});
+```
+
+The probe timeout (1000 ms) is deliberately well inside the monitor's `timeout: 5` seconds, so a hung content app produces a definite 503 rather than a monitor-side timeout.
+
+- [ ] **Step 4: Run the test and confirm it passes.**
+
+Run: `npx jest tests/integration/healthOrigin.test.js`
+Expected: `Tests: 6 passed, 6 total`.
+
+- [ ] **Step 5: Confirm no regression in the neighbouring probe and session behaviour.**
+
+Run: `npx jest tests/integration/webCoreConsumptionGolden.test.js tests/integration/affiliatePortalRoot.test.js`
+Expected: both suites `0 failed` (the golden suite's session-cookie assertion still holds — `/health/origin` adds no cookie and changes no CSP).
+
+- [ ] **Step 6: Commit.**
+
+```bash
+cd /mnt/c/Users/rickh/GitHub/wavemax-affiliate-program
+git add server.js tests/integration/healthOrigin.test.js
+git commit -m "$(cat <<'EOF'
+feat(health): add /health/origin box-level aggregate liveness probe
+
+The Cloudflare LB pool's origin is the BOX, and both the affiliate app (:3000)
+and the content app (:3001) run on every box, so a single monitor must answer
+"can this box serve every hostname?". /health/origin returns 200 only when this
+app and the content app are both serving, and 503 (DEGRADED) otherwise, naming
+the failed component.
+
+Sits before the session middleware like /health, so the ~1/min probe mints no
+session (the 2026-05-25 ADB session-bloat incident class). The content probe
+uses a 1s timeout, well inside the monitor's 5s.
+
+Target of the CF monitor repoint; closes the health-check blind spot in which
+one monitor could only ever cover one of the two services.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 60: **HUMAN-CONFIRM** — deploy `/health/origin` to both boxes and verify it reflects real content-app state
+
+**Files:** none (deploy + verification only).
+
+**Interfaces:**
+- Consumes: `GET /health/origin` from **Task 59**; gate G2 from **Task 10** must already be deployed.
+- Produces: `/health/origin` serving 200 on oci1 and oci2 — the precondition for **Task 61**.
+
+- [ ] **Step 1: Confirm the prerequisite.** Verify gate G2 (Task 10) is live, so the server-side probe does not mint corporate sessions:
+
+```bash
+for B in 161.153.71.201 144.24.4.202; do
+  echo "== $B =="
+  ssh -i ~/.ssh/oci_wavemax ubuntu@$B \
+    "curl -s -o /dev/null -D - -H 'Host: crhsent.com' http://127.0.0.1:3001/health | grep -ciE '^set-cookie:' || true"
+done
+```
+Expected: `0` on both boxes. **If either prints ≥1, STOP** — Task 10 is not deployed and this task must not proceed.
+
+- [ ] **Step 2: Deploy the affiliate app to oci1.**
+
+```bash
+ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 \
+  "cd /var/www/wavemax/wavemax-affiliate-program && git fetch origin --quiet && git reset --hard origin/main && npm install --install-links >/dev/null 2>&1 && pm2 reload wavemax && echo OCI1_RELOADED"
+```
+Expected: `OCI1_RELOADED`.
+
+- [ ] **Step 3: Verify on oci1 — healthy case.**
+
+```bash
+ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 \
+  "curl -s -o /dev/null -w 'code=%{http_code}\n' -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/health/origin; curl -s -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/health/origin"
+```
+Expected: `code=200` and a body whose `components` is `{"portal":"UP","content":"UP"}`.
+
+- [ ] **Step 4: Verify on oci1 — the aggregate actually bites.** Prove a dead content app produces 503 (this is the whole point of the design):
+
+```bash
+ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 \
+  "pm2 stop crhs-corporate >/dev/null && sleep 2 && curl -s -o /dev/null -w 'degraded_code=%{http_code}\n' -H 'Host: portal.atxwashdryfold.com' http://127.0.0.1:3000/health/origin; pm2 start crhs-corporate >/dev/null && sleep 3 && curl -s -o /dev/null -w 'restored_code=%{http_code}\n' -H 'Host: portal.atxwashdryfold.com' http://127.0.0.1:3000/health/origin"
+```
+Expected: `degraded_code=503` then `restored_code=200`. **Do this on oci1 only, and only while the monitor still points at the old target** — oci2 keeps serving throughout, and the pool is unaffected because the monitor is not yet watching this path.
+
+- [ ] **Step 5: Repeat Steps 2 and 3 on oci2.**
+
+```bash
+ssh -i ~/.ssh/oci_wavemax ubuntu@144.24.4.202 \
+  "cd /var/www/wavemax/wavemax-affiliate-program && git fetch origin --quiet && git reset --hard origin/main && npm install --install-links >/dev/null 2>&1 && pm2 reload wavemax && echo OCI2_RELOADED"
+ssh -i ~/.ssh/oci_wavemax ubuntu@144.24.4.202 \
+  "curl -s -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/health/origin"
+```
+Expected: `OCI2_RELOADED`, then `components` `{"portal":"UP","content":"UP"}`. Do **not** repeat Step 4's stop/start on oci2 (never degrade both boxes at once).
+
+- [ ] **Step 6: Verify through the edge on both boxes.**
+
+```bash
+for IP in 161.153.71.201 144.24.4.202; do
+  curl -s -o /dev/null -w "$IP -> %{http_code}\n" --resolve portal.atxwashdryfold.com:443:$IP https://portal.atxwashdryfold.com/health/origin
+done
+```
+Expected: `200` from both.
+
+---
+
+### Task 61: **HUMAN-CONFIRM** — point the CF LB monitor at `/health/origin` (supersedes Task 12)
+
+**Files:** none (Cloudflare configuration only).
+
+**Interfaces:**
+- Consumes: `/health/origin` serving 200 on **both** boxes (**Task 60**).
+- Produces: monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` watching `/health/origin` with `Host: portal.atxwashdryfold.com` — pool health now reflects both services on each box.
+
+- [ ] **Step 1: Re-verify the token, and record the current monitor for rollback.**
+
+```bash
+python3 - <<'PY'
+import json,urllib.request
+TOK=open('/home/rickh/.cf_api_token').read().strip()
+ACCT='b69ef162d008b11492296d3b35cad2fe'; MON='be6953d2e0cfd7b40c4f414b5ddf20d9'
+def cf(p):
+    r=urllib.request.Request('https://api.cloudflare.com/client/v4'+p,headers={'Authorization':'Bearer '+TOK})
+    import urllib.error
+    try:
+        with urllib.request.urlopen(r,timeout=25) as x: return json.load(x)
+    except urllib.error.HTTPError as e: return json.load(e)
+print("verify:", cf(f'/accounts/{ACCT}/tokens/verify').get('success'))
+m=cf(f'/accounts/{ACCT}/load_balancers/monitors/{MON}')['result']
+print("ROLLBACK VALUES ->", json.dumps({k:m.get(k) for k in ('path','header','expected_codes','expected_body')}))
+PY
+```
+Expected: `verify: True` and `ROLLBACK VALUES -> {"path": "/health", "header": {"Host": ["rundberglaundry.com"]}, "expected_codes": "200", "expected_body": ""}`. **Record that line** — Step 5 restores exactly it.
+
+Note: the token is **account-owned** (`cfat_`); verify only via `/accounts/{id}/tokens/verify` — the `/user/tokens/verify` endpoint returns a misleading 401 for account tokens.
+
+- [ ] **Step 2: PATCH the monitor.**
+
+```bash
+python3 - <<'PY'
+import json,urllib.request,urllib.error
+TOK=open('/home/rickh/.cf_api_token').read().strip()
+ACCT='b69ef162d008b11492296d3b35cad2fe'; MON='be6953d2e0cfd7b40c4f414b5ddf20d9'
+body=json.dumps({"path":"/health/origin","header":{"Host":["portal.atxwashdryfold.com"]},"expected_codes":"200"}).encode()
+r=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{ACCT}/load_balancers/monitors/{MON}',
+    data=body, method='PATCH',
+    headers={'Authorization':'Bearer '+TOK,'Content-Type':'application/json'})
+try:
+    with urllib.request.urlopen(r,timeout=25) as x: out=json.load(x)
+except urllib.error.HTTPError as e: out=json.load(e)
+print("success:", out.get('success'), "errors:", out.get('errors'))
+res=out.get('result') or {}
+print("now ->", json.dumps({k:res.get(k) for k in ('path','header','expected_codes','expected_body','timeout','interval')}))
+PY
+```
+Expected: `success: True` and `now -> {"path": "/health/origin", "header": {"Host": ["portal.atxwashdryfold.com"]}, "expected_codes": "200", "expected_body": "", "timeout": 5, "interval": 60}`.
+
+- [ ] **Step 3: Confirm the pool stays healthy across two probe intervals.** Wait at least 120 s, then:
+
+```bash
+sleep 130; python3 - <<'PY'
+import json,urllib.request
+TOK=open('/home/rickh/.cf_api_token').read().strip()
+ACCT='b69ef162d008b11492296d3b35cad2fe'
+r=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{ACCT}/load_balancers/pools/1e3795c02e98b9506cfab578c9cb7c97',
+    headers={'Authorization':'Bearer '+TOK})
+p=json.load(urllib.request.urlopen(r,timeout=25))['result']
+print("pool healthy:", p.get('healthy'))
+for o in p['origins']: print("  ",o['name'],o['address'],"enabled=",o['enabled'])
+PY
+```
+Expected: `pool healthy: True` with both origins enabled. **If `healthy` is False, go straight to Step 5 (rollback).**
+
+- [ ] **Step 4: Confirm the probes are landing on the portal vhost.** The monitor now sends `Host: portal.atxwashdryfold.com`, so the probes must appear in the portal access log and stop appearing in the rundberglaundry log:
+
+```bash
+ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 \
+  "sudo tail -200 /var/log/nginx/portal.atxwashdryfold.com.access.log | grep -c 'health/origin.*Cloudflare-Traffic-Manager' || true"
+```
+Expected: a non-zero count (≈2 per minute per box). Also confirm end-user traffic is unaffected:
+
+```bash
+for i in 1 2 3 4; do curl -s -o /dev/null -w "portal=%{http_code} " https://portal.atxwashdryfold.com/health; done; echo
+for i in 1 2 3 4; do curl -s -o /dev/null -w "crhsent=%{http_code} " https://crhsent.com/health; done; echo
+```
+Expected: all `200`.
+
+- [ ] **Step 5: Rollback (only if Step 3 or 4 failed).** Restore the exact values recorded in Step 1:
+
+```bash
+python3 - <<'PY'
+import json,urllib.request,urllib.error
+TOK=open('/home/rickh/.cf_api_token').read().strip()
+ACCT='b69ef162d008b11492296d3b35cad2fe'; MON='be6953d2e0cfd7b40c4f414b5ddf20d9'
+body=json.dumps({"path":"/health","header":{"Host":["rundberglaundry.com"]},"expected_codes":"200"}).encode()
+r=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{ACCT}/load_balancers/monitors/{MON}',
+    data=body, method='PATCH', headers={'Authorization':'Bearer '+TOK,'Content-Type':'application/json'})
+try:
+    with urllib.request.urlopen(r,timeout=25) as x: out=json.load(x)
+except urllib.error.HTTPError as e: out=json.load(e)
+print("rolled back:", out.get('success'))
+PY
+```
+
+- [ ] **Step 6: Record the change.** Append to `tasks/todo.md` under the Plan 1 checklist:
+
+```markdown
+- [x] HA (Option A): `/health/origin` live on both boxes; CF monitor `be6953d2…`
+      now `GET /health/origin` with `Host: portal.atxwashdryfold.com`. Pool
+      health reflects BOTH the affiliate app (:3000) and the content app (:3001)
+      on each box. Rollback = PATCH path `/health`, Host `rundberglaundry.com`.
+      NOTE for Plan 3: this monitor target is host-stable across the cutover —
+      it stays on the portal vhost when rundberglaundry.com moves to :3001.
+```
+
+```bash
+cd /mnt/c/Users/rickh/GitHub/wavemax-affiliate-program
+git add tasks/todo.md
+git commit -m "$(cat <<'EOF'
+docs(todo): record the HA monitor repoint to /health/origin
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+### Addendum definition of done
+
+- [ ] `/health/origin` returns 200 with `components {portal:UP, content:UP}` on oci1 and oci2, and 503 when the content app is stopped (proven on oci1 in Task 60 Step 4).
+- [ ] No `Set-Cookie` on `/health/origin` or `/health` on either box.
+- [ ] Monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` = `GET /health/origin`, `Host: portal.atxwashdryfold.com`, `expected_codes 200`, `expected_body` empty.
+- [ ] Pool `wavemax-oci` reports `healthy: True` with both origins enabled ≥ 2 minutes after the PATCH.
+- [ ] `portal.atxwashdryfold.com` and `crhsent.com` both answer 200 through Cloudflare.
+- [ ] **Task 12 is closed as superseded** — its bare `Host` repoint is replaced by this group.
