@@ -5,6 +5,7 @@
 // else still gets the public "Coming soon" hold (noindex). Exempt paths pass
 // through; the store IP sees the real app.
 const partnerLanding = require('../../server/middleware/partnerLanding');
+const { allWavemaxOccurrencesAreSanctioned } = require('../helpers/wavemaxAllowlist');
 
 const PREVIEW_IP = '70.114.167.145';
 
@@ -31,9 +32,21 @@ describe('partnerLanding — preview gate', () => {
     const html = res.send.mock.calls[0][0];
     expect(html).toMatch(/Rundberg Laundry/);
     expect(html).toMatch(/partner/i);
-    expect(html).not.toMatch(/wavemax/i);
+    // WaveMAX-branding check moved to the dedicated allowlist test below.
     expect(res.headers['X-Robots-Tag']).toBeUndefined();          // partner page is indexable-by-meta
     expect(html).toContain('https://rundberglaundry.com/');        // canonical
+  });
+
+  // The owner reversed the "zero WaveMAX branding" rule on 2026-09-08: the
+  // partner page must now name WaveMAX Austin as the exclusive fulfillment
+  // partner for the atxwashdryfold program, and ONLY in that capacity. A
+  // blanket ban is permanently obsolete, but any unsanctioned WaveMAX
+  // mention must still fail the suite — this guard is now an ALLOWLIST.
+  it('the only WaveMAX references are the sanctioned fulfillment-partner links', () => {
+    const res = mkRes(); const next = jest.fn();
+    partnerLanding(req('rundberglaundry.com', '/', PREVIEW_IP), res, next);
+    const html = res.send.mock.calls[0][0];
+    expect(allWavemaxOccurrencesAreSanctioned(html)).toEqual({ unsanctioned: [] });
   });
 
   it('serves the partner page to the preview IP across all four host families', () => {

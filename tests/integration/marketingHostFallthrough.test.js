@@ -30,10 +30,17 @@ const HOST = 'rundberglaundry.com';
 const asClient = (path, ip) => request(app).get(path).set('Host', HOST).set('cf-connecting-ip', ip);
 
 describe('marketing hosts — store-IP fall-through', () => {
-  it('redirects the store to the app shell at the root instead of the API 404', async () => {
+  // server.js app.get('/') (~line 738) intentionally changed from a 302
+  // redirect to /embed-app-v2.html to serving the SPA shell directly with
+  // 200 + an injected window.__DEFAULT_ROUTE='/affiliate-login' (mirrors the
+  // /admin and /operator handlers). The behavior this test guards — "the
+  // store sees the app shell, not the API JSON 404" — is unchanged; only the
+  // mechanism is. Assert the 200 + shell content instead of the old redirect.
+  it('serves the store the app shell at the root instead of the API 404', async () => {
     const res = await asClient('/', STORE_IP);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/embed-app-v2.html');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('embed-app-v2');
+    expect(res.text).toContain("window.__DEFAULT_ROUTE='/affiliate-login'");
   });
 
   it('does the same for a non-root path, since nginx may rewrite the root', async () => {

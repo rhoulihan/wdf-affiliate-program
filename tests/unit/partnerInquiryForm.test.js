@@ -1,9 +1,12 @@
 // Guard test: the partner-program landing page's inquiry form must stay in sync
-// with the server validators (server/routes/partnerInquiryRoutes.js) and stay
-// free of any WaveMAX branding. If a field is renamed on one side but not the
-// other, the form silently breaks — this catches that.
+// with the server validators (server/routes/partnerInquiryRoutes.js), and any
+// WaveMAX branding on the page must stay confined to the sanctioned
+// fulfillment-partner references (see the allowlist test below). If a field
+// is renamed on one side but not the other, the form silently breaks — this
+// catches that.
 const fs = require('fs');
 const path = require('path');
+const { allWavemaxOccurrencesAreSanctioned } = require('../helpers/wavemaxAllowlist');
 
 const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'partner-program.html'), 'utf8');
 const JS = fs.readFileSync(path.join(__dirname, '..', '..', 'public', 'assets', 'js', 'partner-inquiry.js'), 'utf8');
@@ -50,8 +53,15 @@ describe('partner-program inquiry form ↔ server contract', () => {
     }
   });
 
-  test('the page carries ZERO WaveMAX branding', () => {
-    expect(HTML).not.toMatch(/wavemax/i);
+  // The owner reversed the "zero WaveMAX branding" rule on 2026-09-08: the
+  // partner page must now name WaveMAX Austin as the exclusive fulfillment
+  // partner for the atxwashdryfold program. So a blanket ban is permanently
+  // obsolete — but any UNSANCTIONED WaveMAX mention (e.g. a stray marketing
+  // tagline) must still fail the suite. This guard is now an ALLOWLIST:
+  // every occurrence of /wavemax/i must land inside one of the sanctioned
+  // fulfillment-partner references below.
+  test('the only WaveMAX references are the sanctioned fulfillment-partner links', () => {
+    expect(allWavemaxOccurrencesAreSanctioned(HTML)).toEqual({ unsanctioned: [] });
   });
 
   test('canonical points at the primary domain (rundberglaundry.com)', () => {
