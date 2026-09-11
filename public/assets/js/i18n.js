@@ -94,9 +94,13 @@
       }
 
       try {
-        // Add cache-busting parameter to force reload
-        const timestamp = new Date().getTime();
-        const url = `${this.config.translationsPath}/${lang}/common.json?v=${timestamp}`;
+        // Deploy-stable version, not a clock. A per-load timestamp made this
+        // 73 KB bundle uncacheable on every visit; the file is on the critical
+        // path, so that cost a full origin round trip every time.
+        // Falls back to a CONSTANT so URLs stay cacheable if the meta is absent.
+        const meta = document.querySelector('meta[name="asset-version"]');
+        const assetVersion = (meta && meta.getAttribute('content') || '').trim() || 'static';
+        const url = `${this.config.translationsPath}/${lang}/common.json?v=${assetVersion}`;
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`Failed to load translations for ${lang}: ${response.status} ${response.statusText}`);

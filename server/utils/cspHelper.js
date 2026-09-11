@@ -9,8 +9,19 @@ const wc = require('@crhs/web-core').cspHelper;
 const logger = require('./logger');
 const brand = require('../config/brand');
 
-const injectNonce = (html, nonce) => wc.injectNonce(html, nonce, brand);
-const readHTMLWithNonce = (filePath, nonce) => wc.readHTMLWithNonce(filePath, nonce, brand);
+const { ASSET_VERSION } = require('../config/assetVersion');
+
+// The SPA injects its page scripts/styles at runtime and needs a cache-busting
+// token that is STABLE within a deploy (see server/config/assetVersion.js).
+// Publishing it the same way the nonce is published keeps the client contract
+// uniform: read a meta tag, fall back to a constant, never call a clock.
+const injectAssetVersion = (html) =>
+  html.replace('<meta name="asset-version" content="">',
+    `<meta name="asset-version" content="${ASSET_VERSION}">`);
+
+const injectNonce = (html, nonce) => injectAssetVersion(wc.injectNonce(html, nonce, brand));
+const readHTMLWithNonce = async (filePath, nonce) =>
+  injectAssetVersion(await wc.readHTMLWithNonce(filePath, nonce, brand));
 
 // Preserves the monorepo signature: single relative path resolved against
 // public/, brand + nonce injected, no-cache headers, html sent.

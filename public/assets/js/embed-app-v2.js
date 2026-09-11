@@ -608,6 +608,17 @@ function initializePageScripts(route) {
 function loadPageScripts(scripts) {
     let scriptIndex = 0;
     
+    // Deploy-stable asset version (server/config/assetVersion.js), published as
+    // a meta tag like the CSP nonce. Using a clock here made every URL unique
+    // per page load and threw away the year-long immutable cache on these
+    // files. The fallback is a CONSTANT, never a clock: if the meta is missing
+    // we still want stable, cacheable URLs.
+    const ASSET_V = (function () {
+        const meta = document.querySelector('meta[name="asset-version"]');
+        const v = meta && meta.getAttribute('content');
+        return (v && v.trim()) || 'static';
+    })();
+
     function loadNextScript() {
         if (scriptIndex < scripts.length) {
             const scriptPath = scripts[scriptIndex];
@@ -625,7 +636,7 @@ function loadPageScripts(scripts) {
             if (scriptPath.startsWith('http://') || scriptPath.startsWith('https://')) {
                 script.src = scriptPath;
             } else {
-                script.src = BASE_URL + scriptPath + '?v=' + Date.now();
+                script.src = BASE_URL + scriptPath + '?v=' + ASSET_V;
             }
             
             // Get nonce from meta tag or existing script
@@ -698,7 +709,7 @@ function loadPageStyles(styles) {
         if (stylePath.startsWith('http://') || stylePath.startsWith('https://')) {
             link.href = stylePath;
         } else {
-            link.href = BASE_URL + stylePath + '?v=' + Date.now();
+            link.href = BASE_URL + stylePath + '?v=' + ASSET_V;
         }
 
         link.setAttribute('data-page-style', 'true');

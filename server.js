@@ -624,8 +624,25 @@ app.get('/scanbag-manifest.json', async (req, res) => {
   }
 });
 
-// Serve static files in all environments
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files in all environments.
+// NOTE: this is the mount that actually serves everything under public/ -- it
+// precedes the second express.static(public) mount further down, so ANY option
+// set there is dead code (verified in production: the locale CORS headers that
+// mount intends were absent from the live response). Configure static file
+// headers HERE.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.includes('/locales/') || filePath.includes('\\locales\\')) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      // express.static defaults to max-age=0, so this 73 KB bundle revalidated
+      // on EVERY page load even once its URL became stable. It is requested
+      // with the deploy-stable ?v= token (see server/config/assetVersion.js),
+      // so a TTL is safe: a deploy changes the URL, not the cached entry.
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  }
+}));
 
 // Serve documentation if enabled
 if (process.env.SHOW_DOCS === 'true') {
@@ -674,16 +691,13 @@ const apiVersioning = (req, res, next) => {
 // Apply API versioning
 app.use(apiVersioning);
 
-// Serve static files from public directory
-app.use(express.static(path.join(__dirname, 'public'), {
-  setHeaders: (res, path) => {
-    // Add CORS headers for translation files
-    if (path.includes('/locales/')) {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
-    }
-  }
-}));
+// Serve static files from public directory.
+// SHADOWED: the express.static(public) mount above already serves every file
+// under public/ and short-circuits, so this mount is only reachable for paths
+// that do not resolve to a file -- where it is a no-op. Its former setHeaders
+// block (locale CORS headers) never ran in production. Kept as a harmless
+// fall-through; put static header config on the FIRST mount, not here.
+app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes with versioning
 const apiV1Router = express.Router();
