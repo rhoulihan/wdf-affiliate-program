@@ -116,8 +116,10 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
 
 ## Open questions for Rick
 
-- [ ] **Operator IP gate** — still ON (`/operator` 404s from outside). My question described the admin
-      gate as the only IP gate, which was incomplete, so I did not remove this one. Open or keep?
+- [x] **Operator IP gate — DECIDED 2026-09-11: KEEP IT ON.** (Rick.) `/operator` and the operator embed
+      pages stay store-IP gated; verified 404 from an outside IP post-deploy. This is now a deliberate
+      asymmetry with the admin surface, which was opened the same day — do NOT "tidy" it up later by
+      matching the two. `operatorIpGate` must stay mounted.
 - [ ] **Portal CLS is 0.21** (poor). Layout shift, independent of the caching fix. Worth a pass?
 - [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
