@@ -90,3 +90,40 @@ Spec PRs B3g / B3j / B3k (email brand params + `validateMailConfig()` + `assets/
 Affiliate PR B7 (rateLimiting/store adoption, codeAttemptLockout, the `rate_limits` reset fix, the ops script)
 is Plan 4. Corporate `collectionName: 'sessions_corporate'` + `SESSION_COOKIE_NAME=crhsent.sid` move to Plan 2 0a.
 No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays unset so live collection names are unchanged).
+
+## Backlog — deferred, not scheduled
+
+### B-1. "Register now" on the affiliate login page must go to the interest form (invite-only)
+Raised by Rick 2026-09-11. **Not scheduled — do not action inside Plan 1.**
+
+**Why:** affiliate onboarding is invite-only, so offering a self-serve "Register now"
+is a dead end for anyone without an invite token. It should express interest instead.
+
+**Exact target:** `public/affiliate-login-embed.html:57` —
+`<a href="#" class="text-blue-600 hover:underline" id="registerLink" data-i18n="common.buttons.registerNow">Register now</a>`
+The click is JS-driven: `public/assets/js/affiliate-login.js:162-165` attaches a
+handler that routes to the SPA route `/affiliate-register`
+(`public/assets/js/embed-app-v2.js:51` → `affiliate-register-embed.html`), which is
+the invite-gated flow (`affiliate-register-invite.js`).
+This is the page users now land on at the portal root, since `/` serves the
+affiliate-login shell.
+
+**Destination:** the affiliate interest form, today `public/affiliate.html`
+(route `server.js:753`, `/affiliate`), which POSTs to `/api/v1/affiliate-application`.
+
+**⚠ TIMING TRAP — read before implementing.** `public/affiliate.html` and the
+`/affiliate` route MOVE OUT of this app to the content app in Plan 3 (spec §Item A
+"Move out of the affiliate app"). So:
+- Implement BEFORE the Plan 3 cutover → a same-origin `/affiliate` link works now
+  but SILENTLY 404s the moment `/affiliate` leaves the portal.
+- Implement AFTER (or write it forward-compatible) → it must be an ABSOLUTE link to
+  the content app, i.e. `https://atxwashdryfold.com/affiliate` (canonical per D8).
+Cheapest correct fix: make the destination config-driven now, or simply do this as
+part of the Plan 3 cross-link pass, where every app→content link is repointed
+together and tested. Doing it standalone risks creating exactly the kind of
+cross-link the separation work exists to eliminate.
+
+**Also:** keep the `data-i18n` key and update the copy in ALL FOUR locales
+(en/es/pt/de) in the same commit — `common.buttons.registerNow` currently reads
+"Register now" (`public/locales/en/common.json:187`) and would misdescribe an
+interest form. Project rule: locales ship together.
