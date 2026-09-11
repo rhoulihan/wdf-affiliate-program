@@ -118,8 +118,6 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
 
 - [ ] **Operator IP gate** — still ON (`/operator` 404s from outside). My question described the admin
       gate as the only IP gate, which was incomplete, so I did not remove this one. Open or keep?
-- [ ] **`affiliate.html` is English-only** (zero `data-i18n`). The new interest-form copy is therefore
-      English-only. Adding i18n to that page is real work — worth doing?
 - [ ] **Portal CLS is 0.21** (poor). Layout shift, independent of the caching fix. Worth a pass?
 - [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
@@ -160,3 +158,32 @@ cross-link the separation work exists to eliminate.
 (en/es/pt/de) in the same commit — `common.buttons.registerNow` currently reads
 "Register now" (`public/locales/en/common.json:187`) and would misdescribe an
 interest form. Project rule: locales ship together.
+
+### B-2. Internationalise the partner interest form (`public/affiliate.html`)
+
+⏸ **BACKLOGGED (Rick, 2026-09-11) — deferred, not scheduled.**
+
+`public/affiliate.html` has **zero** `data-i18n` attributes — it is the only significant
+user-facing page in the repo that was never internationalised. Everything on it is
+hardcoded English, including the copy added on 2026-09-11 (the mandatory
+customer-acquisition question and the "customer acquisition is yours" caveat).
+
+This is a standing exception to [[feedback_corporate_i18n]] ("every new corporate string
+ships with data-i18n + en/es/pt/de in the same commit"). The rule was not followed for this
+page because the page has no i18n layer at all to hang the keys on — adding one is the work,
+not the copy.
+
+Scope when picked up:
+- Add `data-i18n` / `data-i18n-placeholder` attributes across the page: hero, the caveat
+  paragraph, "how it works", the stats, every form label, placeholder, helper text, the
+  eligibility checkbox, the submit button and the status messages.
+- New keys in all four locales (`public/locales/{en,es,pt,de}/common.json`).
+- The page currently loads no `i18n.js` / language switcher — both need wiring in, and the
+  switcher needs somewhere sensible to sit in this page's layout.
+- ⚠️ **Same Plan 3 timing trap as B-1:** this page MOVES to the content app (crhs-corporate)
+  in Plan 3. Doing the i18n work here means redoing or migrating it at cutover. Strongly
+  prefer doing it **as part of** the Plan 3 move, or immediately after, rather than now.
+- The SEO/meta block (description, og:, twitter:, JSON-LD) is also English-only; decide
+  whether localised variants are wanted or whether English canonical is fine.
+
+Related: [[feedback_corporate_i18n]], [[feedback_extreme_seo]], B-1 above.
