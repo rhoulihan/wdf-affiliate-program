@@ -44,9 +44,18 @@ const affiliateApplicationValidators = [
   body('availability')
     .optional({ checkFalsy: true })
     .isString().isLength({ max: 200 }),
+  // REQUIRED as of 2026-09-11: this is the marketing / customer-acquisition
+  // plan, and it is the field the program actually screens on. The partner owns
+  // customer acquisition (that is why they keep 100% of the service fees), so an
+  // applicant who cannot describe how they would build a customer base is not a
+  // fit. Enforced server-side because the HTML `required` attribute is trivially
+  // bypassed by posting directly to the API.
   body('message')
-    .optional({ checkFalsy: true })
-    .isString().isLength({ max: 2000 }),
+    .exists({ checkFalsy: true }).withMessage('Please describe how you would market the service and build your customer base')
+    .bail()
+    .isString().trim()
+    .isLength({ min: 80, max: 2000 })
+    .withMessage('Please give us at least a couple of sentences (80–2000 characters) on how you would find and keep customers'),
   body('source')
     .optional({ checkFalsy: true })
     .isString().isLength({ max: 200 })

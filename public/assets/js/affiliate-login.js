@@ -159,13 +159,25 @@ console.log('🚀 Affiliate login script loaded!');
             });
         }
 
+        // The affiliate program is INVITE-ONLY, so this link must NOT go to the
+        // invite-gated /affiliate-register SPA route -- someone without an invite
+        // dead-ends there. It goes to the public interest form instead.
+        // The destination is config-driven (server/config/links.js, published as
+        // a meta tag) because the interest form MOVES to the content app in
+        // Plan 3; a hardcoded same-origin path would silently 404 at cutover.
         const registerLink = document.getElementById('registerLink');
-        console.log('Register link found:', !!registerLink);
         if (registerLink) {
             registerLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                console.log('Register link clicked!');
-                navigateParent('affiliate-register');
+                const meta = document.querySelector('meta[name="interest-form-url"]');
+                const url = (meta && meta.getAttribute('content') || '').trim() || '/affiliate';
+                // Full navigation, not an SPA route change: the interest form is a
+                // standalone page. Break out of the iframe when embedded so the
+                // form does not render inside the portal shell.
+                try {
+                    if (window.top && window.top !== window) { window.top.location.href = url; return; }
+                } catch (_e) { /* cross-origin parent: fall through to self-navigation */ }
+                window.location.href = url;
             });
         }
     }

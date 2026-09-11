@@ -2,7 +2,6 @@
 const express = require('express');
 const router = express.Router();
 const { serveHTMLWithNonce } = require('../utils/cspHelper');
-const adminIpGate = require('../middleware/adminIpGate');
 const operatorIpGate = require('../middleware/operatorIpGate');
 
 // Main embed app container V2 - CSP compliant version
@@ -34,10 +33,10 @@ router.get('/forgot-password-embed.html', serveHTMLWithNonce('forgot-password-em
 router.get('/reset-password-embed.html', serveHTMLWithNonce('reset-password-embed.html'));
 
 // Administrator Login (IP-gated — the admin surface is restricted to the allowlist)
-router.get('/administrator-login-embed.html', adminIpGate, serveHTMLWithNonce('administrator-login-embed.html'));
+router.get('/administrator-login-embed.html', serveHTMLWithNonce('administrator-login-embed.html'));
 
 // Administrator Dashboard (IP-gated)
-router.get('/administrator-dashboard-embed.html', adminIpGate, serveHTMLWithNonce('administrator-dashboard-embed.html'));
+router.get('/administrator-dashboard-embed.html', serveHTMLWithNonce('administrator-dashboard-embed.html'));
 
 // Landing Page
 router.get('/embed-landing.html', serveHTMLWithNonce('embed-landing.html'));

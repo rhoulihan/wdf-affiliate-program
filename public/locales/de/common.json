@@ -186,7 +186,8 @@
       "customerLogin": "Kundenlogin",
       "registerNow": "Jetzt registrieren",
       "copy": "Kopieren",
-      "understand": "Ich verstehe"
+      "understand": "Ich verstehe",
+      "applyNow": "Jetzt bewerben"
     },
     "labels": {
       "username": "Benutzername",
@@ -489,7 +490,7 @@
     "login": {
       "title": "Partner-Login",
       "subtitle": "Melden Sie sich an, um auf Ihr Partner-Dashboard zuzugreifen",
-      "noAccount": "Haben Sie noch kein Partnerkonto?"
+      "noAccount": "Interesse an einer Partnerschaft?"
     },
     "register": {
       "title": "Partner-Registrierung",

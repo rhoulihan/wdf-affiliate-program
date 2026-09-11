@@ -23,7 +23,7 @@
 
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/space-grotesk-latin.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/plus-jakarta-sans-latin.woff2" crossorigin>
-<link rel="stylesheet" href="/assets/css/affiliate.css?v=20260803b">
+<link rel="stylesheet" href="/assets/css/affiliate.css?v=20260911a">
 
 <script type="application/ld+json">
 {
@@ -67,7 +67,8 @@
       <div class="hero-copy">
         <span class="eyebrow">🧺 UT Austin · flexible gig · 1099</span>
         <h1>Get paid to run laundry for your <span class="hi">dorm</span>.</h1>
-        <p class="lead">Set your own hours and your own rates. You market a service your friends already want and run the pickup &amp; delivery — <strong>we do the wash, dry &amp; fold.</strong> No middle-man, so you keep <strong>100% of your fee.</strong></p>
+        <p class="lead">Set your own hours and your own rates. You market a service your friends already want and run the pickup &amp; delivery — <strong>we do the wash, dry &amp; fold.</strong> No middle-man, so you keep <strong>100% of the service fees you charge.</strong></p>
+        <p class="lead lead--caveat">There is a catch, and it is the whole deal: <strong>customer acquisition is yours.</strong> Cutting out the middle-man means nobody is handing you customers — you find them and you keep them. We give you everything you need to process orders and collect payments; building the book of business is the part you own, and it is exactly why 100% of the fees are yours.</p>
         <div class="cta-row">
           <a class="btn btn--primary btn--lg" href="#apply">Apply now
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
@@ -302,8 +303,10 @@
               <div class="field"><label for="af-availability">Rough availability (optional)</label>
                 <input id="af-availability" name="availability" type="text" maxlength="200" placeholder="e.g. evenings + weekends, ~10 hrs/wk"></div>
             </div>
-            <div class="field"><label for="af-message">Anything else? (optional)</label>
-              <textarea id="af-message" name="message" maxlength="2000" placeholder="Tell us about your network — dorm, co-op, Greek house, apartment complex…"></textarea></div>
+            <div class="field"><label for="af-message">How will you market this and build your customer base? <span class="req" aria-hidden="true">*</span></label>
+              <p class="fieldhelp">This is the part of the business that is <strong>yours</strong>. We handle order processing and payments; finding and keeping customers is on you, and it is why you keep 100% of the service fees you charge. Tell us specifically who you would approach and how you would reach them — the dorms, co-ops, Greek houses or apartment complexes you have access to, and how you would get the first ten customers.</p>
+              <textarea id="af-message" name="message" minlength="80" maxlength="2000" required aria-required="true"
+                placeholder="e.g. I live in Jester West and run the floor GroupMe (400 people). I'd post there, put flyers in the laundry rooms of Jester and Duren, and offer my first 10 customers a discounted first pickup to get reviews…"></textarea></div>
             <div class="check">
               <input id="af-eligible" type="checkbox" required>
               <label for="af-eligible">I'm legally eligible to work in the U.S. and understand this is a <strong>1099 independent-contractor</strong> opportunity where I set my own hours and rates.</label>

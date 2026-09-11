@@ -186,7 +186,8 @@
       "customerLogin": "Login do Cliente",
       "registerNow": "Registre-se agora",
       "copy": "Copiar",
-      "understand": "Entendo"
+      "understand": "Entendo",
+      "applyNow": "Inscreva-se agora"
     },
     "labels": {
       "username": "Nome de Usuário",
@@ -489,7 +490,7 @@
     "login": {
       "title": "Login de Afiliado",
       "subtitle": "Entre para acessar seu painel de afiliado",
-      "noAccount": "Não tem uma conta de afiliado?"
+      "noAccount": "Tem interesse em ser parceiro?"
     },
     "register": {
       "title": "Registro de Afiliado",

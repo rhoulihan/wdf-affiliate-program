@@ -35,12 +35,15 @@ describe('rbac authz-layer admin IP enforcement (catches operator/system-config/
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('blocks an administrator (404) from a non-allowlisted IP even on a non-/administrators admin route', () => {
+  // REVERSED 2026-09-11 (owner decision): the authz-layer admin IP backstop was
+  // removed with the rest of the admin gate. An authenticated administrator is
+  // now authorized from ANY address; role + token is the only check.
+  it('lets an administrator through from a non-allowlisted IP (gate removed)', () => {
     const next = jest.fn();
     const res = mockRes();
     checkRole(['administrator'])(mockReq('administrator', '9.9.9.9'), res, next);
-    expect(next).not.toHaveBeenCalled();
-    expect(res.statusCode).toBe(404);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.statusCode).not.toBe(404);
   });
 
   it('does NOT gate a non-admin role by IP', () => {
@@ -78,17 +81,23 @@ describe('/admin clean URL + gate wiring', () => {
   const embedMin = fs.readFileSync(path.join(ROOT, 'public/assets/js/embed-app-v2.min.js'), 'utf8');
   const embedHtml = fs.readFileSync(path.join(ROOT, 'public/embed-app-v2.html'), 'utf8');
 
-  it('server.js gates the /admin route, the admin API, and the static-bypass paths', () => {
-    expect(serverSrc).toMatch(/app\.get\(\['\/admin', '\/admin\/'\], adminIpGate/);
-    expect(serverSrc).toMatch(/apiV1Router\.use\('\/administrators', adminIpGate/);
-    expect(serverSrc).toContain("administrator-(login|dashboard)-embed");
-    expect(serverSrc).toContain("'/admin'"); // in strictCSPPages
+  it('server.js still mounts the /admin route and the admin API, now UNGATED', () => {
+    expect(serverSrc).toMatch(/app\.get\(\['\/admin', '\/admin\/'\], async/);
+    expect(serverSrc).toMatch(/apiV1Router\.use\('\/administrators', administratorRoutes\)/);
+    expect(serverSrc).toContain("'/admin'"); // still in strictCSPPages
+    // the gate must not creep back in via any live (non-comment) line
+    const live = serverSrc.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+    expect(live).not.toMatch(/adminIpGate/);
   });
 
-  it('embedRoutes + authRoutes gate the admin pages and the admin login', () => {
-    expect(embedRoutes).toMatch(/administrator-login-embed\.html', adminIpGate/);
-    expect(embedRoutes).toMatch(/administrator-dashboard-embed\.html', adminIpGate/);
-    expect(authRoutes).toMatch(/administrator\/login',\s*\n?\s*adminIpGate/);
+  it('embedRoutes + authRoutes still serve the admin pages and login, now UNGATED', () => {
+    expect(embedRoutes).toMatch(/administrator-login-embed\.html'/);
+    expect(embedRoutes).toMatch(/administrator-dashboard-embed\.html'/);
+    expect(authRoutes).toMatch(/administrator\/login'/);
+    for (const src of [embedRoutes, authRoutes]) {
+      const live = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
+      expect(live).not.toMatch(/adminIpGate/);
+    }
   });
 
   it('the /admin handler injects window.__DEFAULT_ROUTE and the SPA honors it', () => {
@@ -109,8 +118,14 @@ describe('/admin clean URL + gate wiring', () => {
     expect(sessionMgr).not.toContain('return `/${role}-dashboard`;');
   });
 
-  it('embed-app-v2.html cache-busts the rebuilt bundle and the changed session-manager', () => {
-    expect(embedHtml).toMatch(/embed-app-v2\.min\.js\?v=20260824a/);
+  // The bundle's ?v= token is no longer a hand-bumped literal -- it is filled
+  // from server/config/assetVersion.js at serve time, so the shell source carries
+  // a placeholder. (A stale literal is exactly how the 2026-09-11 portal fix
+  // shipped without reaching anyone: the bundle changed, the token did not, and
+  // the file is immutable for a year.)
+  it('embed-app-v2.html cache-busts the bundle via ASSET_VERSION, and session-manager by literal', () => {
+    expect(embedHtml).toMatch(/embed-app-v2\.min\.js\?v=\{\{ASSET_VERSION\}\}/);
+    expect(embedHtml).not.toMatch(/embed-app-v2\.min\.js\?v=\d/);
     expect(embedHtml).toMatch(/session-manager\.js\?v=20260619/);
   });
 });

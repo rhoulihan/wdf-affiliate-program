@@ -179,3 +179,13 @@ h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:-.02em;margin:0}
 .footer-text{color:#cfc7c1;font-size:13.5px;line-height:1.5;text-align:right}
 .footer-text a{color:#FFD9C2;font-weight:700;text-decoration:none}
 @media (max-width:640px){.footer-text{text-align:left}}
+
+
+/* --- customer-acquisition emphasis + the mandatory marketing field (2026-09-11) --- */
+/* The program's whole premise: no middle-man means the partner owns customer
+   acquisition. The caveat paragraph carries that obligation next to the promise,
+   and the marketing question is the one field we actually screen on. */
+.lead--caveat{margin-top:12px;padding-left:14px;border-left:3px solid var(--orange);color:var(--ink)}
+.field .req{color:var(--orange);font-weight:800;margin-left:2px}
+.fieldhelp{margin:0;font-size:13px;line-height:1.55;color:var(--muted)}
+.field textarea[required]{min-height:150px}

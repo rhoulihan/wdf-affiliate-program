@@ -10,6 +10,7 @@ const logger = require('./logger');
 const brand = require('../config/brand');
 
 const { ASSET_VERSION } = require('../config/assetVersion');
+const { INTEREST_FORM_URL } = require('../config/links');
 
 // The SPA injects its page scripts/styles at runtime and needs a cache-busting
 // token that is STABLE within a deploy (see server/config/assetVersion.js).
@@ -24,7 +25,9 @@ const { ASSET_VERSION } = require('../config/assetVersion');
 const injectAssetVersion = (html) =>
   html.replace('<meta name="asset-version" content="">',
     `<meta name="asset-version" content="${ASSET_VERSION}">`)
-    .split('{{ASSET_VERSION}}').join(ASSET_VERSION);
+    .split('{{ASSET_VERSION}}').join(ASSET_VERSION)
+    .replace('<meta name="interest-form-url" content="">',
+      `<meta name="interest-form-url" content="${INTEREST_FORM_URL}">`);
 
 const injectNonce = (html, nonce) => injectAssetVersion(wc.injectNonce(html, nonce, brand));
 const readHTMLWithNonce = async (filePath, nonce) =>

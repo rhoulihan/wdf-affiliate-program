@@ -25,7 +25,6 @@ const affiliateRoutes = require('./server/routes/affiliateRoutes');
 const customerRoutes = require('./server/routes/customerRoutes');
 const orderRoutes = require('./server/routes/orderRoutes');
 const administratorRoutes = require('./server/routes/administratorRoutes');
-const adminIpGate = require('./server/middleware/adminIpGate');
 const operatorIpGate = require('./server/middleware/operatorIpGate');
 const operatorRoutes = require('./server/routes/operatorRoutes');
 const monitoringRoutes = require('./server/routes/monitoringRoutes');
@@ -560,9 +559,9 @@ app.use((req, res, next) => {
   let p = req.path || '';
   try { p = decodeURIComponent(p); } catch (_e) { /* keep raw on malformed escapes */ }
   p = p.replace(/\/{2,}/g, '/');
-  if (/^\/admin\/?$/i.test(p) || /administrator-(login|dashboard)-embed\.html$/i.test(p)) {
-    return adminIpGate(req, res, next);
-  }
+  // ADMIN IP GATE REMOVED (owner decision, 2026-09-11): the admin surface is
+  // now reachable from any IP and is protected by password auth + authLimiter
+  // (5 attempts / 15 min) alone. The operator surface stays store-IP gated.
   // Same defense for the operator surface (store-IP gated).
   if (/^\/operator\/?$/i.test(p) || /operator-(login|scan)-embed\.html$/i.test(p)) {
     return operatorIpGate(req, res, next);
@@ -574,11 +573,11 @@ app.use('/', embedRoutes);
 
 
 // Mount monitoring dashboard BEFORE static files for CSP nonce injection.
-// IP-gated to the admin allowlist (same as /admin): /monitoring/status serves
-// real connectivity-monitor data (service names, host error strings), so it must
-// not be publicly reachable. adminIpGate fails CLOSED in prod (stealth 404) and
-// is transparent in dev/test.
-app.use('/monitoring', adminIpGate, monitoringRoutes);
+// NOTE: this was IP-gated to the admin allowlist because /monitoring/status
+// serves real connectivity-monitor data (service names, host error strings).
+// The gate was removed by owner decision 2026-09-11, so that data is now
+// publicly reachable.
+app.use('/monitoring', monitoringRoutes);
 
 // Handle direct monitoring-dashboard.html path
 app.get('/monitoring-dashboard.html', (req, res) => {
@@ -721,7 +720,7 @@ apiV1Router.use('/scan', require('./server/routes/scanRoutes'));  // PR 4 — sc
 apiV1Router.use('/expediter', require('./server/routes/expediterRoutes'));  // Order Expediter — read-only in-store display (EXPEDITER_TOKEN)
 apiV1Router.use('/addons', require('./server/routes/addonRoutes'));  // Public add-on catalog (active only) for the order form
 apiV1Router.use('/orders', orderRoutes);
-apiV1Router.use('/administrators', adminIpGate, administratorRoutes);
+apiV1Router.use('/administrators', administratorRoutes);
 apiV1Router.use('/operators', operatorRoutes);
 apiV1Router.use('/system/config', systemConfigRoutes);
 apiV1Router.use('/', require('./server/routes/partnerInquiryRoutes'));  // /partner-inquiry
@@ -787,7 +786,7 @@ app.get(['/wavemax-affiliate', '/wavemax-affiliate/'], (req, res) => {
 // (stealth 404 otherwise). The injected window.__DEFAULT_ROUTE is read by
 // embed-app-v2.js getRouteFromUrl(); SessionManager then routes an authenticated
 // admin to the dashboard and everyone else to the login page.
-app.get(['/admin', '/admin/'], adminIpGate, async (req, res) => {
+app.get(['/admin', '/admin/'], async (req, res) => {
   try {
     const nonce = res.locals.cspNonce;
     let html = await adminReadHTML(path.join(__dirname, 'public', 'embed-app-v2.html'), nonce);
@@ -802,7 +801,7 @@ app.get(['/admin', '/admin/'], adminIpGate, async (req, res) => {
 });
 
 // Admin routes with CSRF
-app.get('/admin/*', adminIpGate, (req, res, next) => {
+app.get('/admin/*', (req, res, next) => {
   res.locals.csrfToken = req.csrfToken ? req.csrfToken() : null;
   next();
 });

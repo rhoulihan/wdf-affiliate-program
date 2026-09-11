@@ -186,7 +186,8 @@
       "customerLogin": "Customer Login",
       "registerNow": "Register now",
       "copy": "Copy",
-      "understand": "I Understand"
+      "understand": "I Understand",
+      "applyNow": "Apply now"
     },
     "labels": {
       "username": "Username",
@@ -489,7 +490,7 @@
     "login": {
       "title": "Affiliate Login",
       "subtitle": "Sign in to access your affiliate dashboard",
-      "noAccount": "Don't have an affiliate account?"
+      "noAccount": "Interested in becoming a partner?"
     },
     "register": {
       "title": "Affiliate Registration",
