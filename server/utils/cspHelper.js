@@ -15,9 +15,16 @@ const { ASSET_VERSION } = require('../config/assetVersion');
 // token that is STABLE within a deploy (see server/config/assetVersion.js).
 // Publishing it the same way the nonce is published keeps the client contract
 // uniform: read a meta tag, fall back to a constant, never call a clock.
+// Fills BOTH the meta tag (read by the client at runtime) and any
+// {{ASSET_VERSION}} placeholder in a <script src>. The bundle's own ?v= token
+// used to be hand-bumped separately, which is a trap: changing the bundle
+// without bumping it leaves every browser and the CF edge serving the OLD
+// bundle for a year, because it ships `immutable, max-age=31536000`. One
+// source of truth removes that failure mode.
 const injectAssetVersion = (html) =>
   html.replace('<meta name="asset-version" content="">',
-    `<meta name="asset-version" content="${ASSET_VERSION}">`);
+    `<meta name="asset-version" content="${ASSET_VERSION}">`)
+    .split('{{ASSET_VERSION}}').join(ASSET_VERSION);
 
 const injectNonce = (html, nonce) => injectAssetVersion(wc.injectNonce(html, nonce, brand));
 const readHTMLWithNonce = async (filePath, nonce) =>

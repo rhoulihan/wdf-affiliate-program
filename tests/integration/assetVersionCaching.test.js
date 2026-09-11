@@ -75,6 +75,26 @@ describe('portal asset caching — no runtime cache-busters', () => {
     });
   });
 
+  describe('runtime: the main bundle token tracks ASSET_VERSION', () => {
+    // Regression guard for a defect I shipped and then caught in a browser:
+    // embed-app-v2.min.js was referenced with a HAND-BUMPED ?v=20260824a. The
+    // bundle's contents changed but that token did not, and the file ships
+    // `immutable, max-age=31536000` -- so every browser and the CF edge kept
+    // serving the OLD bundle, and the page-script cache-busters it contained
+    // survived the deploy. The token is now filled from ASSET_VERSION so the
+    // two cannot drift.
+    it('serves the bundle with the current ASSET_VERSION, not a stale literal', async () => {
+      const { ASSET_VERSION } = require('../../server/config/assetVersion');
+      const res = await request(app).get('/embed-app-v2.html');
+      expect(res.text).toContain(`embed-app-v2.min.js?v=${ASSET_VERSION}`);
+      expect(res.text).not.toContain('{{ASSET_VERSION}}');
+    });
+
+    it('the shell source keeps no hardcoded bundle version', () => {
+      expect(read('embed-app-v2.html')).not.toMatch(/embed-app-v2\.min\.js\?v=\d/);
+    });
+  });
+
   describe('runtime: the locale bundle is cacheable', () => {
     // 73 KB on the critical path. Served by the generic express.static mount,
     // whose default is `public, max-age=0` -- so even with a stable URL the
