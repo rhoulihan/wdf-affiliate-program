@@ -237,10 +237,23 @@ app.use(webCore.securityHeadersMiddleware());
 // built-in documentation-page + franchise-slug predicates, which reproduce the
 // former inline `isDocumentationPage` / `isCleanUrlSlugPage` regexes verbatim.
 //
-// The Phase-4 override args reproduce THIS app's inline CSP exactly: drop the
-// retired-host self-origins, add the portal origin to img/connect/frame, and
-// tighten frame-ancestors to 'self'. isClickjackingDemo is hard-false (this
-// app has no clickjacking-demo route).
+// web-core v0.2.0 carries no app or host literals: this app supplies its own
+// origins. profile 'full' = the shared vendor allowlist. The five location
+// origins go in img/connect; frame-src carries the portal origin plus the
+// Firebase auth-helper iframe (dropping it CSP-blocks signInWithPhoneNumber on
+// the claim page). frame-ancestors is tightened to 'self' — this app is only
+// framed by its own pages.
+const APP_LOCATION_ORIGINS = [
+  'https://atxwashateria.com',
+  'https://atxwashdryfold.com',
+  'https://portal.atxwashdryfold.com',
+  'https://runberglaundry.com',
+  'https://rundberglaundry.com'
+];
+const APP_FRAME_SRC_ORIGINS = [
+  'https://portal.atxwashdryfold.com',
+  'https://wavemax-bag-registration.firebaseapp.com'
+];
 const APP_STRICT_CSP_PAGES = [
   '/terms-and-conditions-embed.html',
   '/privacy-policy.html',
@@ -263,15 +276,12 @@ const APP_STRICT_CSP_PAGES = [
 app.use((req, res, next) => {
   const useStrictCSP = webCore.isStrictCspPath(req.path, { strictCSPPages: APP_STRICT_CSP_PAGES });
   const directives = webCore.buildCspDirectives({
-    path: req.path,
     nonce: res.locals.cspNonce,
     useStrictCSP,
-    isClickjackingDemo: false,
-    imgSrcSelfOrigins: [],
-    connectSrcSelfOrigins: [],
-    imgSrcExtra: ['https://portal.atxwashdryfold.com'],
-    connectSrcExtra: ['https://portal.atxwashdryfold.com'],
-    frameSrcExtra: ['https://portal.atxwashdryfold.com'],
+    profile: 'full',
+    imgSrcExtra: APP_LOCATION_ORIGINS,
+    connectSrcExtra: APP_LOCATION_ORIGINS,
+    frameSrcExtra: APP_FRAME_SRC_ORIGINS,
     frameAncestors: ['\'self\'']
   });
   res.setHeader('Content-Security-Policy', webCore.serializeCspDirectives(directives));

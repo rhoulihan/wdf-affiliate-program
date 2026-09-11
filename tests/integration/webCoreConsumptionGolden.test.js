@@ -12,6 +12,15 @@
 // wc.securityHeadersMiddleware), EVERY assertion here MUST still pass unchanged.
 // If one fails, the swap drifted — fix the parameterisation, never the
 // expectation.
+//
+// RE-CAPTURED ONCE, 2026-09-09, under ruling D16a (web-core v0.2.0 / PR B3c):
+// the shared builder stopped carrying project-specific origins, so this app now
+// supplies the Firebase auth-helper origin itself via frameSrcExtra. The ONLY
+// change to the golden was the POSITION of
+// https://wavemax-bag-registration.firebaseapp.com within frame-src — no origin
+// was gained or lost in any directive. The set-equality guard below enforces
+// that permanently. This exception does not repeat: any future diff here is
+// drift, and the fix is the parameterisation, never the expectation.
 
 const request = require('supertest');
 const app = require('../../server');
@@ -29,7 +38,7 @@ const EXPECTED_STRICT_CSP =
   "font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.gstatic.com; " +
   "object-src 'none'; " +
   "media-src 'self'; " +
-  "frame-src 'self' https://portal.atxwashdryfold.com https://www.google.com https://maps.google.com https://my.matterport.com https://challenges.cloudflare.com https://www.recaptcha.net https://wavemax-bag-registration.firebaseapp.com; " +
+  "frame-src 'self' https://portal.atxwashdryfold.com https://wavemax-bag-registration.firebaseapp.com https://www.google.com https://maps.google.com https://my.matterport.com https://challenges.cloudflare.com https://www.recaptcha.net; " +
   "form-action 'self'; " +
   "frame-ancestors 'self'; " +
   "base-uri 'self'; " +
@@ -61,6 +70,30 @@ describe('GOLDEN-MASTER: @crhs/web-core consumption is byte-identical', () => {
       // documented single token.
       expect(EXPECTED_NONSTRICT_CSP).not.toBe(EXPECTED_STRICT_CSP);
       expect(EXPECTED_NONSTRICT_CSP.replace(" 'unsafe-inline';", ';')).toBe(EXPECTED_STRICT_CSP);
+    });
+
+    // D16a guard: the 2026-09-09 re-capture changed frame-src ORDER ONLY. This
+    // is the pre-change token multiset, transcribed from the golden as it stood
+    // at commit 43f6dfc8. If a future change adds or removes a frame origin,
+    // this fails even though the byte pin above was updated in the same commit.
+    const FRAME_SRC_TOKENS_BEFORE = [
+      "'self'",
+      'https://portal.atxwashdryfold.com',
+      'https://www.google.com',
+      'https://maps.google.com',
+      'https://my.matterport.com',
+      'https://challenges.cloudflare.com',
+      'https://www.recaptcha.net',
+      'https://wavemax-bag-registration.firebaseapp.com'
+    ].sort();
+
+    it('frame-src gained and lost NO origin in the D16a re-capture (order only)', async () => {
+      const res = await request(app).get('/embed-app-v2.html');
+      const frameSrc = (res.headers['content-security-policy'] || '')
+        .split(';')
+        .find((d) => d.trim().startsWith('frame-src'))
+        .trim();
+      expect(frameSrc.split(' ').slice(1).sort()).toEqual(FRAME_SRC_TOKENS_BEFORE);
     });
   });
 
