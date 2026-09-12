@@ -90,6 +90,26 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
       `npm install --install-links` will NOT re-copy web-core while the version string is unchanged:
       it reported "up to date" and left the OLD core installed in both consumers. Every R2 deploy
       needs `rm -rf node_modules/@crhs/web-core` first until this bump lands.
+- [ ] ⛔ **TASK 55 DEPLOY-B BLOCKER — READ BEFORE ANY DEPLOY (added 2026-09-12).**
+      **The affiliate and web-core are now a BIDIRECTIONAL boot-breaker pair. Either one alone kills
+      the portal.** Verified, not inferred: `wc.csrf` now exports only `{ createCsrf, CSRF_COOKIE_NAME }`
+      — `conditionalCsrf` and `csrfTokenEndpoint` are GONE from core.
+        * New web-core + OLD affiliate → affiliate destructures two names that are `undefined`,
+          `app.use(undefined)` throws → portal does not start.
+        * New affiliate + OLD web-core → `wc.csrf.createCsrf` is undefined → throws at REQUIRE time
+          → portal does not start.
+      Both PR bodies only document the FIRST direction. The second is equally fatal.
+      ⚠️ **THIS COMBINES LETHALLY WITH THE npm RE-COPY BUG.** `git pull` in the affiliate followed by
+      an `npm install --install-links` that reports "up to date" (which it does while the version
+      string is unchanged) yields new affiliate code against old core = DEAD PORTAL. That is the exact
+      sequence a normal deploy performs.
+      **MITIGATIONS, ALL REQUIRED:**
+        1. Do **Task 54 (cut v0.2.0) FIRST** — the version bump is what makes npm actually re-copy.
+           It is a safety prerequisite, not bookkeeping.
+        2. Still `rm -rf node_modules/@crhs/web-core` in BOTH consumers before `npm install`.
+        3. **Verify the installed copy took** (`node -p "Object.keys(require('@crhs/web-core').csrf)"`
+           must show `createCsrf`) BEFORE `pm2 reload`, on each box.
+        4. Boot-probe the affiliate before declaring the box done.
 - [~] Task 55 Deploy B (HUMAN-CONFIRM) — **PARTIALLY DONE.** B3a+B3b+B3c reached both boxes on
       2026-09-11 at owner instruction, ahead of the planned single-shot Deploy B. The boxes now run
       v0.2.0 *behaviour* under a `0.1.3` version string. The remaining tranches (B3d-B3i) still need
