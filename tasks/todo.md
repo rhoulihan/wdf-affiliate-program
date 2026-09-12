@@ -103,13 +103,27 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
       an `npm install --install-links` that reports "up to date" (which it does while the version
       string is unchanged) yields new affiliate code against old core = DEAD PORTAL. That is the exact
       sequence a normal deploy performs.
-      **MITIGATIONS, ALL REQUIRED:**
-        1. Do **Task 54 (cut v0.2.0) FIRST** — the version bump is what makes npm actually re-copy.
-           It is a safety prerequisite, not bookkeeping.
-        2. Still `rm -rf node_modules/@crhs/web-core` in BOTH consumers before `npm install`.
-        3. **Verify the installed copy took** (`node -p "Object.keys(require('@crhs/web-core').csrf)"`
-           must show `createCsrf`) BEFORE `pm2 reload`, on each box.
-        4. Boot-probe the affiliate before declaring the box done.
+      **MITIGATIONS — CORRECTED 2026-09-12 AFTER TESTING. My earlier note said the version bump is
+      what makes npm re-copy. THAT IS FALSE — I tested it and it is not true.**
+      Measured, on a real checkout, with web-core already bumped to 0.2.0 on disk:
+        * plain `npm install --install-links`  → "up to date in 2s", installed copy STILL 0.1.3
+        * `npm install --install-links --force` → "up to date", installed copy STILL 0.1.3
+        * `--package-lock-only`                 → lock still records 0.1.3
+        * `rm -rf node_modules/@crhs/web-core` + install → **0.2.0 installed** ✅ (but the lock
+          STILL recorded 0.1.3, which is what re-arms the trap next time)
+      Root cause: the lockfile entry `{"version":"0.1.3","resolved":"file:../crhs-web-core"}` makes
+      npm consider the tree satisfied. Both repo lockfiles are now corrected to 0.2.0 (affiliate
+      `157b75e6`, corporate `5766f41`), but the BOXES have their own lockfiles.
+      **THE ONLY RELIABLE SEQUENCE, per consumer, per box:**
+        1. `rm -rf node_modules/@crhs/web-core` — **mandatory, not optional.** No npm flag substitutes.
+        2. `npm install --install-links`
+        3. **VERIFY IT TOOK, before `pm2 reload`:**
+           `node -p "require('@crhs/web-core/package.json').version"` → must print `0.2.0`
+           `node -p "Object.keys(require('@crhs/web-core').csrf)"`    → must include `createCsrf`
+           `node -p "Object.keys(require('@crhs/web-core')).length"`  → must be `26`
+        4. Boot-probe the affiliate (`require('./server.js')` must not throw) before declaring done.
+      A box-local lockfile still recording 0.1.3 is expected and harmless ONCE step 1 is done — but
+      it means step 1 can never be skipped.
 - [~] Task 55 Deploy B (HUMAN-CONFIRM) — **PARTIALLY DONE.** B3a+B3b+B3c reached both boxes on
       2026-09-11 at owner instruction, ahead of the planned single-shot Deploy B. The boxes now run
       v0.2.0 *behaviour* under a `0.1.3` version string. The remaining tranches (B3d-B3i) still need
