@@ -469,16 +469,26 @@ app.use((req, res, next) => {
     const originalMaxAge = req.session.cookie.maxAge;
     const originalExpires = req.session.cookie._expires;
 
-    // Always ensure maxAge is a valid number
+    // Always ensure maxAge is a valid number.
     if (typeof originalMaxAge !== 'number' || isNaN(originalMaxAge) || originalMaxAge < 0) {
-      // Create a new cookie object to avoid prototype issues
-      req.session.cookie = {
-        ...req.session.cookie,
-        maxAge: sessionMaxAge,
-        originalMaxAge: sessionMaxAge,
-        expires: new Date(Date.now() + sessionMaxAge),
-        _expires: new Date(Date.now() + sessionMaxAge)
-      };
+      // MUTATE IN PLACE -- never replace this object. It used to be replaced with a
+      // plain-object spread ("to avoid prototype issues"), but the prototype IS the
+      // point: express-session serialises Set-Cookie from Cookie#data, a getter on
+      // that prototype. A plain object has no `data`, so on the repair path the
+      // emitted cookie lost Path, HttpOnly, Secure, SameSite and Expires. This app's
+      // production cookie is __Host- prefixed, and that prefix REQUIRES Secure and
+      // Path=/ -- so the browser rejected the cookie outright and the session
+      // silently dropped. Proven with a live express-session round-trip and fixed in
+      // @crhs/web-core's _maxAgeFixer at the same time (2026-09-11).
+      const cookie = req.session.cookie;
+      const until = new Date(Date.now() + sessionMaxAge);
+      cookie.maxAge = sessionMaxAge;
+      // A real Cookie derives these via its setter; a plain object (a cookie already
+      // in the degraded state this fixer exists for) does not, so backfill only what
+      // is still missing.
+      if (cookie.originalMaxAge !== sessionMaxAge) cookie.originalMaxAge = sessionMaxAge;
+      if (!(cookie.expires instanceof Date)) cookie.expires = until;
+      if (!(cookie._expires instanceof Date)) cookie._expires = until;
     }
 
     // Double-check the maxAge is still valid
