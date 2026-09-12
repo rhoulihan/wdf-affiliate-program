@@ -10,21 +10,25 @@
     // messages use targetOrigin '*' — we don't send anything sensitive that
     // would warrant a fixed targetOrigin, and the parent-side bridge does
     // its own origin check on receipt. This lets the iframe work under any
-    // approved parent (production wavemaxlaundry.com, the rundberglaundry.com
-    // staging origin, AND local dev hosts) without per-environment config.
+    // approved parent (the portal origin, the rundberglaundry.com staging origin,
+    // AND local dev hosts) without per-environment config.
     const DEV_HOST_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
     const config = {
         allowedOrigins: [
-            'https://www.wavemaxlaundry.com',
-            'https://wavemaxlaundry.com',
+            // The two franchisor origins (bare + www) were REMOVED 2026-09-11:
+            // the owner's decision is that this app will never be embedded in the
+            // franchisor's site, so admitting postMessage from them granted access
+            // nothing needs. Deliberately not spelled out here — an active
+            // franchise dispute makes a stray mark in our source unhelpful. This
+            // list gates isAllowedOrigin() below, so a shorter list is tighter.
+            'https://portal.atxwashdryfold.com',
             'https://rundberglaundry.com',
             'https://affiliate.rundberglaundry.com',
-            // Per-location domains that proxy the Austin franchise content
+            // Per-location domains
             'https://atxwashateria.com',
             'https://atxwashdryfold.com',
-            'https://runberglaundry.com',
-            'https://rundberglaundry.com'
+            'https://runberglaundry.com'
         ],
         pageIdentifier: null,
         enableTranslation: true,
