@@ -16,11 +16,19 @@ const { execFileSync } = require('child_process');
 const repoRoot = path.join(__dirname, '../..');
 const SELF = 'tests/integration/systemConfigOwnershipGuard.test.js';
 
-const trackedJs = () =>
-  execFileSync('git', ['ls-files', 'server', 'tests', 'scripts', 'server.js'], { cwd: repoRoot })
-    .toString()
-    .split('\n')
-    .filter((f) => f.endsWith('.js') && f !== SELF);
+// Scans server/, tests/, scripts/ AND every root-level .js. The root level matters:
+// init-defaults.js is a boot-time module (server.js calls it right after the DB
+// connects) that already requires models, so it is exactly where an
+// OverwriteModelError would be most damaging -- and the original scope
+// ('server', 'tests', 'scripts', 'server.js') missed it.
+const trackedJs = () => {
+  const inDirs = execFileSync('git', ['ls-files', 'server', 'tests', 'scripts'], { cwd: repoRoot })
+    .toString().split('\n');
+  // ':(exclude)' keeps this to the repo ROOT only, not every .js in every subtree.
+  const atRoot = execFileSync('git', ['ls-files', '*.js', ':(exclude)*/*'], { cwd: repoRoot })
+    .toString().split('\n');
+  return [...new Set([...inDirs, ...atRoot])].filter((f) => f.endsWith('.js') && f !== SELF);
+};
 
 // Every shape a real regression could take. Kept as separate named patterns so a
 // failure says which import shape crept in.
@@ -29,15 +37,22 @@ const MEMBER_OFF_NAMESPACE = /\b(webCore|webcore|wc|core)\s*\.\s*SystemConfig/;
 const DEEP_REQUIRE = /require\(\s*(['"])@crhs\/web-core\/[^'"]*SystemConfig[^'"]*\1\s*\)/;
 // `const { a, SystemConfig } = require('@crhs/web-core')`, newlines included.
 const DESTRUCTURED_REQUIRE = /\{([^}]*)\}\s*=\s*require\(\s*(['"])@crhs\/web-core\2\s*\)/g;
+// `const webCore = require('@crhs/web-core'); const { SystemConfig } = webCore;`
+// -- destructure off a NAMESPACE VARIABLE rather than off the require() itself.
+// server.js already holds web-core that way (`const webCore = require(...)`), so
+// this is the likeliest shape a real regression in this repo would take.
+const DESTRUCTURED_OFF_NAMESPACE = /\{([^}]*)\}\s*=\s*(webCore|webcore|wc|core)\b/g;
 
 const importsCoreSystemConfig = (src) => {
   if (MEMBER_OFF_REQUIRE.test(src)) return true;
   if (MEMBER_OFF_NAMESPACE.test(src)) return true;
   if (DEEP_REQUIRE.test(src)) return true;
-  DESTRUCTURED_REQUIRE.lastIndex = 0;
-  let match;
-  while ((match = DESTRUCTURED_REQUIRE.exec(src)) !== null) {
-    if (/\bSystemConfig\b/.test(match[1])) return true;
+  for (const re of [DESTRUCTURED_REQUIRE, DESTRUCTURED_OFF_NAMESPACE]) {
+    re.lastIndex = 0;
+    let match;
+    while ((match = re.exec(src)) !== null) {
+      if (/\bSystemConfig\b/.test(match[1])) return true;
+    }
   }
   return false;
 };
