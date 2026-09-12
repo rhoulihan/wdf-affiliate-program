@@ -159,7 +159,20 @@ until they do, the only record was prose inside a 61-task plan document.
 
 ### D-2. Affiliate PR B7 (rate-limit adoption) → Plan 4
 
-Plan 1 ships only the web-core MECHANISM half. Three of these five are LIVE DEFECTS, not refactors.
+**This section IS the Plan 1 Task 42 hand-off of record** (Task 42 ran 2026-09-12 and found D-2
+already written, so it re-verified every anchor in place rather than appending a duplicate section).
+All anchors below re-verified against working-tree content 2026-09-12; the three marked ⟳ had
+drifted and are corrected.
+
+Plan 1 shipped only the web-core MECHANISM half — `collectionPrefix`, the opt-in TTL index,
+`sweepCollection`/`resetCollection`, `LIMITER_NAMES`, `collectionNameFor`, `sweepExpired`,
+`resetBuckets`, plus the env contract now documented in `.env.example:128-138`
+(`RATE_LIMIT_COLLECTION_PREFIX`, `RATE_LIMIT_TTL_INDEX` — both intentionally UNSET in production).
+It also deleted the three dead limiters (`emailVerificationLimiter`, `fileUploadLimiter`,
+`adminOperationLimiter`; web-core `6dd1c31`). The contact-form pair deliberately SURVIVES core
+until B7 — see the copy-before-delete item below.
+
+Three of these five are LIVE DEFECTS, not refactors.
 
 - [ ] **The admin "reset rate limits" control is a DOUBLE no-op — verified against the production
       database 2026-09-11, not inferred.** The store writes **17 `ratelimit_*` collections** keyed on
@@ -170,22 +183,30 @@ Plan 1 ships only the web-core MECHANISM half. Three of these five are LIVE DEFE
       `server/routes/administratorRoutes.js:208`, `scripts/admin/reset-rate-limits.js:36`.
       Fix per spec §7.6.3: fan out over `LIMITER_NAMES` via `resetBuckets({ names, idPattern })`,
       escape regex metacharacters in the ip filter, 400 on an unknown limiter name.
+      ⟳ Note (2026-09-12): the ip-escaping half is ALREADY correct on the controller path —
+      `systemHealthService.js:98` escapes the full metacharacter class. The unescaped-except-dots
+      version lives only in the inline route handler that this work deletes, so carry the escaping
+      forward rather than re-deriving it.
 - [ ] **A dead controller shadowed by an inline handler.** `administratorController.resetRateLimits`
-      (`:692`) is referenced by NO route; `administratorRoutes.js:197-238` carries an inline copy that
-      shadows it. Delete the inline handler, route to the controller. Response message becomes
-      `Reset N rate limit entries`; `tests/integration/administratorRoutes.test.js` has **exactly two**
-      occurrences to update (`:44`, `:57`) — verify `grep -c 'rate limit records'` → 0 after.
-      `tests/unit/simpleRouteHandlers.test.js:49-84` copies the deleted handler into a throwaway
-      router and stays green untouched — leave it for the Plan-4 test cull.
+      (`:692`) is referenced by NO route; `administratorRoutes.js:197-237` (⟳ was `:197-238`)
+      carries an inline copy that shadows it. Delete the inline handler, route to the controller.
+      Response message becomes `Reset N rate limit entries`;
+      `tests/integration/administratorRoutes.test.js` has **exactly two** occurrences to update
+      (`:44`, `:57`) — verify `grep -c 'rate limit records'` → 0 after.
+      `tests/unit/simpleRouteHandlers.test.js:49-87` (⟳ was `:49-84`) copies the deleted handler
+      into a throwaway router and stays green untouched — leave it for the Plan-4 test cull.
 - [ ] **`server/services/codeAttemptLockout.js:49`** hand-builds `'ratelimit_' + STORE_NAME`, a second
       source of the collection name that ignores `RATE_LIMIT_COLLECTION_PREFIX`. Read
       `getStore().collectionName` instead; register `STORE_NAME = 'bag_codes'` at module load.
 - [ ] Replace `server/middleware/rateLimitMongoStore.js` + `rateLimiting.js` with shims over
       `@crhs/web-core`, plus a local policy module. ⚠️ **COPY-BEFORE-DELETE (Global Constraint 13):**
-      copy `windowMs`/`max`/keyGenerator verbatim from core's `contactFormBurstLimiter` (`:190-206`)
-      and `contactFormLimiter` (`:213-230`) BEFORE core deletes them. Core deletes its copies in the
-      SAME B7 release — earlier and the affiliate gets `router.post(path, undefined, …)` →
-      `Route.post() requires a callback function` **at require time**, i.e. the app does not boot.
+      copy `windowMs`/`max`/keyGenerator verbatim from core's `contactFormBurstLimiter`
+      (`src/middleware/rateLimiting.js:214-230`) and `contactFormLimiter` (`:237-254`) BEFORE core
+      deletes them. Core deletes its copies in the SAME B7 release — earlier and the affiliate gets
+      `router.post(path, undefined, …)` → `Route.post() requires a callback function`
+      **at require time**, i.e. the app does not boot.
+      ⟳ Both ranges were `:190-206` / `:213-230` until Plan 1 Task 41 inserted the copy-before-delete
+      comment block above them; re-verified at web-core `6dd1c31` on 2026-09-12.
 - [ ] Rewrite `scripts/admin/reset-rate-limits.js` onto the real buckets, add an `--expired` sweep
       mode, export `{ parseArgs, run }` so the behaviour is testable.
 - [ ] ⚠️ **`LIMITER_NAMES` IS A LIVE GETTER, NOT A SNAPSHOT.** Destructuring it at require time freezes
