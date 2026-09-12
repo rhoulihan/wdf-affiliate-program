@@ -134,6 +134,76 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
 - [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
 
+## DEFERRED WORK — accepted as deferred, NOT removed (Rick, 2026-09-11)
+
+Rick approved both Plan 1 scope cuts **on the explicit condition that the work is deferred, not
+dropped.** This section is the durable record of that promise. It is written here rather than left
+to Plan 1's Task 42 (B7 hand-off) and Task 58 (exit-gate deviations) because neither has run yet —
+until they do, the only record was prose inside a 61-task plan document.
+**Nothing below may be closed without shipping it or getting Rick's explicit agreement to drop it.**
+
+### D-1. web-core PRs B3g / B3j / B3k → `@crhs/web-core` v0.2.1 (with Plan 2 Phase 0a)
+
+- [ ] **B3g** — parameterise `src/email/transport.js` + `src/email/template-manager.js` by brand;
+      add `replyTo`; delete `src/config/brand.js`; drop the `cspHelper` `brand === true` shorthand.
+      Live anchors (re-verified 2026-09-11): `transport.js:73` and `template-manager.js:67` still
+      hard-code `rundberglaundry.com` fallbacks.
+- [ ] **B3j** — export `validateMailConfig()`.
+- [ ] **B3k** — `assets/js/i18n.js`: `translationsPath: '/locales'` + `data-i18n-aria-label`.
+      Live anchor: `assets/js/i18n.js:15` still branches on `window.location.hostname`.
+- [ ] **The guard that goes with them** — spec §7.2.2's repo-wide `tests/brandNeutral.test.js`
+      (grep `src/` for `wavemax|rundberglaundry|runberglaundry|atxwash|wavemaxlaundry` → 0).
+      ⚠️ This is the real cost of the deferral: through v0.2.0 web-core carries brand literals with
+      **no repo-wide net**, only two file-scoped substitutes (Task 30 `sessionStore.js`, Task 33
+      `SystemConfig.js`). Do not mistake those two for the guard.
+
+### D-2. Affiliate PR B7 (rate-limit adoption) → Plan 4
+
+Plan 1 ships only the web-core MECHANISM half. Three of these five are LIVE DEFECTS, not refactors.
+
+- [ ] **The admin "reset rate limits" control is a DOUBLE no-op — verified against the production
+      database 2026-09-11, not inferred.** The store writes **17 `ratelimit_*` collections** keyed on
+      `_id`; the admin targets a collection named `rate_limits` **which does not exist at all**. So
+      `deleteMany` runs against nothing, returns `deletedCount: 0`, and reports SUCCESS. An admin
+      trying to unblock a locked-out user is told it worked and nothing happened. Wrong collection
+      AND wrong key field, in three places: `server/services/systemHealthService.js:105`,
+      `server/routes/administratorRoutes.js:208`, `scripts/admin/reset-rate-limits.js:36`.
+      Fix per spec §7.6.3: fan out over `LIMITER_NAMES` via `resetBuckets({ names, idPattern })`,
+      escape regex metacharacters in the ip filter, 400 on an unknown limiter name.
+- [ ] **A dead controller shadowed by an inline handler.** `administratorController.resetRateLimits`
+      (`:692`) is referenced by NO route; `administratorRoutes.js:197-238` carries an inline copy that
+      shadows it. Delete the inline handler, route to the controller. Response message becomes
+      `Reset N rate limit entries`; `tests/integration/administratorRoutes.test.js` has **exactly two**
+      occurrences to update (`:44`, `:57`) — verify `grep -c 'rate limit records'` → 0 after.
+      `tests/unit/simpleRouteHandlers.test.js:49-84` copies the deleted handler into a throwaway
+      router and stays green untouched — leave it for the Plan-4 test cull.
+- [ ] **`server/services/codeAttemptLockout.js:49`** hand-builds `'ratelimit_' + STORE_NAME`, a second
+      source of the collection name that ignores `RATE_LIMIT_COLLECTION_PREFIX`. Read
+      `getStore().collectionName` instead; register `STORE_NAME = 'bag_codes'` at module load.
+- [ ] Replace `server/middleware/rateLimitMongoStore.js` + `rateLimiting.js` with shims over
+      `@crhs/web-core`, plus a local policy module. ⚠️ **COPY-BEFORE-DELETE (Global Constraint 13):**
+      copy `windowMs`/`max`/keyGenerator verbatim from core's `contactFormBurstLimiter` (`:190-206`)
+      and `contactFormLimiter` (`:213-230`) BEFORE core deletes them. Core deletes its copies in the
+      SAME B7 release — earlier and the affiliate gets `router.post(path, undefined, …)` →
+      `Route.post() requires a callback function` **at require time**, i.e. the app does not boot.
+- [ ] Rewrite `scripts/admin/reset-rate-limits.js` onto the real buckets, add an `--expired` sweep
+      mode, export `{ parseArgs, run }` so the behaviour is testable.
+- [ ] ⚠️ **`LIMITER_NAMES` IS A LIVE GETTER, NOT A SNAPSHOT.** Destructuring it at require time freezes
+      the value before `codeAttemptLockout` registers `bag_codes`, so the admin reset silently skips
+      the lockout counters and `--type bag_codes` always throws "Unknown rate limiter". Hold the
+      module and read `rateLimiting.LIMITER_NAMES` inside the function.
+
+### D-3. Franchisor origins in the web-core iframe bridge — NOW ACTIONABLE
+
+- [ ] **Remove the franchisor origins from `crhs-web-core/assets/js/iframe-bridge-v2.js:19-21`**
+      (`https://www.wavemaxlaundry.com`, `https://wavemaxlaundry.com` — 6 `wavemaxlaundry` refs total
+      across the bridge assets). These sat behind a deliberate carve-out (Global Constraint 16:
+      `assets/js/*bridge*`) whose entire premise was that the app might be embedded in the
+      franchisor's WordPress site. **Rick, 2026-09-11: "we will never embed in the franchisor site."**
+      The premise is gone, so the carve-out no longer protects anything — these are dead franchisor
+      references sitting in our shared library during an active franchise dispute, with a DMCA history.
+      Blocked only on web-core being free of a running tranche workflow.
+
 ## Backlog — deferred, not scheduled
 
 ### B-1. ✅ DONE 2026-09-11 (`6acbf550`) — "Register now" on the affiliate login page must go to the interest form (invite-only)
