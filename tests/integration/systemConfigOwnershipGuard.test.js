@@ -72,19 +72,26 @@ describe('SystemConfig ownership (model double-registration)', () => {
   });
 
   it('is non-vacuous: each offending import shape is actually detected', () => {
-    expect(importsCoreSystemConfig("const S = require('@crhs/web-core').SystemConfig;")).toBe(true);
+    expect(importsCoreSystemConfig('const S = require(\'@crhs/web-core\').SystemConfig;')).toBe(true);
     expect(importsCoreSystemConfig('const x = webCore.SystemConfig;')).toBe(true);
     expect(importsCoreSystemConfig('const x = wc.SystemConfig.getValue;')).toBe(true);
     expect(
-      importsCoreSystemConfig("const { logger, SystemConfig } = require('@crhs/web-core');")
+      importsCoreSystemConfig('const { logger, SystemConfig } = require(\'@crhs/web-core\');')
     ).toBe(true);
     expect(
-      importsCoreSystemConfig("const S = require('@crhs/web-core/src/models/SystemConfig');")
+      importsCoreSystemConfig('const S = require(\'@crhs/web-core/src/models/SystemConfig\');')
     ).toBe(true);
+    // The two shapes added 2026-09-12 after a reviewer found them missing:
+    // destructure off a namespace VARIABLE (the likeliest real regression here,
+    // because server.js already holds web-core as `const webCore = require(...)`).
+    expect(importsCoreSystemConfig('const webCore = require(\'@crhs/web-core\');\nconst { SystemConfig } = webCore;')).toBe(true);
+    expect(importsCoreSystemConfig('const { a, SystemConfig } = wc;')).toBe(true);
+    // ...but a destructure off something unrelated must NOT fire.
+    expect(importsCoreSystemConfig('const { SystemConfig } = require(\'./models\');')).toBe(false);
     // ...and does not fire on the imports this app legitimately makes today.
-    expect(importsCoreSystemConfig("module.exports = require('@crhs/web-core').logger;")).toBe(
+    expect(importsCoreSystemConfig('module.exports = require(\'@crhs/web-core\').logger;')).toBe(
       false
     );
-    expect(importsCoreSystemConfig("const SystemConfig = require('./SystemConfig');")).toBe(false);
+    expect(importsCoreSystemConfig('const SystemConfig = require(\'./SystemConfig\');')).toBe(false);
   });
 });
