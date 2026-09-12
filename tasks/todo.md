@@ -71,7 +71,12 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
 
 ### Gates
 - [x] Task 10 — G2 corporate `/health` above `buildSessionMiddleware` (200 / no-store / NO set-cookie)
-- [ ] Task 12 — G1 (HUMAN-CONFIRM) CF monitor be6953d2… `header.Host` → `["portal.atxwashdryfold.com"]`, +180s pool healthy, probes land in the portal access log
+- [~] ~~Task 12 — G1 CF monitor `header.Host` → portal~~ **SUPERSEDED, DO NOT EXECUTE.** The plan says so
+      explicitly: repointing the monitor only MOVES the blind spot. One monitor health-checks one
+      service, but both apps run on every box — pointing it at the portal would leave a crash-looping
+      `crhs-corporate` undetected and crhsent.com serving 502s from a "healthy" origin. Six load
+      balancers share ONE pool and ONE monitor on Basic LB ($5/mo), so a second pool was rejected on
+      cost. Gate G1 is satisfied by Tasks 59–61 (`/health/origin` aggregate probe, Rick's Option A).
 
 ### Release R2 — @crhs/web-core v0.2.0
 - [x] B3a auditLogger LOG_DIR (13-16)   - [x] B3b CORS env-only (17-20)   - [x] B3c CSP profiles + goldens (21-26)
@@ -90,6 +95,11 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
       v0.2.0 *behaviour* under a `0.1.3` version string. The remaining tranches (B3d-B3i) still need
       their own deploy, so this task is no longer "the single point v0.2.0 reaches the boxes".
 - [ ] Tasks 56-57 post-deploy slice verification   - [ ] Task 58 Plan 1 exit gate
+
+### HA (Tasks 59-61) — this is what actually satisfies gate G1
+- [ ] Task 59 add `/health/origin` box-level aggregate liveness (both apps, one signal)
+- [ ] Task 60 (HUMAN-CONFIRM) deploy `/health/origin` to both boxes; verify it reflects real content-app state
+- [ ] Task 61 (HUMAN-CONFIRM) point the CF LB monitor at `/health/origin` — supersedes Task 12
 
 Carve-outs recorded (Global Constraint 16): web-core `securityHeaders.js:83-88`, `assets/js/*bridge*`, `assets/legal/*`
 are NOT deleted in Plan 1 (the portal still serves `public/assets/js/parent-iframe-bridge-v3.js` cross-origin).
