@@ -58,3 +58,62 @@ Two constraints on the value Plan 2 0a picks for the affiliate:
    alone would already relocate the stray audit writes to `<cwd>/logs`. The
    Phase 0a write is still required: relative-to-cwd is silently wrong for
    anything not started by pm2 from the app root (cron jobs, one-off scripts).
+
+## Plan 1 exit gate — SIGNED OFF 2026-09-12
+
+`@crhs/web-core@0.2.0` (tag `v0.2.0`, commit `2dcd6ff`) is live on both boxes with
+its co-requisite consumer PRs. Both apps run ONE mongoose. Suites green. Zero
+user-visible change.
+
+### Evidence
+| check | result |
+|---|---|
+| web-core suite | 572 passed / 572, 33 suites |
+| corporate suite | 99 passed, exactly the 4 accepted `crhsent-parity` ENOENT failures |
+| one mongoose — affiliate + corporate, oci1 + oci2 | `mongoose_same=true` ×4 |
+| installed core — both apps, both boxes | `0.2.0`, surface `26` keys ×4 |
+| 6 hostnames through Cloudflare | 5×200 + 1×301 (intended redirect) |
+| CF LB pool | healthy, 2 origins |
+| corporate session cookie | `__Host-wavemax.sid` unchanged — **zero gated sessions dropped** |
+| access gate | enforcing (`/services` 401), exempt paths public by design |
+| CSRF (boot-breaker #2) | `/api/csrf-token` 200; token-less POST reaches validation (400), not 403 |
+| CSP | Firebase auth-helper origin present; **0** franchisor references |
+| operator IP gate | still 404s an outside IP (owner decision: KEEP) |
+| admin surface | reachable (owner decision: OPEN); admin API unauth still 401 |
+
+### Spec deviations Plans 2/3/4 inherit
+- **B3g / B3j / B3k → v0.2.1** with Plan 2 Phase 0a, and with them spec §7.2.2's
+  repo-wide `tests/brandNeutral.test.js`. Plan 1 ships two file-scoped substitutes
+  only — do not mistake those for the guard.
+- **corporate `SESSION_COOKIE_NAME` + `collectionName: 'sessions_corporate'` → Plan 2
+  Phase 0a.** Verified UNSET on both boxes; the live cookie base is pinned explicitly.
+- **The five retired CSRF intake rows → Plan 3**, deleted with the routes. Verified
+  still exempt in production; pruning early 403s two live public forms.
+- **`securityHeaders.js:83-88` + the bridges → Plan 3.** ⚠️ PARTIALLY OVERTAKEN: the
+  franchisor origins were removed from `iframe-bridge-v2.js` in BOTH repos on
+  2026-09-11 (owner: "we will never embed in the franchisor site"), which voided that
+  half of the carve-out's premise.
+- **Affiliate PR B7 → Plan 4.** Includes three LIVE defects, notably that the admin
+  "reset rate limits" control targets a `rate_limits` collection that does not exist
+  while the store writes 17 `ratelimit_*` collections — it deletes nothing and reports
+  success. Verified against the production database.
+- **The production `LOG_DIR` write → Plan 2 Phase 0a.** `LOG_DIR=logs` (RELATIVE) on
+  all four .env files — the Plan 2 wording "if UNSET, add" would wrongly skip both.
+
+### Operational findings that outlived the plan
+1. **`npm install --install-links` does NOT re-copy a `file:` dependency when the
+   version is unchanged** — and, disproving this plan's own Task 54 premise, it does
+   not re-copy on a version BUMP either. Measured: plain install, `--force` and
+   `--package-lock-only` all leave the old copy. Only
+   `rm -rf node_modules/@crhs/web-core` works, and it leaves the lockfile stale,
+   re-arming the trap. **Mandatory on every deploy.**
+2. **The affiliate and web-core are a BIDIRECTIONAL boot-breaker pair.** Core no
+   longer exports `conditionalCsrf`/`csrfTokenEndpoint`; either half deployed alone
+   stops the portal booting. Always verify the installed version + `createCsrf` +
+   26-key surface BEFORE `pm2 reload`.
+3. **A boot probe on a box where the app is already running must `process.exit(0)`
+   after the require**, or it measures port availability (EADDRINUSE) instead of boot
+   health and fails safe for the wrong reason.
+4. **corporate's pm2 out-log has been stale since 2026-08-23** — boot-log evidence
+   cannot be gathered via `pm2 logs` for that app. Worth fixing before anything
+   depends on it.
