@@ -195,7 +195,12 @@ Plan 1 ships only the web-core MECHANISM half. Three of these five are LIVE DEFE
 
 ### D-3. Franchisor origins in the web-core iframe bridge — NOW ACTIONABLE
 
-- [ ] **Remove the franchisor origins from `crhs-web-core/assets/js/iframe-bridge-v2.js:19-21`**
+- [x] **DONE 2026-09-11** (web-core `d2725e7`, affiliate `a37dc497`). Removed from BOTH repos' copies
+      (each carries its own `iframe-bridge-v2.js`; the affiliate's `.min.js` was rebuilt). Zero `wavemaxlaundry`
+      refs remain in source or built bundles — the removed origins are described, not spelled. Also added the
+      missing canonical host `portal.atxwashdryfold.com` and removed a duplicated `rundberglaundry.com`.
+      Guard test: `crhs-web-core/tests/assets/bridgeOriginAllowlist.test.js`. Original item:
+- [x] ~~Remove the franchisor origins from `crhs-web-core/assets/js/iframe-bridge-v2.js:19-21`~~
       (`https://www.wavemaxlaundry.com`, `https://wavemaxlaundry.com` — 6 `wavemaxlaundry` refs total
       across the bridge assets). These sat behind a deliberate carve-out (Global Constraint 16:
       `assets/js/*bridge*`) whose entire premise was that the app might be embedded in the
