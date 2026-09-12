@@ -1,6 +1,10 @@
+const httpMocks = require('node-mocks-http');
 const {
   CSRF_CONFIG,
-  shouldEnforceCsrf
+  shouldEnforceCsrf,
+  conditionalCsrf,
+  csrfProtection,
+  csrfTokenEndpoint
 } = require('../../server/config/csrf-config');
 
 describe('CSRF Configuration', () => {
@@ -329,6 +333,52 @@ describe('CSRF Configuration', () => {
         req.path = '/api/v1/orders/';
         expect(shouldEnforceCsrf(req)).toBe(true);
       });
+    });
+  });
+
+  // Ported from crhs-web-core/tests/config/csrfConfig.test.js:343-381 (B4c,
+  // spec §7.2.8): the export-shape cases web-core carried and this suite did
+  // not. They are the characterization tests for the createCsrf({ tables })
+  // rewire — conditionalCsrf and csrfTokenEndpoint must stay callable
+  // middleware after server/config/csrf-config.js stops being a re-export,
+  // because server.js:20 destructures both and mounts them at :629 and :632.
+  describe('module exports', () => {
+    it('exposes conditionalCsrf, csrfProtection, csrfTokenEndpoint as functions', () => {
+      expect(typeof conditionalCsrf).toBe('function');
+      expect(typeof csrfProtection).toBe('function');
+      expect(typeof csrfTokenEndpoint).toBe('function');
+    });
+
+    it('conditionalCsrf calls next() for a request that does not require CSRF (GET)', () => {
+      const mreq = httpMocks.createRequest({ method: 'GET', path: '/api/v1/orders' });
+      const mres = httpMocks.createResponse();
+      const next = jest.fn();
+      conditionalCsrf(mreq, mres, next);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('csrfTokenEndpoint returns a token when a session is present', () => {
+      const mreq = httpMocks.createRequest({
+        method: 'GET',
+        path: '/api/csrf-token',
+        session: {},
+        sessionID: 'sess-test-123'
+      });
+      mreq.ip = '127.0.0.1';
+      const mres = httpMocks.createResponse();
+      csrfTokenEndpoint(mreq, mres);
+      const data = mres._getJSONData();
+      expect(data.success).toBe(true);
+      expect(typeof data.csrfToken).toBe('string');
+      expect(data.csrfToken.length).toBeGreaterThan(0);
+    });
+
+    it('csrfTokenEndpoint returns 500 when no session is initialized', () => {
+      const mreq = httpMocks.createRequest({ method: 'GET', path: '/api/csrf-token' });
+      const mres = httpMocks.createResponse();
+      csrfTokenEndpoint(mreq, mres);
+      expect(mres.statusCode).toBe(500);
+      expect(mres._getJSONData().success).toBe(false);
     });
   });
 });
