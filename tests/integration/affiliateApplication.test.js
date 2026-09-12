@@ -17,7 +17,9 @@ const validBody = () => ({
   serviceArea: 'West Campus',
   transport: 'bike',
   availability: 'Weekday evenings',
-  message: 'I would love to help with pickups near campus.',
+  // >= 80 chars: server/routes/affiliateApplicationRoutes.js:57 requires
+  // isLength({ min: 80, max: 2000 }) on `message` as of 6acbf550.
+  message: 'I would love to help with pickups near campus. I can hand out flyers at the co-ops, post in the UT housing groups, and follow up with every customer after their first order.',
   source: '/affiliates/'
 });
 

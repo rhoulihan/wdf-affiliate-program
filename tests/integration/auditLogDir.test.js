@@ -1,9 +1,10 @@
 // Consumer proof for web-core §7.2.7 (B3a). The portal's CSRF audit trail is
-// written by WEB-CORE's auditLogger — server/config/csrf-config.js is a 5-line
-// re-export of wc.csrf, and web-core's src/config/csrf-config.js:13 requires its
-// OWN auditLogger. Before the LOG_DIR fix every CSRF_VALIDATION_FAILED event
-// landed in node_modules/@crhs/web-core/logs/audit.log, invisible in this app's
-// logs/ and deleted by the next npm install.
+// written by WEB-CORE's auditLogger — server/config/csrf-config.js delegates to
+// wc.csrf.createCsrf({ tables }) (B4c; it was a 5-line re-export before that),
+// and web-core's src/config/csrf-config.js requires its OWN auditLogger.
+// Before the LOG_DIR fix every CSRF_VALIDATION_FAILED event landed in
+// node_modules/@crhs/web-core/logs/audit.log, invisible in this app's logs/
+// and deleted by the next npm install.
 //
 // LOG_DIR must be set BEFORE require('../../server') — the transports are built
 // at require time.
