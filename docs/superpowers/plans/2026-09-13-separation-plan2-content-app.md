@@ -8335,6 +8335,12 @@ ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 'cd /var/www/crhs-corporate && /
 sudo ssh wavemax-promo "cd /opt/mailcow-dockerized && docker compose logs --no-color --since 10m postfix-mailcow 2>&1 | grep -E 'orig_to=<admin@crhsent.com>|from=<no-reply@crhsent.com>| 553 ' | tail -5"
 ```
     - Expected: `exit=0`; a `from=<no-reply@crhsent.com>` line and an `orig_to=<admin@crhsent.com>` line with `status=sent`; no ` 553 ` line.
+  - 7b2 — prove a FAILED alert is diagnosable (sends no mail; no network I/O; added by the controller after the Task 17 review):
+```bash
+ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 'cd /var/www/crhs-corporate && grep -c "^EMAIL_PROVIDER=smtp$" .env; L=$(grep -E "^LOG_DIR=" .env | cut -d= -f2-)/combined.log; B=$(grep -c "ops alert failed: No sender address configured" "$L" || true); EMAIL_FROM= EMAIL_USER= timeout 20 /usr/bin/node scripts/ops/alert.js "P-16 failed-send probe"; echo exit=$?; A=$(grep -c "ops alert failed: No sender address configured" "$L" || true); echo delta=$((A-B))'
+```
+    - Expected: `1` (the box sends through SMTP — `EMAIL_PROVIDER=console` would make 7b's `exit=0` meaningless), then `exit=1`, then `delta=1` (exactly one new failure line in `$LOG_DIR/combined.log`). `exit=124` means the process hung → STOP.
+    - The empty `EMAIL_FROM=`/`EMAIL_USER=` are set in the process environment, so dotenv does not override them; `sendEmail` throws before any SMTP connection.
   - 7c — the drill on oci2, in an agreed window (oci1 keeps crhsent.com served; the LB monitor fails oci2 over):
 ```bash
 DRILL_TS=$(date -u +%FT%TZ); echo "DRILL_TS=$DRILL_TS"
