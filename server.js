@@ -432,6 +432,39 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Origin-level liveness — the Cloudflare LB monitor's target (2026-09-10 HA
+// design, Option A). The CF pool's origin is the BOX, and both apps run on every
+// box, so one monitor must answer "can this box serve EVERY hostname?" — this app
+// AND the content app on :3001. Returning 503 when the content app is down pulls
+// the whole box from rotation, which is the correct signal for a shared origin:
+// the surviving box absorbs all traffic. Handled BEFORE the session middleware
+// for the same reason /health is (no probe-minted sessions).
+const ORIGIN_PROBE_URL = process.env.CONTENT_HEALTH_URL || 'http://127.0.0.1:3001/health';
+const ORIGIN_PROBE_TIMEOUT_MS = Number(process.env.CONTENT_HEALTH_TIMEOUT_MS || 1000);
+
+app.get('/health/origin', async (req, res) => {
+  const components = { portal: 'UP', content: 'UNKNOWN' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ORIGIN_PROBE_TIMEOUT_MS);
+  try {
+    const probe = await fetch(ORIGIN_PROBE_URL, { signal: controller.signal });
+    components.content = probe.ok ? 'UP' : `DOWN(${probe.status})`;
+  } catch (err) {
+    components.content = `DOWN(${err.name === 'AbortError' ? 'timeout' : (err.code || err.message)})`;
+  } finally {
+    clearTimeout(timer);
+  }
+  const healthy = components.content === 'UP';
+  if (!healthy) {
+    logger.warn('Origin health degraded — box will be pulled from the CF pool', { components });
+  }
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'UP' : 'DEGRADED',
+    components,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.use(session({
   name: sessionCookieName,
   secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'default-dev-secret'),
