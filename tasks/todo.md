@@ -182,6 +182,57 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
 - [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
 
+## Security findings
+
+### S-1. Credentialed CORS misconfiguration on BOTH production apps — severity LOW (found 2026-09-13)
+
+`CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000,https://wavemax.promo` is line 47 of BOTH apps'
+`.env` on BOTH boxes, and both apps return `access-control-allow-origin: <origin>` +
+`access-control-allow-credentials: true` for those three origins (verified through Cloudflare and on-box).
+**Assessed LOW** — nothing sensitive is reachable: `/wavemax` sits behind the mediator cookie
+(`MEDIATOR_GATE_ENABLED=true`, cookie `sameSite: 'lax'` → not sent cross-site); the IP-based accessGate
+protects only `/404.css`, `/404.html`, `/README.md`; the portal is `Bearer`-authenticated.
+`wavemax.promo` is registered to us through 2028-05-17. Missed by Plan 1 Task 19, whose test deletes
+`CORS_ORIGIN` before asserting — the boxes were never checked.
+
+**Scheduled:** Plan 2 Phase 0a env change set (**HUMAN-CONFIRM** — production `.env`). May be applied
+earlier on the owner's go-ahead.
+
+⚠️ **The fix is NOT symmetric.** Corporate: delete the line (web-core `parseList('')` → admits nothing).
+Portal: deleting OR emptying it falls back to `['http://localhost:3000']` (`server.js:293-295`), so it
+must be set to a NON-EMPTY value.
+
+Per box — **oci1 first, verify, then oci2**:
+```bash
+TS=$(date +%Y%m%d%H%M%S)
+cp /var/www/crhs-corporate/.env                    /var/www/wavemax/env-backups/corporate.env.pre-cors-$TS
+cp /var/www/wavemax/wavemax-affiliate-program/.env /var/www/wavemax/env-backups/portal.env.pre-cors-$TS
+sed -i '/^CORS_ORIGIN=/d' /var/www/crhs-corporate/.env
+sed -i 's|^CORS_ORIGIN=.*|CORS_ORIGIN=https://portal.atxwashdryfold.com|' /var/www/wavemax/wavemax-affiliate-program/.env
+pm2 reload crhs-corporate --update-env && pm2 reload wavemax --update-env
+```
+Verify (each must print the stated value):
+```bash
+# 0 = grant gone
+curl -s -o /dev/null -D - -H 'Host: crhsent.com' -H 'Origin: http://localhost:3000' http://127.0.0.1:3001/api/health | grep -ci '^access-control-allow-origin'
+curl -s -o /dev/null -D - -H 'Host: crhsent.com' -H 'Origin: https://wavemax.promo'  http://127.0.0.1:3001/api/health | grep -ci '^access-control-allow-origin'
+curl -s -o /dev/null -D - -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' -H 'Origin: http://localhost:3000' http://127.0.0.1:3000/api/v1/environment | grep -ci '^access-control-allow-origin'
+# 1 = a legitimate inline origin is still admitted on the portal
+curl -s -o /dev/null -D - -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' -H 'Origin: https://atxwashdryfold.com' http://127.0.0.1:3000/api/v1/environment | grep -ci '^access-control-allow-origin'
+# 200 = both apps healthy
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: crhsent.com' http://127.0.0.1:3001/health
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/health/origin
+```
+If a "0" check prints 1 after the reload, pm2 is carrying `CORS_ORIGIN` in its saved process env
+(dotenv never overrides an existing variable) — inspect with `pm2 env <id> | grep CORS` before retrying.
+
+Rollback (per box):
+```bash
+cp /var/www/wavemax/env-backups/corporate.env.pre-cors-<TS> /var/www/crhs-corporate/.env
+cp /var/www/wavemax/env-backups/portal.env.pre-cors-<TS>    /var/www/wavemax/wavemax-affiliate-program/.env
+pm2 reload crhs-corporate --update-env && pm2 reload wavemax --update-env
+```
+
 ## DEFERRED WORK — accepted as deferred, NOT removed (Rick, 2026-09-11)
 
 Rick approved both Plan 1 scope cuts **on the explicit condition that the work is deferred, not
