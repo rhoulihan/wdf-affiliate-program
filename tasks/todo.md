@@ -130,10 +130,24 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
       their own deploy, so this task is no longer "the single point v0.2.0 reaches the boxes".
 - [ ] Tasks 56-57 post-deploy slice verification   - [ ] Task 58 Plan 1 exit gate
 
-### HA (Tasks 59-61) — this is what actually satisfies gate G1
-- [ ] Task 59 add `/health/origin` box-level aggregate liveness (both apps, one signal)
-- [ ] Task 60 (HUMAN-CONFIRM) deploy `/health/origin` to both boxes; verify it reflects real content-app state
-- [ ] Task 61 (HUMAN-CONFIRM) point the CF LB monitor at `/health/origin` — supersedes Task 12
+### HA (Tasks 59-61) — gate G1 SATISFIED 2026-09-12/13
+- [x] Task 59 `/health/origin` box-level aggregate liveness (affiliate `cb8c955b`). 200 only when
+      this app AND the content app on :3001 both serve; 503 otherwise. Mounted BEFORE the session
+      middleware (asserted: route at server.js:445, session mount at :468) so the probe mints no
+      session. 6/6 tests.
+- [x] Task 60 deployed to both boxes and PROVEN to bite: with `crhs-corporate` stopped on oci1,
+      `/health/origin` returned **503 DEGRADED `content:"DOWN(fetch failed)"`**; after restart,
+      **200 UP**. crhsent.com served 200 throughout — oci2 absorbed it. oci2 was never degraded.
+- [x] Task 61 CF monitor `be6953d2e0cfd7b40c4f414b5ddf20d9` repointed:
+      `path=/health/origin`, `Host=portal.atxwashdryfold.com`, `expected_codes=200`,
+      `expected_body` empty; type/method/timeout 5/interval 60/retries 2 all preserved.
+      Pool `wavemax-oci` healthy with BOTH origins healthy across >2 probe intervals.
+      Probes verified landing on the portal vhost (Cloudflare-Traffic-Manager UA, 200) and
+      verified STOPPED on the old target — last rundberglaundry `/health` probe 00:16:35,
+      first portal `/health/origin` probe 00:19:08.
+      **ROLLBACK:** PATCH the monitor back to `path=/health`, `Host=rundberglaundry.com`.
+      ⚠️ The CF API token expires **2026-09-16** — a rollback after that needs a fresh token
+      (Account → Load Balancing: Monitors and Pools → Edit).
 
 Carve-outs recorded (Global Constraint 16): web-core `securityHeaders.js:83-88`, `assets/js/*bridge*`, `assets/legal/*`
 are NOT deleted in Plan 1 (the portal still serves `public/assets/js/parent-iframe-bridge-v3.js` cross-origin).
