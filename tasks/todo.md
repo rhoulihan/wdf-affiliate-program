@@ -299,6 +299,23 @@ decision, migrated in a single commit, with a guard test (0 `req.hostname` / 0 `
 corporate `server/`), a behavioural bypass test, and an on-box probe in the Phase-0a gate.
 Plan 3 adds nginx `proxy_set_header X-Forwarded-Host $host;` as defence in depth.
 
+### S-3. crhsent.com mediator-gate PATH bypass — ✅ HOTFIXED IN PRODUCTION 2026-09-13 (found by the Plan 2 Task 26 review)
+
+**The bug (pre-existing):** `mediatorGate` matched the raw `req.path` while `crhsentHandler` serves the decoded + normalised path, so
+`/%77avemax/`, `/wavemax%2Findex.html`, `//wavemax/`, `/x/../wavemax/` skipped the mediator's IP-bound password but were served the record.
+Production was NOT public (accessGate 401s non-allowlisted visitors on those forms); accessGate-allowlisted IPs could reach the record without the
+mediator password. Same code: `safeNext` open redirect (`//evil.example`).
+
+- [x] **Hotfix** `01a354b` (branch `hotfix/mediator-path-bypass`, on the deployed `5766f41`): canonical-path helper; the gate matches the canonical
+      path (case-insensitive, fail closed); the handler refuses non-canonical paths after the 403 traversal guard; `safeNext` rejects `//` and `/\`.
+      Adversarial review: 57 spellings × 3 gate modes + 2M fuzzed paths → 0 bypasses. **Deployed oci1 21:24Z, oci2 22:54Z (Rick confirmed each
+      reload); verified on both; public pages byte-identical.** Rollback snapshots `~/deploy-snapshots/crhs-corporate-prehotfix-*.tgz`.
+- [ ] **Fold into Plan 2 as Task 27b** (after Task 27) — the same protection on `main` (`server/utils/canonicalPath.js`, gate + `contentHandler`,
+      `safeNext`, bypass integration test) BEFORE the Phase-0a deploy; GATE Task 75's rsync expected-deletes must be recomputed against the box tree
+      (`5766f41` + `01a354b`), or Phase 0a would remove `canonicalPath.js` or abort.
+- [ ] **Still open (Rick: keep `MEDIATOR_GATE_ENABLED=true`; fix ships with Plan 2 Task 26):** live accessGate reads `X-Forwarded-Host` as one
+      lowercased string, so a forged multi-value header (`crhsent.com, other.com`) skips accessGate for non-`/wavemax` crhsent paths.
+
 ## DEFERRED WORK — accepted as deferred, NOT removed (Rick, 2026-09-11)
 
 Rick approved both Plan 1 scope cuts **on the explicit condition that the work is deferred, not
