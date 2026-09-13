@@ -182,16 +182,18 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
 - [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
 
-## Plan 2 — IN PROGRESS (plan drafting, 2026-09-13)
+## Plan 2 — PLAN WRITTEN (2026-09-13); execution next
 
 **Scope:** `crhs-corporate` becomes the multi-host content app, shipped DARK on `:3001` and verified on-box;
 web-core `v0.2.1` (B3g/B3j/B3k + the repo-wide `brandNeutral` guard); B4a; spec §9.1 Phase 0 and §9.2 Phase 0a.
-No nginx flips (Plan 3). Final plan will be `docs/superpowers/plans/2026-09-13-separation-plan2-content-app.md`.
+No nginx flips (Plan 3). Plan: `docs/superpowers/plans/2026-09-13-separation-plan2-content-app.md`.
 
 **Status:** four slices drafted in parallel (P0 19 tasks, A1–A5 23, A6–A9 17, Phase-0a gate 15 = 74) and each
 adversarially reviewed against the spec — all four CHANGES_REQUESTED (the gate slice worst: 23 spec gaps,
-18 interface mismatches, 20 factual errors). Controller rulings R-1…R-15 issued; revision round + cross-slice
-consistency pass running. Working files (gitignored): `.superpowers/sdd/plan2-sources/_plan2-header.md`
+18 interface mismatches, 20 factual errors). Controller rulings R-1…R-15, then four revisers + a cross-slice
+consistency pass (verdict FIXED); its 11 unresolved items ruled in R-16. **Assembled: 68 tasks** (P0 14, A1–A5 23,
+A6–A9 + B-3 16, Phase-0a gate 15), 7 HUMAN-CONFIRM, non-contiguous numbering, executed in document order.
+Working files (gitignored): `.superpowers/sdd/plan2-sources/_plan2-header.md`
 (Global Constraints 1–20, findings F-1…F-9), `_rulings.md`, `_drafts/`.
 
 **Controller rulings that shape the plan:**
@@ -208,6 +210,13 @@ consistency pass running. Working files (gitignored): `.superpowers/sdd/plan2-so
 - [x] **The corporate session rename logs nobody out** — corporate has 0 `req.session` references; gates unlock by
       IP and the separate `wm_med_unlock` cookie. No user notice needed.
 - [x] **Log evidence comes from `$LOG_DIR/combined.log`** — Plan 1's "stale corporate log" finding was wrong.
+- [x] **R-16 — P8 closed in the plan:** A69 Task 56 commits `tests/csp.test.js` under the required subject
+      `golden(csp): deliberate re-capture (D16a)`; the gate STOPs on a count or subject mismatch.
+- [x] **R-16 — the affiliate full suite runs ONCE** (controller-run, background, GATE Task 72 Step 7b, at the box
+      SHA against `v0.2.1`) — never inside a subagent. Plan 2 changes code the affiliate consumes.
+- [x] **R-16 — affiliate lint = no increase** over 208 `server/` errors; cleanup is D-4 (Plan 4).
+- [x] **R-16 — portal `PARTNER_INQUIRY_RECIPIENT`** is unset on both boxes (default `pickups@rundberglaundry.com`);
+      the 0a `.env` write sets `pickups@atxwashdryfold.com`, gated on P-13 passing (HUMAN-CONFIRM).
 
 **Owner decisions still open (surfaced by the drafts):**
 - [ ] Q-12 — external uptime service for `:3001`; default is an on-box cron with a node SMTP alert (`mail` is not installed on either box).
@@ -215,6 +224,8 @@ consistency pass running. Working files (gitignored): `.superpowers/sdd/plan2-so
 - [ ] F-8 — do backlog B-2 (interest-form i18n) in corporate right after A3/A4, since A3 copies that page in?
 - [ ] Corporate clickjacking-demo `DEMO_FRAME_SRC` still lists `https://rundberglaundry.com` (Plan 1 shipped it).
 - [ ] ⚠️ CF API token expires **2026-09-16** — needed for any monitor rollback and for Plan 3's purges.
+- [ ] P-11 — sign the device checklist now (`P11_DEVICES_SIGNED`) or defer it to Plan 3 (`P11_DEFERRED_TO_PLAN3`); asked at GATE Task 72 Step 10.
+- [ ] Cross-domain `rel=canonical` may cost SEO 100 on the three non-canonical marketing hosts; GATE Task 82 STOPs and asks if it does.
 
 ## Security findings
 
@@ -381,6 +392,12 @@ Three of these five are LIVE DEFECTS, not refactors.
       references sitting in our shared library during an active franchise dispute, with a DMCA history.
       Blocked only on web-core being free of a running tranche workflow.
 
+### D-4. Affiliate ESLint cleanup → Plan 4
+
+- [ ] `npx eslint server/` reports **208 pre-existing errors** (10,888 repo-wide). Spec §9.1 "ESLint clean in all
+      three repos" is unattainable in the affiliate without this, so Plan 2 holds **no increase over the baseline**
+      (R-16, Global Constraint 19). The cleanup itself is deferred to Plan 4 — not dropped.
+
 ## Backlog — deferred, not scheduled
 
 ### B-1. ✅ DONE 2026-09-11 (`6acbf550`) — "Register now" on the affiliate login page must go to the interest form (invite-only)
@@ -449,9 +466,14 @@ Related: [[feedback_corporate_i18n]], [[feedback_extreme_seo]], B-1 above.
 
 ### B-3. Scrolling marquee sidebar on atxwashdryfold.com (Austin Bold vertical ticker)
 
-⏸ **BACKLOGGED (Rick, 2026-09-13) — "implement when it's convenient."** Planned slot: **Plan 2 Task 43**, right
-after A3/A4 copy the atxwashdryfold content tree and locales into corporate (reserved gap between Tasks 20–42 and
-45–61). Authored at Plan 2 assembly, once the revised A3/A4 paths are fixed.
+📋 **PLANNED — Plan 2 Task 62** (Rick, 2026-09-13: "implement when it's convenient"; authored at assembly, R-16).
+Runs after A9 (Task 59) and before the Phase-0a gate, so it ships in the dark deploy and Task 82's Lighthouse run
+measures it. Not Task 43: an earlier slot would have collided with A3/A6's line-number edits and the A7 locale count.
+**Copy decision:** the items reuse seven live, already-translated `partner.*` strings — label `partner.why.kicker`
+("No middle-man"); items `why.p1t` "Own your customers", `why.p2t` "Set your own prices", `hero.seal1` "No equipment
+to buy", `why.p4t` "We handle the money", `stats.s1` "Electrolux equipment", `plant.spec2t` "Omni UV water
+purification". No new locale keys (parity stays 119×4), no rate literals; Rick can swap any item at PR review.
+Label and dots use `--ap-plate-b` (≈7.9:1 on the ink rail) instead of the demo pink (≈3.2:1, fails 4.5:1).
 
 **What it is (located 2026-09-13):** the Austin Bold ("RUNDBERG PRESS", commit `b1b23121`) skin's
 `<aside class="ap-ticker" aria-hidden="true">` — a FIXED LEFT RAIL (`position:fixed; left:0; top:0; bottom:0;
