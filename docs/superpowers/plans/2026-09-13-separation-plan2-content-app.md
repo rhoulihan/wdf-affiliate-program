@@ -806,6 +806,8 @@ ssh -i ~/.ssh/oci_wavemax ubuntu@144.24.4.202 'cd /var/www/crhs-corporate && nod
 
 ### Task 16: **HUMAN-CONFIRM** — Mailcow prerequisites: sending identity, P-13 `pickups@` goto (+ §8.4 self-row), P-15 `security@` + `cutover-gate@`
 
+> **DONE 2026-09-13 — owner-directed variant (supersedes Steps 2–3 and the Step 5 expectations below).** Rick chose to make `admin@crhsent.com` the single real mailbox. Executed by the controller via the Mailcow API: the `admin@crhsent.com` alias (→ `administrator@wavemax.promo`) was replaced by a mailbox (2 GB); all 48 messages of `administrator@wavemax.promo` and the 10 of `pickups@rundberglaundry.com` were copied in (per-folder counts verified; the latter under `Pickups-rundberglaundry/`); both old mailboxes were deleted (owner-confirmed) and recreated as aliases. Final routing — every one → `admin@crhsent.com`: `administrator@wavemax.promo`, `affiliates@wavemax.promo`, `support@wavemax.promo`, `pickups@atxwashdryfold.com`, `pickups@rundberglaundry.com`, `security@crhsent.com`, `cutover-gate@crhsent.com`, `affiliates@`/`legal@`/`privacy@`/`support@rundberglaundry.com`. Five internal delivery probes landed in `admin@crhsent.com` INBOX. P-13 and P-15 are therefore satisfied by the alias state; external probes remain optional.
+
 **Files:** none in the repos. Record the goto values and alias ids in `/home/rickh/.claude/projects/-mnt-c-Users-rickh-GitHub-wavemax-affiliate-program/memory/production_systems_access.md`. Task 19 copies them into `tasks/todo.md`.
 
 **Interfaces:**
@@ -1061,7 +1063,7 @@ ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 'cd /var/www/crhs-corporate && n
 ```bash
 sudo ssh wavemax-promo 'cd /opt/mailcow-dockerized && set -a && . ./mailcow.conf && set +a && docker compose exec -T mysql-mailcow mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -N -e "select address,goto from alias where address in (\"pickups@atxwashdryfold.com\",\"pickups@rundberglaundry.com\",\"security@crhsent.com\",\"cutover-gate@crhsent.com\")" 2>/dev/null'
 ```
-  Expected: the values Task 16 set, e.g. `pickups@atxwashdryfold.com pickups@rundberglaundry.com,administrator@wavemax.promo`, `security@crhsent.com admin@crhsent.com`, `cutover-gate@crhsent.com admin@crhsent.com`. Where Rick accepted the "someone reads it" sentence in Task 16, the original goto is expected instead.
+  Expected: the values Task 16 set (owner-directed variant): `pickups@atxwashdryfold.com admin@crhsent.com`, `pickups@rundberglaundry.com admin@crhsent.com`, `security@crhsent.com admin@crhsent.com`, `cutover-gate@crhsent.com admin@crhsent.com`. Where Rick accepted the "someone reads it" sentence in Task 16, the original goto is expected instead.
 - [ ] **Step 6: LB pool healthy (read-only).** The CF API token expires **2026-09-16** (Global Constraint 2). On or after that date this call fails; read the pool in the Cloudflare dashboard (Traffic → Load Balancing → Pools → `wavemax-oci`) instead, or use a fresh token. Command:
 ```bash
 ACCT=b69ef162d008b11492296d3b35cad2fe
@@ -7122,7 +7124,7 @@ grep -cE '^P11_(DEVICES_SIGNED|DEFERRED_TO_PLAN3)=' "$REC"; grep -c '^P15_PROBE_
     - `cutover-gate@crhsent.com` and `security@crhsent.com` → goto `admin@crhsent.com` (§9.1 P-15);
     - `pickups@atxwashdryfold.com` → a goto.
   - Then the three counts `1`, `1`, and `0` or `1`.
-  - P-13 passes when the `pickups@atxwashdryfold.com` goto contains `administrator@wavemax.promo`, OR when the third count is `1` (Rick's recorded acceptance sentence).
+  - P-13 passes when the `pickups@atxwashdryfold.com` goto is `admin@crhsent.com` (the single real mailbox since 2026-09-13, Task 16 owner-directed variant), OR when the third count is `1` (Rick's recorded acceptance sentence).
   - The P-11 line: §9.1's exit list names P-11, while the P-11 item itself times the device checklist "BEFORE Phase 1 step 3". Rick writes exactly one of these two lines:
     - `printf 'P11_DEVICES_SIGNED=%q\n' "rick $(date -u +%FT%TZ) display+kiosk+admin+scanbag on portal" >> "$REC"`
     - `printf 'P11_DEFERRED_TO_PLAN3=%q\n' "rick $(date -u +%FT%TZ) checklist executes before the rundberglaundry.com flip" >> "$REC"`
@@ -8058,7 +8060,7 @@ sudo ssh wavemax-promo "cd /opt/mailcow-dockerized && docker compose logs --no-c
 sudo ssh wavemax-promo "cd /opt/mailcow-dockerized && set -a && . ./mailcow.conf && set +a && docker compose exec -T mysql-mailcow mysql -u\"\$DBUSER\" -p\"\$DBPASS\" \"\$DBNAME\" -N -e \"select a.address, m.username from alias a join mailbox m on find_in_set(m.username, a.goto) where a.address in ('$RCPT','admin@crhsent.com') order by a.address, m.username\" 2>/dev/null" | tee "$EV/mailboxes-$BOX.txt"
 MB_NOTIF=$(awk -v r="$RCPT" '$1==r{print $2; exit}' "$EV/mailboxes-$BOX.txt"); MB_THANKS=$(awk '$1=="admin@crhsent.com"{print $2; exit}' "$EV/mailboxes-$BOX.txt"); echo "MB_NOTIF=$MB_NOTIF MB_THANKS=$MB_THANKS"
 ```
-  - Expected: at least one `$RCPT <mailbox>` row and the row `admin@crhsent.com administrator@wavemax.promo`, then `MB_NOTIF=<first mailbox behind $RCPT> MB_THANKS=administrator@wavemax.promo`.
+  - Expected: at least one `$RCPT <mailbox>` row and the row `admin@crhsent.com admin@crhsent.com` (a real mailbox since 2026-09-13 — its own alias row), then `MB_NOTIF=admin@crhsent.com MB_THANKS=admin@crhsent.com`.
     - `MB_NOTIF` is the first terminal mailbox behind the recipient alias.
     - `MB_THANKS` is the mailbox behind `admin@crhsent.com`, because the thank-you goes to `cutover-gate@crhsent.com` → `admin@crhsent.com`.
     - **STOP** if either value is empty.
