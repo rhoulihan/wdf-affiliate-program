@@ -309,18 +309,31 @@ until they do, the only record was prose inside a 61-task plan document.
 
 ### D-1. web-core PRs B3g / B3j / B3k → `@crhs/web-core` v0.2.1 (with Plan 2 Phase 0a)
 
-- [ ] **B3g** — parameterise `src/email/transport.js` + `src/email/template-manager.js` by brand;
+- [x] **B3g** — parameterise `src/email/transport.js` + `src/email/template-manager.js` by brand;
       add `replyTo`; delete `src/config/brand.js`; drop the `cspHelper` `brand === true` shorthand.
       Live anchors (re-verified 2026-09-11): `transport.js:73` and `template-manager.js:67` still
-      hard-code `rundberglaundry.com` fallbacks.
-- [ ] **B3j** — export `validateMailConfig()`.
-- [ ] **B3k** — `assets/js/i18n.js`: `translationsPath: '/locales'` + `data-i18n-aria-label`.
-      Live anchor: `assets/js/i18n.js:15` still branches on `window.location.hostname`.
-- [ ] **The guard that goes with them** — spec §7.2.2's repo-wide `tests/brandNeutral.test.js`
+      hard-code `rundberglaundry.com` fallbacks. — tagged @crhs/web-core v0.2.1 (768bfdb) 2026-09-13; box install owned by the Plan 2 GATE slice (Phase 0a)
+- [x] **B3j** — export `validateMailConfig()`. — tagged @crhs/web-core v0.2.1 (768bfdb) 2026-09-13; box install owned by the Plan 2 GATE slice (Phase 0a)
+- [x] **B3k** — `assets/js/i18n.js`: `translationsPath: '/locales'` + `data-i18n-aria-label`.
+      Live anchor: `assets/js/i18n.js:15` still branches on `window.location.hostname`. — tagged @crhs/web-core v0.2.1 (768bfdb) 2026-09-13; box install owned by the Plan 2 GATE slice (Phase 0a)
+- [x] **The guard that goes with them** — spec §7.2.2's repo-wide `tests/brandNeutral.test.js`
       (grep `src/` for `wavemax|rundberglaundry|runberglaundry|atxwash|wavemaxlaundry` → 0).
       ⚠️ This is the real cost of the deferral: through v0.2.0 web-core carries brand literals with
       **no repo-wide net**, only two file-scoped substitutes (Task 30 `sessionStore.js`, Task 33
-      `SystemConfig.js`). Do not mistake those two for the guard.
+      `SystemConfig.js`). Do not mistake those two for the guard. — tagged @crhs/web-core v0.2.1 (768bfdb) 2026-09-13; box install owned by the Plan 2 GATE slice (Phase 0a)
+
+### Plan 2 slice P0 — Phase 0 record (2026-09-13)
+- web-core v0.2.1 tagged + pushed: 579 tests / 35 suites, lint + madge clean. NOT installed on any box — the GATE slice installs it after writing LOG_SERVICE_NAME=crhs-corporate (R-5).
+- sendEmail display-name precedence fromName > EMAIL_FROM_NAME > displayName (R-6).
+- Corporate local adoption: floor 0.2.1, lockfile 0.2.1; suite 4 accepted parity failures only (105 passed).
+- Affiliate local adoption: lockfile 0.2.1; web-core seam suites green + BOOT_OK (full suite not run here, Global Constraint 19 — its 2 known failures stand as the baseline; it runs once, controller-run, in GATE Task 72 Step 7b); madge clean; eslint server/ 208 errors (pre-existing, unchanged — Plan 4 finding).
+- P-10: ["sessions","sessions_corporate"] from oci1 and oci2 (created via corporate server/db.js on oci1 — declared deviation from the spec's mongosh form).
+- P-13: pickups@atxwashdryfold.com → admin@crhsent.com; pickups@rundberglaundry.com → admin@crhsent.com (alias; its mailbox was deleted after a verified copy, owner-confirmed 2026-09-13)
+- P-15: security@crhsent.com + cutover-gate@crhsent.com → admin@crhsent.com; internal delivery probes landed in admin@crhsent.com INBOX (+5) 2026-09-13
+- P-16: Q-12 answer "Cron fallback only"; fallback scripts/ops/alert.js + deploy/cron/crhs-corporate-health committed (2f8d330). Cron install + alert drill: GATE Task 81 Step 7.
+- P-17: ufw outputs recorded in production_systems_access.md 2026-09-13 (`Status: inactive` on both boxes).
+- P-12 not executed — superseded by Plan 1 Tasks 59-61 (/health/origin).
+- OUT of P0: P-2/P-4/P-5/P-6 → corporate A1-A9; P-7/P-8 env + gate identity → A69 Task 57/59 + GATE Tasks 74-75; P-9 → Phase 0b; P-11 → Plan 3.
 
 ### D-2. Affiliate PR B7 (rate-limit adoption) → Plan 4
 
