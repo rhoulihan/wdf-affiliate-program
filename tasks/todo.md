@@ -233,6 +233,24 @@ cp /var/www/wavemax/env-backups/portal.env.pre-cors-<TS>    /var/www/wavemax/wav
 pm2 reload crhs-corporate --update-env && pm2 reload wavemax --update-env
 ```
 
+### S-2. Corporate host checks trust a client-supplied `X-Forwarded-Host` — safe today, a bypass if they ever disagree (found 2026-09-13)
+
+`crhs-corporate/server/middleware/accessGate.js:90` reads `x-forwarded-host || host`;
+`mediatorGate.js:61` and `crhsentHandler.js:20` read `req.hostname`, which Express derives from
+`X-Forwarded-Host` because `server.js:42` sets `trust proxy`. nginx sets no `X-Forwarded-Host` on either
+box and Cloudflare passes a client-supplied one through. **Safe today** — all three checks agree, so a
+forged header yields 404 (probed live through Cloudflare and on-box on `/README.md` and `/wavemax/`).
+
+**The hazard:** Plan 2 slice A15 introduces a Host-header-only `requestHost()`. Had the content handler
+adopted it while the mediator gate kept `req.hostname`, `Host: crhsent.com` +
+`X-Forwarded-Host: rundberglaundry.com` would skip the gate and serve the documented record. The same
+header builds accessGate's emailed magic link (`accessGate.js:343`) — host-header poisoning.
+
+**Scheduled:** Plan 2 Global Constraint 20 / ruling R-3 — one `requestHost()` for every host-scoped
+decision, migrated in a single commit, with a guard test (0 `req.hostname` / 0 `x-forwarded-host` in
+corporate `server/`), a behavioural bypass test, and an on-box probe in the Phase-0a gate.
+Plan 3 adds nginx `proxy_set_header X-Forwarded-Host $host;` as defence in depth.
+
 ## DEFERRED WORK — accepted as deferred, NOT removed (Rick, 2026-09-11)
 
 Rick approved both Plan 1 scope cuts **on the explicit condition that the work is deferred, not
