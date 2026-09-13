@@ -446,3 +446,43 @@ Scope when picked up:
   whether localised variants are wanted or whether English canonical is fine.
 
 Related: [[feedback_corporate_i18n]], [[feedback_extreme_seo]], B-1 above.
+
+### B-3. Scrolling marquee sidebar on atxwashdryfold.com (Austin Bold vertical ticker)
+
+⏸ **BACKLOGGED (Rick, 2026-09-13) — "implement when it's convenient."** Planned slot: **Plan 2 Task 43**, right
+after A3/A4 copy the atxwashdryfold content tree and locales into corporate (reserved gap between Tasks 20–42 and
+45–61). Authored at Plan 2 assembly, once the revised A3/A4 paths are fixed.
+
+**What it is (located 2026-09-13):** the Austin Bold ("RUNDBERG PRESS", commit `b1b23121`) skin's
+`<aside class="ap-ticker" aria-hidden="true">` — a FIXED LEFT RAIL (`position:fixed; left:0; top:0; bottom:0;
+width:var(--ap-rail); z-index:25`, ink background, paper text). A vertical `writing-mode: vertical-rl` label
+(`.ap-tick-label`, "THE PROGRAM" / es "EL PROGRAMA") sits above a track (`.ap-tick-track`) whose run
+(`.ap-tick-run`) animates `ap-tick 26s linear infinite` — `@keyframes ap-tick { from { transform: translateY(0) }
+to { transform: translateY(-50%) } }`. Items (`.ap-tick-item`) are separated by `.ap-tick-dot` "●" (aria-hidden).
+**Seamless loop technique:** the 7 items are rendered TWICE (14 spans), so scrolling exactly -50% wraps invisibly.
+`@media (prefers-reduced-motion: reduce) { .ap-tick-run { animation: none } }`; the rail is hidden
+(`.ap-ticker { display: none }`) at a narrow breakpoint.
+
+**Source to lift verbatim:** the inline `<style>` block headed `VERTICAL TICKER` and the `<aside class="ap-ticker">`
+markup in any of the 48 renders `public/design-explorer/render/austin-bold-{light,heavy}-*-{en,es,pt,de}.html`
+(use `austin-bold-light-*` — the live partner page is "Adapted from the Austin Bold (light) franchise-review skin",
+`public/assets/css/partner-program.css:3`).
+
+**What must change vs the demo — do not copy it blindly:**
+- **Items.** The demo items are STORE facts — `42 WASHERS ● 42 DRYERS ● 18–80 LB ● 24-HR WDF ● $1.20 / LB ● CARD ONLY
+  ● UV WATER`. atxwashdryfold.com is the partner-RECRUITMENT page, so the items should be partner-program facts, and
+  the owner signs off on the copy. **No price or rate literal** — `$1.20 / LB` violates the no-hardcoded-rates rule
+  (runtime values via `SystemConfig.getValue`; spec D10a); any number must be config-driven or omitted.
+- **CSS not present on the live page.** `partner-program.css` has 137 `--ap-` tokens and 150 `.ap-` classes, but its 6
+  `ap-tick` matches are all `.ap-ticket*` (the torn-ticket steps) — it has NO `--ap-rail` token, NO `.ap-ticker*`
+  rules, NO `@keyframes ap-tick`, and no content offset. Bring all of them, plus the hide breakpoint and a desktop
+  content offset (`padding-left: var(--ap-rail)` on the page wrapper) so the fixed rail never covers content.
+- **Which page:** `/` (the partner landing — the Austin Bold skin). `/affiliate` uses a different skin
+  (`affiliate.css`); confirm with the owner before adding the rail there.
+- **Quality bars:** i18n in all four locales in the same commit (label + every item, `data-i18n`); CLS stays 0 (the
+  offset is reserved in CSS, not added by script); pure CSS, no JS (CSP-safe); stays `aria-hidden` (decorative, so
+  screen readers are not spammed by a looping list); `prefers-reduced-motion` honoured; marketing brand guard green
+  (no bare mark — only `WaveMAX Austin`); Lighthouse mobile + desktop, all four categories, per the quality bar.
+
+⚠️ **Timing trap (same as B-1/B-2):** the page moves from the affiliate into corporate in Plan 2 A3 and the affiliate
+copy is deleted in Plan 3. Building it in the affiliate now would either be lost or diverge — build it in corporate.
