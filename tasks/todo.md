@@ -542,3 +542,19 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
 - [ ] **`assets/js/language-switcher.js:2`** header comment "Language Switcher Component for WaveMAX" — trivial; fold into the next
       web-core release after v0.2.1.
 
+### B-5. `@crhs/web-core` next release (after v0.2.1) — reliability hygiene found in Plan 2 reviews (2026-09-13)
+
+⏸ **Backlogged — ship together in the next web-core release; not a Plan 2 blocker.**
+
+- [ ] **SMTP timeouts.** `src/email/transport.js` `transportConfig` sets host/port/secure/auth/tls only, so nodemailer
+      defaults apply (connect 2 min, greeting 30 s, socket 10 min). A hung mail host can hold the corporate P-16 alert
+      (`scripts/ops/alert.js`, cron every 2 min) open for minutes, overlapping ~5 processes. Set explicit
+      `connectionTimeout`/`greetingTimeout`/`socketTimeout` (e.g. 10 s / 10 s / 30 s) with a test.
+- [ ] **Log arguments silently dropped.** web-core's logger format is `combine(timestamp(), json())` with no `splat()`, so
+      second positional arguments vanish — e.g. `logger.error('Error sending email:', error)` and `logger.info('From:', …)`
+      in `src/email/transport.js`. Either add `format.splat()` or convert the calls to template strings; add a test that
+      a logged error reason reaches the file transport. (Corporate alert.js already logs its reason inline — fixed in 2f8d330.)
+- [ ] **`assets/js/language-switcher.js:2` header comment** — see B-4.
+- [ ] **Corporate cron output (GATE Task 81 install):** if web-core itself fails to load, alert.js can only write to stderr, which
+      cron discards — consider redirecting the cron command's output to a box log file when installing it.
+
