@@ -511,3 +511,21 @@ markup in any of the 48 renders `public/design-explorer/render/austin-bold-{ligh
 
 ⚠️ **Timing trap (same as B-1/B-2):** the page moves from the affiliate into corporate in Plan 2 A3 and the affiliate
 copy is deleted in Plan 3. Building it in the affiliate now would either be lost or diverge — build it in corporate.
+### B-4. Brand literals left in `@crhs/web-core` OUTSIDE `src/` (found by Plan 2 Task 7's review, 2026-09-13)
+
+⏸ **Backlogged, owners below.** Spec §7.2.2's guard (`tests/brandNeutral.test.js`, v0.2.1) scopes `src/` only, by design.
+A `git grep` of the rest of web-core finds (none is the franchisor domain `wavemaxlaundry.com`):
+
+- [ ] **Bridge assets** — `assets/js/iframe-bridge-v2.js` (7 lines: allowlisted marketing/staging origins) and
+      `assets/js/parent-iframe-bridge-v3.js` (12: `WaveMAX` header, `wavemax-language` key, `wavemax-iframe` id, origins).
+      **Owner: Plan 3 bridge retirement** — deleted with the bridge (carve-out); no edit before then.
+- [ ] **Legal pages** — `assets/legal/privacy-policy.html` (17), `refund-policy.html` (10), `terms-and-conditions.html` (11):
+      "WaveMAX Laundry Austin" titles, `rundberglaundry.com` canonical/host lists. **Owner: Rick/counsel** together with the
+      spec §6.9 portal legal-pages work — legal text is never auto-edited.
+- [ ] **`LICENSE`** (2 lines: "WaveMAX Laundry" in the marks clause and the notice address). **Owner: Rick/counsel.**
+- [ ] **`assets/js/i18n.js:16` `storageKey: 'wavemax-language'`** — kept deliberately in Plan 2 Task 6 (renaming resets every
+      visitor's saved language). **Owner decision:** keep, or rename with a read-old-key-once migration (also update the v3 bridge's
+      `LANGUAGE_KEY` if it still exists then).
+- [ ] **`assets/js/language-switcher.js:2`** header comment "Language Switcher Component for WaveMAX" — trivial; fold into the next
+      web-core release after v0.2.1.
+
