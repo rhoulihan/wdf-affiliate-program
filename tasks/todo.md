@@ -219,7 +219,10 @@ Working files (gitignored): `.superpowers/sdd/plan2-sources/_plan2-header.md`
       the 0a `.env` write sets `pickups@atxwashdryfold.com`, gated on P-13 passing (HUMAN-CONFIRM).
 
 **Owner decisions still open (surfaced by the drafts):**
-- [ ] Q-12 — external uptime service for `:3001`; default is an on-box cron with a node SMTP alert (`mail` is not installed on either box).
+- [x] Q-12 — **Rick 2026-09-13: cron fallback only**, no external uptime service (the LB monitor already covers `:3001` via `/health/origin`).
+- [x] Mailcow (Task 16, Rick 2026-09-13) — `admin@crhsent.com` made the single real mailbox; `administrator@wavemax.promo` and `pickups@rundberglaundry.com`
+      mailboxes deleted after a verified copy (58 msgs) and recreated as aliases; `pickups@atxwashdryfold.com`, `security@`, `cutover-gate@`,
+      `affiliates@`/`support@wavemax.promo` all → `admin@crhsent.com`. P-13/P-15 satisfied. `sessions_corporate` created on ADB (Task 15).
 - [ ] D5 — `/wavemax-affiliate` → `/affiliate` 301 is counsel-gated; its gate row stays PENDING COUNSEL.
 - [ ] F-8 — do backlog B-2 (interest-form i18n) in corporate right after A3/A4, since A3 copies that page in?
 - [ ] Corporate clickjacking-demo `DEMO_FRAME_SRC` still lists `https://rundberglaundry.com` (Plan 1 shipped it).
