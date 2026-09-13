@@ -182,6 +182,40 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
 - [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
 
+## Plan 2 — IN PROGRESS (plan drafting, 2026-09-13)
+
+**Scope:** `crhs-corporate` becomes the multi-host content app, shipped DARK on `:3001` and verified on-box;
+web-core `v0.2.1` (B3g/B3j/B3k + the repo-wide `brandNeutral` guard); B4a; spec §9.1 Phase 0 and §9.2 Phase 0a.
+No nginx flips (Plan 3). Final plan will be `docs/superpowers/plans/2026-09-13-separation-plan2-content-app.md`.
+
+**Status:** four slices drafted in parallel (P0 19 tasks, A1–A5 23, A6–A9 17, Phase-0a gate 15 = 74) and each
+adversarially reviewed against the spec — all four CHANGES_REQUESTED (the gate slice worst: 23 spec gaps,
+18 interface mismatches, 20 factual errors). Controller rulings R-1…R-15 issued; revision round + cross-slice
+consistency pass running. Working files (gitignored): `.superpowers/sdd/plan2-sources/_plan2-header.md`
+(Global Constraints 1–20, findings F-1…F-9), `_rulings.md`, `_drafts/`.
+
+**Controller rulings that shape the plan:**
+- [x] **One owner per concern** — every production `.env` write, web-core rsync/install, corporate deploy and
+      `pm2 reload` belongs to the single Phase-0a deploy (R-24 needs the SMTP login switch and `GATE_FROM` code in
+      one reload; `v0.2.1`'s logger default needs `LOG_SERVICE_NAME` written first). Duplicate implementations of
+      the session rename, gate mail and `.env.example` removed from the other slices.
+- [x] **S-1 CORS closes in Phase 0a** — corporate line deleted; portal set non-empty (never deleted/emptied).
+- [x] **S-2 host derivation is BLOCKING** — one `requestHost()` everywhere, migrated in one commit, guard +
+      behavioural bypass test + on-box probe (Plan 2 as drafted would have opened a mediator-gate bypass).
+- [x] **Logger default `'app'` ratified**; corporate writes `LOG_SERVICE_NAME=crhs-corporate` before reload.
+- [x] **Lighthouse:** A11y/BP/SEO gate at 100 on the dark origin; Performance through the tunnel is informational —
+      the authoritative Performance comparison moves to Plan 3, before/after each flip (declared deviation).
+- [x] **The corporate session rename logs nobody out** — corporate has 0 `req.session` references; gates unlock by
+      IP and the separate `wm_med_unlock` cookie. No user notice needed.
+- [x] **Log evidence comes from `$LOG_DIR/combined.log`** — Plan 1's "stale corporate log" finding was wrong.
+
+**Owner decisions still open (surfaced by the drafts):**
+- [ ] Q-12 — external uptime service for `:3001`; default is an on-box cron with a node SMTP alert (`mail` is not installed on either box).
+- [ ] D5 — `/wavemax-affiliate` → `/affiliate` 301 is counsel-gated; its gate row stays PENDING COUNSEL.
+- [ ] F-8 — do backlog B-2 (interest-form i18n) in corporate right after A3/A4, since A3 copies that page in?
+- [ ] Corporate clickjacking-demo `DEMO_FRAME_SRC` still lists `https://rundberglaundry.com` (Plan 1 shipped it).
+- [ ] ⚠️ CF API token expires **2026-09-16** — needed for any monitor rollback and for Plan 3's purges.
+
 ## Security findings
 
 ### S-1. Credentialed CORS misconfiguration on BOTH production apps — severity LOW (found 2026-09-13)
