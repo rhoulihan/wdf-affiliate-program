@@ -1959,6 +1959,12 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
+### Task 27b (controller-inserted 2026-09-13, owner-directed): fold the production mediator-gate path hotfix into `main` (A1/A2, S-3)
+
+> Runs immediately after Task 27. A pre-existing bypass (mediatorGate matched the raw `req.path`; the handler serves the decoded + normalised path) was hotfixed in production as `01a354b` on branch `hotfix/mediator-path-bypass` (base `5766f41`) and deployed to both boxes on 2026-09-13 with Rick's confirmation per reload. `main` has diverged (Tasks 24–27), so the same protection is re-applied here rather than cherry-picked: `server/utils/canonicalPath.js` (same path as production), `mediatorGate` canonical match composed with `requestHost`, the non-canonical refusal in `contentHandler` AFTER the unchanged 403 traversal guard, the `safeNext` fix, and the bypass integration test (plus exempt-prefix traversal cases and a positive unlock-cookie control). Full brief: the SDD workspace `task-27b-brief.md`. **This task must land before GATE Task 72 records `CORP_SHA`**, or the Phase-0a rsync would remove the live protection.
+
+---
+
 ### Task 28: `corporateOnly` / `marketingOnly` wrappers (A2)
 
 **Files:**
@@ -7579,6 +7585,7 @@ test -f "$W/crhs-corporate/server/config/hosts.js" && test -d "$W/crhs-corporate
   - Expected: `0.2.1`, then `CORP_EXPORT_OK`.
 
 - [ ] **Step 2: Dry run — which files would the corporate rsync delete.**
+  - ⚠️ **Amended 2026-09-13 (S-3 hotfix):** the boxes' corporate tree is no longer `CORP_BASE_SHA=8133667`; it is `5766f41` + hotfix `01a354b` (adds `server/utils/canonicalPath.js`, `tests/canonicalPath.test.js`, `tests/mediatorPathBypass.integration.test.js`). Compute the expected-deletes list against `01a354b`'s tree, and confirm `server/utils/canonicalPath.js` is NOT in the delete list (Task 27b ships it on `main`).
   - Every deletion must be a file that A1–A9 removed between the Plan 1 exit tree (`CORP_BASE_SHA=8133667`) and `CORP_SHA`.
   - Anything else is box-only content: STOP and show it to Rick (it is preserved in the Task 74 snapshot).
 ```bash
