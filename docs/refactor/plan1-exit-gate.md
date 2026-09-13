@@ -114,6 +114,15 @@ user-visible change.
 3. **A boot probe on a box where the app is already running must `process.exit(0)`
    after the require**, or it measures port availability (EADDRINUSE) instead of boot
    health and fails safe for the wrong reason.
-4. **corporate's pm2 out-log has been stale since 2026-08-23** — boot-log evidence
-   cannot be gathered via `pm2 logs` for that app. Worth fixing before anything
-   depends on it.
+4. ~~corporate's pm2 out-log has been stale since 2026-08-23~~ **CORRECTED 2026-09-13:
+   not a defect.** web-core's production logger has no Console transport
+   (`crhs-web-core/src/utils/logger.js:45` adds Console only when
+   `NODE_ENV !== 'production'`), so pm2 stdout is empty BY DESIGN for both apps.
+   Application logs are in `$LOG_DIR/combined.log` — corporate's is live at
+   `/var/www/crhs-corporate/logs/combined.log` (10 MB, written continuously). Boot
+   evidence was available all along; Task 57 should have read that file. The file
+   does expose two real defects: corporate lines are tagged
+   `service: "wavemax-affiliate"` (`LOG_SERVICE_NAME` unset → web-core's branded
+   default), and accessGate's 60-second cache refresh writes
+   `Access gate cache loaded` every minute per worker (~61,000 lines), so that line
+   is NOT a boot marker.
