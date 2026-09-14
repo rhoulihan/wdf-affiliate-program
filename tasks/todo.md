@@ -571,6 +571,10 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       second positional arguments vanish — e.g. `logger.error('Error sending email:', error)` and `logger.info('From:', …)`
       in `src/email/transport.js`. Either add `format.splat()` or convert the calls to template strings; add a test that
       a logged error reason reaches the file transport. (Corporate alert.js already logs its reason inline — fixed in 2f8d330.)
+- [ ] **Per-load locale cache-buster.** `assets/js/i18n.js:96-97` fetches `/locales/<lang>/common.json?v=${new Date().getTime()}`,
+      a unique URL on every page load, so the corporate content app's `/locales` `public, max-age=3600` (Plan 2 Task 39)
+      never hits cache on the marketing hosts — the same class as the portal fix `9b3e20b3`. Use a deploy-stable version
+      (config option, e.g. `assetVersion`) with a test; Plan 3's per-host Lighthouse before/after must run with it shipped.
 - [ ] **`assets/js/language-switcher.js:2` header comment** — see B-4.
 - [ ] **Corporate cron output (GATE Task 81 install):** if web-core itself fails to load, alert.js can only write to stderr, which
       cron discards — consider redirecting the cron command's output to a box log file when installing it.
