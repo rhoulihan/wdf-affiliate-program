@@ -11,7 +11,10 @@
 //   BRAND_LEGAL_NAME     — legal entity (real owner)        (default 'CRHS Enterprises, LLC')
 //   BRAND_INSTANCE_NAME  — lowercase instance slug          (default 'laundromat')
 //   BRAND_LOGO_PATH      — site-relative logo image path    (default '/assets/images/brand/logo.png')
-//   BRAND_OG_IMAGE_PATH  — site-relative OG/Twitter image   (default '/assets/images/affiliate-ad-og.png')
+//   BRAND_OG_IMAGE_PATH  — site-relative OG/Twitter image   (default '/assets/images/brand/logo.png')
+// The OG default was '/assets/images/affiliate-ad-og.png' until 2026-09-14, when
+// that image was deleted with the retired /wavemax-affiliate page. It now points
+// at the one app-owned brand image so the default never resolves to a 404.
 // logoPath is resolved into HTML via the {{BRAND_LOGO}} placeholder (cspHelper)
 // and into emails via the [BRAND_LOGO] placeholder (email/template-manager,
 // where it is prefixed with BASE_URL to yield an absolute URL).
@@ -27,5 +30,5 @@ module.exports = {
   get legalName() { return process.env.BRAND_LEGAL_NAME || 'CRHS Enterprises, LLC'; },
   get instanceName() { return process.env.BRAND_INSTANCE_NAME || 'laundromat'; },
   get logoPath() { return process.env.BRAND_LOGO_PATH || '/assets/images/brand/logo.png'; },
-  get ogImagePath() { return process.env.BRAND_OG_IMAGE_PATH || '/assets/images/affiliate-ad-og.png'; }
+  get ogImagePath() { return process.env.BRAND_OG_IMAGE_PATH || '/assets/images/brand/logo.png'; }
 };

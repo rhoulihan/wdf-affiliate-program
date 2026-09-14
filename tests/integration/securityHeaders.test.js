@@ -137,9 +137,10 @@ describe('Security Headers (regression — prod-lockdown-2026-05-20)', () => {
   // its wiring broken, these pages silently fall back to relaxed CSP
   // (server.js pushes 'unsafe-inline' into script-src when !useStrictCSP) —
   // a security + Lighthouse-quality-bar regression. Lock it: script-src must
-  // NOT carry 'unsafe-inline' on /affiliate, /wavemax-affiliate, /scanbag.
+  // NOT carry 'unsafe-inline' on /affiliate, /scanbag. (/wavemax-affiliate was
+  // retired on 2026-09-14 and answers 410 with no HTML, so it is not asserted.)
   describe('Strict CSP on kept clean-URL slug pages (Phase 4b)', () => {
-    for (const slug of ['/affiliate', '/wavemax-affiliate', '/scanbag']) {
+    for (const slug of ['/affiliate', '/scanbag']) {
       it(`GET ${slug} → script-src has no 'unsafe-inline'`, async () => {
         const r = await request(app).get(slug);
         const csp = r.headers['content-security-policy'];

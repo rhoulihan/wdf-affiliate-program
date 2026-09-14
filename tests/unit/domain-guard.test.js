@@ -16,8 +16,7 @@ const EXCLUDED_PREFIXES = [
   'tests/',
 ];
 const EXCLUDED_FILES = new Set([
-  // kept affiliate-recruitment page that names the franchisor mark
-  'public/wavemax-affiliate.html',
+  // (public/wavemax-affiliate.html was deleted on 2026-09-14 — page retired.)
   // this guard + its baseline
   'tests/unit/domain-guard.test.js',
   // dev-only compose EMAIL_FROM default; gated config — migrate manually

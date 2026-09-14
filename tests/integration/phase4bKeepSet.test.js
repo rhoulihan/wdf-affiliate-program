@@ -9,11 +9,14 @@
  * Kept surfaces:
  *   - GET /embed-app-v2.html  → the app SPA shell (served with a CSP nonce)
  *   - GET /affiliate          → public UT-student affiliate recruitment page
- *   - GET /wavemax-affiliate   → generic affiliate interest form (ad campaigns)
  *
  * Retired surfaces (must 404, not 500):
  *   - GET /franchise
  *   - GET /api/v1/franchises
+ *
+ * Also retired, but deliberately 410 rather than 404 (2026-09-14, owner
+ * decision after the 2026-08-26 trademark complaints):
+ *   - GET /wavemax-affiliate → 410 Gone, never a 301 to /affiliate
  */
 
 const request = require('supertest');
@@ -31,9 +34,13 @@ describe('Phase 4b keep-set smoke', () => {
       expect(res.status).toBe(200);
     });
 
-    it('serves the affiliate interest form at /wavemax-affiliate', async () => {
+  });
+
+  describe('the retired affiliate interest page is gone (410, never 200/301)', () => {
+    it('returns 410 for /wavemax-affiliate', async () => {
       const res = await request(app).get('/wavemax-affiliate');
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(410);
+      expect(res.headers.location).toBeUndefined();
     });
   });
 

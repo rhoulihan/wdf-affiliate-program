@@ -819,9 +819,14 @@ app.get('/', async (req, res) => {
 app.get(['/affiliate', '/affiliate/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'affiliate.html'));
 });
-// Generic affiliate interest form (for ad campaigns).
+// RETIRED 2026-09-14 (owner decision). This slug served a franchisor-branded
+// affiliate interest page; it is withdrawn following the 2026-08-26 trademark
+// complaints. The URL answers 410 Gone — deliberately NOT a 301 to /affiliate,
+// so crawlers and printed-flyer QR scans see the page as permanently removed
+// rather than as a renamed one. Day-long cache so the 410 is cheap to serve.
 app.get(['/wavemax-affiliate', '/wavemax-affiliate/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'wavemax-affiliate.html'));
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.status(410).end();
 });
 
 // Clean admin URL: GET /admin serves the SPA shell pointed at the administrator

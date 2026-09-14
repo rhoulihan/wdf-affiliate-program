@@ -25,9 +25,7 @@ const EXCLUDED_FILES = new Set([
   'server/models/AccessClick.js', 'server/models/AccessRequest.js',
   'server/models/MediatorAccess.js',
   'server/controllers/conciergeController.js', 'server/services/conciergeFaq.js',
-  // KEEP affiliate-recruitment marketing page — legitimately names the WaveMAX
-  // affiliate program in its recruitment copy (retained through Phase 4b).
-  'public/wavemax-affiliate.html',
+  // (public/wavemax-affiliate.html was deleted on 2026-09-14 — page retired.)
   // Kept host-page sample that names the franchisor mark (products placeholder).
   'public/products-placeholder.html',
   // Asserts the ABSENCE of the franchisor host in the affiliate email dispatcher,
@@ -107,7 +105,8 @@ const INFRA_ALLOW = [
   /wavemaxlaundry-site-audit/gi, /wavemax-promo-prelaunch-audit/gi,
   // Mediator gate URL + its clickjacking-demo content path (functional routes).
   /crhsent\.com\/wavemax/gi, /\/wavemax\/clickjacking-demo\.html/gi,
-  // Kept affiliate-recruitment route slug + page filename (public/wavemax-affiliate.html).
+  // Retired route slug — the page is gone (2026-09-14) but server.js still names
+  // the slug to answer 410, and the tests/docs that lock the retirement name it too.
   /\/wavemax-affiliate/gi, /wavemax-affiliate\.html/gi,
 ];
 

@@ -9,7 +9,11 @@
  *   node tools/flyers/build-flyers.js
  *
  * Env overrides: CHROME_BIN (default /usr/bin/google-chrome),
- *                FLYER_URL (default https://rundberglaundry.com/wavemax-affiliate)
+ *                FLYER_URL (default https://rundberglaundry.com/affiliate)
+ *
+ * Note: the previous default, /wavemax-affiliate, was retired on 2026-09-14 and
+ * now answers 410 Gone. Flyers printed before that date carry a QR to the dead
+ * URL; re-run this script to regenerate them against /affiliate.
  *
  * Outputs to public/assets/flyers/ (served under the gate-exempt /assets/ path):
  *   affiliate-flyer-portrait.pdf
@@ -24,7 +28,7 @@ const QRCode = require('qrcode');
 const ROOT = path.join(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'public', 'assets', 'flyers');
 const CHROME = process.env.CHROME_BIN || '/usr/bin/google-chrome';
-const URL = process.env.FLYER_URL || 'https://rundberglaundry.com/wavemax-affiliate';
+const URL = process.env.FLYER_URL || 'https://rundberglaundry.com/affiliate';
 const URL_LABEL = URL.replace(/^https?:\/\//, '');
 
 const b64 = (p, mime) => `data:${mime};base64,${fs.readFileSync(p).toString('base64')}`;
