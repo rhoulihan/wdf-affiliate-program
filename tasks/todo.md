@@ -223,7 +223,11 @@ Working files (gitignored): `.superpowers/sdd/plan2-sources/_plan2-header.md`
 - [x] Mailcow (Task 16, Rick 2026-09-13) — `admin@crhsent.com` made the single real mailbox; `administrator@wavemax.promo` and `pickups@rundberglaundry.com`
       mailboxes deleted after a verified copy (58 msgs) and recreated as aliases; `pickups@atxwashdryfold.com`, `security@`, `cutover-gate@`,
       `affiliates@`/`support@wavemax.promo` all → `admin@crhsent.com`. P-13/P-15 satisfied. `sessions_corporate` created on ADB (Task 15).
-- [ ] D5 — `/wavemax-affiliate` → `/affiliate` 301 is counsel-gated; its gate row stays PENDING COUNSEL.
+- [x] D5 — **SUPERSEDED (Rick, 2026-09-14): the live page is retired, not redirected.** `/wavemax-affiliate` now answers **410 Gone**
+      on the marketing domains (affiliate `421bbc87`); the WaveMAX-branded page and its two dedicated assets are deleted. So there is
+      nothing left to 301, Plan 2 Task 47 (the counsel-gated redirect PR) is MOOT and will not be built, and the Phase-0a gate row
+      changes from PENDING COUNSEL to retired. ⚠️ The stale "301, counsel-gated" wording also survives in the separation design doc
+      (D5 row, §5.7) and in the Plan 2 document — both are historical records of the earlier decision, not instructions.
 - [ ] F-8 — do backlog B-2 (interest-form i18n) in corporate right after A3/A4, since A3 copies that page in?
 - [ ] Corporate clickjacking-demo `DEMO_FRAME_SRC` still lists `https://rundberglaundry.com` (Plan 1 shipped it).
 - [ ] ⚠️ CF API token expires **2026-09-16** — needed for any monitor rollback and for Plan 3's purges.
