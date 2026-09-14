@@ -2907,7 +2907,7 @@ const PAIRS = {
     [`<span class="brand-dot" aria-hidden="true"></span>Rundberg Laundry</a>`, `<span class="brand-dot" aria-hidden="true"></span>atxwashdryfold</a>`, 2],
     [`, Rundberg Laundry does the wash-dry-fold, and you keep`, `, atxwashdryfold does the wash-dry-fold, and you keep`, 1],
     [`<rect x="60" y="210" width="79" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">RUNDBERG</text>`,
-     `<rect x="36" y="210" width="128" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">ATXWASHDRYFOLD</text>`, 1],
+     `<rect x="28" y="210" width="144" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">ATXWASHDRYFOLD</text>`, 1],
     [`>Rundberg — the wash</text>`, `>atxwashdryfold — the wash</text>`, 1],
     [`/assets/css/affiliate.css?v=20260911a`, `/assets/css/affiliate.css?v=20260913a`, 1],
     [`/assets/images/affiliate-og.png`, `/assets/images/affiliate-og-atxwashdryfold.png`, 2]
@@ -2966,17 +2966,17 @@ Expected: `brand edits applied to 12 files`, then exactly one line, `content/atx
 @font-face{font-family:'Space Grotesk';font-weight:400 700;src:url('../../content/atxwashdryfold/assets/fonts/space-grotesk-latin.woff2') format('woff2')}
 @font-face{font-family:'Plus Jakarta Sans';font-weight:400 800;src:url('../../content/atxwashdryfold/assets/fonts/plus-jakarta-sans-latin.woff2') format('woff2')}
 html,body{margin:0;width:1350px;height:940px;overflow:hidden;background:#FFF8F1;color:#201A17}
-.brand{position:absolute;left:56px;top:62px;display:flex;align-items:center;gap:14px;font:700 30px/38px 'Space Grotesk',sans-serif;letter-spacing:-.01em}
+.brand{position:absolute;left:59px;top:62px;display:flex;align-items:center;gap:12px;font:700 30px/38px 'Space Grotesk',sans-serif;letter-spacing:-.01em}
 .dot{width:16px;height:16px;border-radius:50%;background:#BF5700;box-shadow:0 0 0 6px #FFEBDC}
 .tag{position:absolute;right:210px;top:56px;height:50px;padding:0 18px;border-radius:25px;background:#BF5700;color:#fff;font:700 19px/50px 'Space Grotesk',sans-serif}
-h1{position:absolute;left:60px;top:170px;margin:0;font:700 124px/108px 'Space Grotesk',sans-serif;letter-spacing:-.035em}
+h1{position:absolute;left:60px;top:174px;margin:0;font:700 112px/108px 'Space Grotesk',sans-serif;letter-spacing:-.035em}
 h1 em{font-style:normal;color:#BF5700}
-.sub{position:absolute;left:60px;top:408px;margin:0;width:560px;font:500 30px/45px 'Plus Jakarta Sans',sans-serif;color:#4A423C;letter-spacing:-.01em}
+.sub{position:absolute;left:60px;top:408px;margin:0;width:560px;font:500 29px/45px 'Plus Jakarta Sans',sans-serif;color:#4A423C;letter-spacing:-.01em}
 .pills{position:absolute;left:60px;top:525px;display:flex;gap:12px}
-.pill{box-sizing:border-box;height:52px;padding:0 18px;border-radius:26px;background:#fff;border:1px solid rgba(32,26,23,.12);font:700 17px/50px 'Space Grotesk',sans-serif}
+.pill{box-sizing:border-box;height:52px;padding:0 18px;border-radius:26px;background:#fff;border:1px solid rgba(32,26,23,.12);font:700 18px/50px 'Space Grotesk',sans-serif}
 .card{position:absolute;left:822px;top:208px;width:318px;height:196px;border-radius:22px;background:#fff;box-shadow:0 14px 34px rgba(32,26,23,.10);transform:rotate(2deg);text-align:center}
-.pct{margin-top:34px;font:700 104px/1 'Space Grotesk',sans-serif;letter-spacing:-.04em;color:#BF5700}
-.yours{margin-top:14px;font:700 18px/1 'Space Grotesk',sans-serif;letter-spacing:.12em;color:#6B615A}
+.pct{margin-top:30px;font:700 104px/1 'Space Grotesk',sans-serif;letter-spacing:-.04em;color:#BF5700}
+.yours{margin-top:7px;font:700 18px/1 'Space Grotesk',sans-serif;letter-spacing:.12em;color:#6B615A}
 </style></head><body>
 <div class="brand"><span class="dot"></span>atxwashdryfold</div>
 <div class="tag">UT Austin</div>
@@ -2997,6 +2997,8 @@ git rm -q content/atxwashdryfold/assets/images/affiliate-og.png && find content/
 ```
 
 Expected: `PNG image data, 1350 x 940`, then `24`. If Playwright reports a missing browser, run `npx --yes playwright@1.47.2 install chromium` once and repeat. **Look at it:** open the new PNG next to the old card (`git show HEAD:content/atxwashdryfold/assets/images/affiliate-og.png > /tmp/b37-old-og.png`). Expected: the same layout — brand dot + wordmark top-left, "UT Austin" pill top-right, the two-line "GET PAID doing / laundry" headline with PAID in burnt orange, the two-line subline, four pills, the tilted "100% / YOURS" card — with `atxwashdryfold` where the old card said "Rundberg Laundry", nothing clipped, the real Space Grotesk / Plus Jakarta Sans faces (not a fallback). Adjust only the template's position/size values if something is clipped or overlaps, re-render, and re-check.
+
+> **As executed (corporate `587e591`, review-approved):** the template above and the pill rect `x="28" width="144"` are the committed, measured values (the first-draft template rendered the headline ~11% too large and hid "doing" under the 100% card; 36/128 left the pill label 5.9px/4.4px of padding at 1280/390). Re-rendering this template with Playwright 1.47.2 reproduces the committed PNG pixel-for-pixel.
 
 - [ ] **Step 4: Run the tests.** `npx jest tests/marketingBrandName.test.js tests/contentHandler.test.js tests/marketingBrandGuard.test.js tests/i18nParity.test.js tests/content-manifest.test.js`. Expected PASS, with `tests/marketingBrandName.test.js` at `Tests:       8 passed, 8 total`. Then run `npm test 2>&1 | grep -E '^Tests:'` (no `failed` segment), `npm run lint`, `npx madge --circular server/`, and the crhsent baseline (`node ~/crhs-cutover-baselines/crhsent-baseline.js "$PWD" > ~/crhs-cutover-baselines/a1/local/after-A3brand.json && diff ~/crhs-cutover-baselines/a1/local/before.json ~/crhs-cutover-baselines/a1/local/after-A3brand.json && echo IDENTICAL`).
 
