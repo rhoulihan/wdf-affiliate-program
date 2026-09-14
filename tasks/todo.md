@@ -566,6 +566,14 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       street address `825 E Rundberg Ln` kept. Delivered in the corporate content app as Plan 2 Task 37b; the live `:3000`
       pages change at the Plan 3 nginx flip.
 
+### Owner decision 2026-09-13 — marketing hero photo (COUNSEL HOLD)
+
+- [ ] **For counsel (Miguel):** `public/assets/images/locations/austin-tx/hero-1.webp` is a storefront photo showing the
+      franchisor's swirl logo and the "WaveMAX LAUNDRY" sign. It is LIVE on the marketing domains (partner-program.html
+      hero `<img>` :111, og:image :19, twitter:image :23, JSON-LD image :36) and copied into the corporate content app
+      (Plan 2 Tasks 32/33). Relevant to the 2026-08-26 franchisor DMCA (swirl logo) + trademark ("WaveMax" Reg. 5215356)
+      complaints. Rick: "Keep it — hold for counsel" — no change until counsel advises.
+
 ### B-5. `@crhs/web-core` next release (after v0.2.1) — reliability hygiene found in Plan 2 reviews (2026-09-13)
 
 ⏸ **Backlogged — ship together in the next web-core release; not a Plan 2 blocker.**
