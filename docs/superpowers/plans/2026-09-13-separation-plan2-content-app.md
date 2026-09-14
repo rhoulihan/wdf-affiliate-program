@@ -2805,6 +2805,173 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
+### Task 37b (controller-inserted 2026-09-13, owner-directed): marketing brand name → `atxwashdryfold` (A3/A4)
+
+> Runs immediately after Task 37 (the locales must exist) and before Task 38. **Owner decision (Rick, 2026-09-13): "marketing page should be atxwashdryfold.com".** The copied pages, their OG/JSON-LD, two `partner.meta.*` strings and four file-header comments still name the business "Rundberg Laundry". The display name is the page's EXISTING wordmark `atxwashdryfold` (`partner.meta.title` already reads "atxwashdryfold — Pickup & Delivery Partner Program" in all four locales); URLs stay `https://atxwashdryfold.com/`. The street address `825 E Rundberg Ln` is a real street and stays. Every edit is content-addressed and count-asserted, nothing is written unless every assertion passes, and no file's line count changes — so the later line/anchor edits (Tasks 53, 55, 62) and the key-count parity (110 here, 119 after Task 53) are unaffected. The live `:3000` pages keep their current copy until the Plan 3 nginx flip.
+
+**Files:**
+- Modify: `content/atxwashdryfold/index.html`, `content/atxwashdryfold/affiliate/index.html`
+- Modify: `content/atxwashdryfold/locales/{en,es,pt,de}/common.json` — values of `partner.meta.ogTitle` and `partner.meta.description` only
+- Modify: the header-comment line of `assets/css/partner-program.css:2`, `assets/css/affiliate.css:2`, `assets/js/partner-inquiry.js:1`, `assets/js/affiliate-inquiry.js:1`
+- Modify: `affiliate/index.html` stylesheet reference `affiliate.css?v=20260911a` → `?v=20260913a`. The `affiliate.css` bytes change and the old URL was served publicly `immutable` from `:3000`. `partner-program.css?v=20260909a` (Task 36) and both `*-inquiry.js?v=20260909a` (Tasks 33/34) were never served publicly, so they are not re-stamped (the Task 53 rule).
+- Test (create): `tests/marketingBrandName.test.js`
+
+**Interfaces:**
+- Consumes: the Tasks 32–37 tree.
+- Produces: no `/rundberg/i` anywhere under `content/atxwashdryfold/` except the literal `825 E Rundberg Ln`; `og:site_name`, JSON-LD `name`, `provider.name` and `hiringOrganization.name` = `atxwashdryfold`.
+
+- [ ] **Step 1: Write the failing test** `tests/marketingBrandName.test.js`.
+
+```js
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const request = require('supertest');
+const app = require('../server');
+const ROOT = path.join(__dirname, '..', 'content', 'atxwashdryfold');
+const TEXT = new Set(['.html', '.css', '.js', '.json']);
+const LANGS = ['en', 'es', 'pt', 'de'];
+const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+const rel = (f) => path.relative(ROOT, f).split(path.sep).join('/');
+const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
+
+describe('marketing brand name is atxwashdryfold (owner decision 2026-09-13)', () => {
+  test('no "Rundberg" in any marketing text file except the street address', () => {
+    for (const f of walk(ROOT).filter((x) => TEXT.has(path.extname(x)))) {
+      const s = fs.readFileSync(f, 'utf8').split('825 E Rundberg Ln').join('');
+      expect({ f: rel(f), hit: /rundberg/i.test(s) }).toEqual({ f: rel(f), hit: false });
+    }
+  });
+  test('the street address is kept on /affiliate (JSON-LD + footer)', () => {
+    expect(read('affiliate', 'index.html').split('825 E Rundberg Ln').length - 1).toBe(2);
+  });
+  test('og:site_name and the JSON-LD names are atxwashdryfold', () => {
+    for (const f of ['index.html', 'affiliate/index.html']) expect(read(f)).toContain('<meta property="og:site_name" content="atxwashdryfold">');
+    const home = read('index.html');
+    expect(home).toContain('  "name": "atxwashdryfold",');
+    expect(home).toContain('{ "@type": "LocalBusiness", "name": "atxwashdryfold", "url": "https://atxwashdryfold.com/" }');
+    expect(read('affiliate', 'index.html')).toContain('"hiringOrganization": { "@type": "Organization", "name": "atxwashdryfold", "sameAs": "https://atxwashdryfold.com/" }');
+  });
+  test('partner.meta strings name atxwashdryfold in all four locales', () => {
+    for (const l of LANGS) {
+      const m = JSON.parse(read('locales', l, 'common.json')).partner.meta;
+      expect({ l, og: m.ogTitle.includes('atxwashdryfold'), d: m.description.includes('atxwashdryfold') }).toEqual({ l, og: true, d: true });
+    }
+    expect(JSON.parse(read('locales', 'en', 'common.json')).partner.meta.ogTitle).toBe('Become an atxwashdryfold pickup & delivery partner');
+  });
+  test('the changed affiliate stylesheet is re-stamped', () => {
+    const aff = read('affiliate', 'index.html');
+    expect(aff).toContain('/assets/css/affiliate.css?v=20260913a');
+    expect(aff).not.toContain('affiliate.css?v=20260911a');
+  });
+  test.each(['/', '/affiliate'])('served %s on a marketing host names no Rundberg Laundry', async (p) => {
+    const res = await request(app).get(p).set('Host', 'atxwashateria.com');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/Rundberg Laundry|RUNDBERG|Rundberg —/);
+    expect(res.text).toContain('atxwashdryfold');
+  });
+});
+```
+
+- [ ] **Step 2: Run it.** `cd /mnt/c/Users/rickh/GitHub/crhs-corporate && npx jest tests/marketingBrandName.test.js`. Expected: `Tests:       6 failed, 1 passed, 7 total`. The street-address test passes already (it is a guard). The failures are `hit: true` on a marketing text file, the missing `og:site_name`/JSON-LD strings, `og: false`/`d: false` in the locale check, the missing `affiliate.css?v=20260913a`, and each served page matching `Rundberg Laundry`.
+
+- [ ] **Step 3: Apply every edit in one all-or-nothing script.** It checks every expected count and every line count first, and writes nothing if any check fails.
+
+```bash
+cd /mnt/c/Users/rickh/GitHub/crhs-corporate && cat > /tmp/b37-brand-edit.js <<'EOF'
+const fs = require('fs');
+const D = 'content/atxwashdryfold';
+const PAIRS = {
+  [`${D}/index.html`]: [
+    [`Rundberg Laundry does the wash-dry-fold on commercial`, `atxwashdryfold does the wash-dry-fold on commercial`, 1],
+    [`<meta property="og:site_name" content="Rundberg Laundry">`, `<meta property="og:site_name" content="atxwashdryfold">`, 1],
+    [`content="Become a Rundberg Laundry pickup & delivery partner"`, `content="Become an atxwashdryfold pickup & delivery partner"`, 2],
+    [`"name": "Rundberg Laundry",`, `"name": "atxwashdryfold",`, 2],
+    [`Rundberg Laundry provides QR-coded bags`, `atxwashdryfold provides QR-coded bags`, 1]
+  ],
+  [`${D}/affiliate/index.html`]: [
+    [`— Rundberg Laundry (UT Austin)</title>`, `— atxwashdryfold (UT Austin)</title>`, 1],
+    [`— Rundberg Laundry does the wash, dry &amp; fold.`, `— atxwashdryfold does the wash, dry &amp; fold.`, 1],
+    [`<meta property="og:site_name" content="Rundberg Laundry">`, `<meta property="og:site_name" content="atxwashdryfold">`, 1],
+    [`Rundberg Laundry does the wash, dry, and fold.`, `atxwashdryfold does the wash, dry, and fold.`, 1],
+    [`"name": "Rundberg Laundry", "sameAs"`, `"name": "atxwashdryfold", "sameAs"`, 1],
+    [`<span class="brand-dot" aria-hidden="true"></span>Rundberg Laundry</a>`, `<span class="brand-dot" aria-hidden="true"></span>atxwashdryfold</a>`, 2],
+    [`, Rundberg Laundry does the wash-dry-fold, and you keep`, `, atxwashdryfold does the wash-dry-fold, and you keep`, 1],
+    [`<rect x="60" y="210" width="79" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">RUNDBERG</text>`,
+     `<rect x="36" y="210" width="128" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">ATXWASHDRYFOLD</text>`, 1],
+    [`>Rundberg — the wash</text>`, `>atxwashdryfold — the wash</text>`, 1],
+    [`/assets/css/affiliate.css?v=20260911a`, `/assets/css/affiliate.css?v=20260913a`, 1]
+  ],
+  [`${D}/assets/css/partner-program.css`]: [[`   Rundberg Laundry — Partner Program landing page`, `   atxwashdryfold — Partner Program landing page`, 1]],
+  [`${D}/assets/css/affiliate.css`]: [[`   Rundberg Laundry — UT student affiliate page.`, `   atxwashdryfold — UT student affiliate page.`, 1]],
+  [`${D}/assets/js/partner-inquiry.js`]: [[`/* Rundberg Laundry — partner inquiry form + language switch.`, `/* atxwashdryfold — partner inquiry form + language switch.`, 1]],
+  [`${D}/assets/js/affiliate-inquiry.js`]: [[`/* Rundberg Laundry — UT affiliate application form.`, `/* atxwashdryfold — UT affiliate application form.`, 1]]
+};
+const out = [];
+const fail = (m) => { console.error(m); process.exit(1); };
+for (const [f, pairs] of Object.entries(PAIRS)) {
+  const orig = fs.readFileSync(f, 'utf8');
+  let s = orig;
+  for (const [a, b, n] of pairs) {
+    const c = s.split(a).length - 1;
+    if (c !== n) fail(`${f}: expected ${n} occurrence(s), found ${c}: ${a.slice(0, 80)}`);
+    s = s.split(a).join(b);
+  }
+  if (s.split('\n').length !== orig.split('\n').length) fail(`${f}: line count changed`);
+  out.push([f, s]);
+}
+for (const l of ['en', 'es', 'pt', 'de']) {
+  const f = `${D}/locales/${l}/common.json`;
+  const orig = fs.readFileSync(f, 'utf8');
+  const j = JSON.parse(orig);
+  const m = j.partner.meta;
+  if (l === 'en') {
+    if (m.ogTitle !== 'Become a Rundberg Laundry pickup & delivery partner') fail(`${l}: unexpected ogTitle ${m.ogTitle}`);
+    m.ogTitle = 'Become an atxwashdryfold pickup & delivery partner';
+  } else {
+    if (m.ogTitle.split('Rundberg Laundry').length - 1 !== 1) fail(`${l}: ogTitle does not name Rundberg Laundry once`);
+    m.ogTitle = m.ogTitle.split('Rundberg Laundry').join('atxwashdryfold');
+  }
+  if (m.description.split('Rundberg Laundry').length - 1 !== 1) fail(`${l}: description does not name Rundberg Laundry once`);
+  m.description = m.description.split('Rundberg Laundry').join('atxwashdryfold');
+  if (/rundberg/i.test(JSON.stringify(j))) fail(`${l}: a Rundberg mention remains`);
+  const s = JSON.stringify(j, null, 2) + '\n';
+  if (s.split('\n').length !== orig.split('\n').length) fail(`${f}: line count changed`);
+  out.push([f, s]);
+}
+for (const [f, s] of out) fs.writeFileSync(f, s);
+console.log(`brand edits applied to ${out.length} files`);
+EOF
+node /tmp/b37-brand-edit.js && grep -rci rundberg content/atxwashdryfold | grep -v ':0$'
+```
+
+Expected: `brand edits applied to 10 files`, then exactly one line, `content/atxwashdryfold/affiliate/index.html:2` (the two street-address lines). If the script prints an `expected … found …` or `line count changed` message, nothing was written: STOP and report it.
+
+- [ ] **Step 4: Run the tests.** `npx jest tests/marketingBrandName.test.js tests/contentHandler.test.js tests/marketingBrandGuard.test.js tests/i18nParity.test.js tests/content-manifest.test.js`. Expected PASS, with `tests/marketingBrandName.test.js` at `Tests:       7 passed, 7 total`. Then run `npm test 2>&1 | grep -E '^Tests:'` (no `failed` segment), `npm run lint`, `npx madge --circular server/`, and the crhsent baseline (`node ~/crhs-cutover-baselines/crhsent-baseline.js "$PWD" > ~/crhs-cutover-baselines/a1/local/after-A3brand.json && diff ~/crhs-cutover-baselines/a1/local/before.json ~/crhs-cutover-baselines/a1/local/after-A3brand.json && echo IDENTICAL`).
+
+- [ ] **Step 5: Look at the diagram.** The pill label grew from `RUNDBERG` to `ATXWASHDRYFOLD` and the legend from `Rundberg — the wash` to `atxwashdryfold — the wash`.
+
+```bash
+cd /mnt/c/Users/rickh/GitHub/crhs-corporate && (npx --yes http-server@14.1.1 content/atxwashdryfold -p 8766 -s &) && sleep 3
+npx --yes playwright@1.47.2 screenshot --full-page --viewport-size "1280,800" --wait-for-timeout 1500 http://127.0.0.1:8766/affiliate/ /tmp/b37-affiliate-1280.png
+npx --yes playwright@1.47.2 screenshot --full-page --viewport-size "390,844" --wait-for-timeout 1500 http://127.0.0.1:8766/affiliate/ /tmp/b37-affiliate-390.png
+pkill -f "http-server@14.1.1 content/atxwashdryfold" || pkill -f "http-server content/atxwashdryfold"
+```
+
+  Open both PNGs and find the three-card workflow diagram. Expected: `ATXWASHDRYFOLD` sits inside its dark pill with at least 8px of pill on each side, the pill stays inside its card, and the legend `atxwashdryfold — the wash` does not touch the next legend dot. If the label is clipped or crowded, widen the pill symmetrically about `x=100` (keep `x + width/2 = 100`) and re-check; the rect is the only value that may change. If Playwright reports a missing browser, run `npx --yes playwright@1.47.2 install chromium` once and repeat.
+
+- [ ] **Step 6: Commit.**
+
+```bash
+git add content/atxwashdryfold tests/marketingBrandName.test.js && git commit -m "feat(marketing): brand name → atxwashdryfold across the marketing tree (owner decision 2026-09-13)
+
+Pages, OG/JSON-LD, partner.meta locale strings (en/es/pt/de) and header comments; street address 825 E Rundberg Ln kept; affiliate.css re-stamped 20260913a.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 38: Corporate `scripts/check-i18n-parity.js` + `npm run check:i18n` (A4, §5.4 / §11.5)
 
 **Files:**

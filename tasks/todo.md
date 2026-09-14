@@ -559,6 +559,13 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
 - [ ] **`assets/js/language-switcher.js:2`** header comment "Language Switcher Component for WaveMAX" — trivial; fold into the next
       web-core release after v0.2.1.
 
+### Owner decision 2026-09-13 — marketing brand name
+
+- [x] Rick: "marketing page should be atxwashdryfold.com". The marketing tree (/ and /affiliate on the four marketing hosts)
+      stops naming "Rundberg Laundry"; display name = the existing wordmark `atxwashdryfold`, URLs `https://atxwashdryfold.com/`,
+      street address `825 E Rundberg Ln` kept. Delivered in the corporate content app as Plan 2 Task 37b; the live `:3000`
+      pages change at the Plan 3 nginx flip.
+
 ### B-5. `@crhs/web-core` next release (after v0.2.1) — reliability hygiene found in Plan 2 reviews (2026-09-13)
 
 ⏸ **Backlogged — ship together in the next web-core release; not a Plan 2 blocker.**
