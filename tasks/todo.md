@@ -316,6 +316,21 @@ mediator password. Same code: `safeNext` open redirect (`//evil.example`).
 - [ ] **Still open (Rick: keep `MEDIATOR_GATE_ENABLED=true`; fix ships with Plan 2 Task 26):** live accessGate reads `X-Forwarded-Host` as one
       lowercased string, so a forged multi-value header (`crhsent.com, other.com`) skips accessGate for non-`/wavemax` crhsent paths.
 
+### Plan 3 pre-flight notes (collected from Plan 2 reviews, 2026-09-13/14)
+
+- [ ] **Content-owned client JS vs web-core fall-through.** Corporate `server/contentHandler.js` `next()`s to `server/webCoreAssets.js` on ANY
+      sendFile error. Before any page ships its own `/assets/js/i18n.js` or `language-switcher.js`, fall through only on a real miss
+      (ENOENT/ENOTDIR or `err.status === 404`) and end other errors `no-store` — otherwise a Range/If-Match error on the content-owned
+      file is answered with web-core bytes (reproduced in the Task 39 review).
+- [ ] **Moved pages and the csp-nonce meta.** Any page moved into a nonce-injecting app must carry `<meta name="csp-nonce" content="{{CSP_NONCE}}">`;
+      `content=""` is duplicated by web-core `injectNonce` (B-5). Verify the SERVED html, not the file on disk.
+- [ ] **Unstamped immutable assets.** Marketing fonts and images are `immutable` for a year without `?v=`: change them by adding a NEW
+      filename and updating references, never by overwriting in place (as done for the /affiliate share card in Plan 2 Task 37b).
+- [ ] **Per-host Lighthouse before/after each nginx flip** must be measured with B-5's i18n.js locale cache-buster fix shipped.
+- [ ] **nginx `proxy_set_header X-Forwarded-Host $host;`** on the flipped vhosts, as defence in depth for the Host-only rule (R-3).
+- [ ] **Portal `/assets` static error headers (LOW).** Affiliate `express.static` returns 416/412 still carrying
+      `public, max-age=31536000, immutable` (local repro, 2026-09-13); clear Cache-Control/validators on send errors.
+
 ## DEFERRED WORK — accepted as deferred, NOT removed (Rick, 2026-09-11)
 
 Rick approved both Plan 1 scope cuts **on the explicit condition that the work is deferred, not
