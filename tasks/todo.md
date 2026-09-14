@@ -579,7 +579,10 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       `<meta name="csp-nonce" content="">` and appends `content="NONCE"` instead of filling it, so the served tag is
       `content="" content="NONCE"` (browsers read the empty first value). Found in Plan 2 Task 33 on the copied marketing
       pages; worked around there with the `{{CSP_NONCE}}` placeholder (replaced at `:45`). Fix the regex to replace the
-      empty value, with a test.
+      empty value, with a test. **Live on the portal too** (verified 2026-09-13: `embed-app-v2.html` serves
+      `content="" content="<nonce>"`; 8 affiliate `public/*.html` pages carry `content=""`), so `window.CSP_NONCE` and
+      `embed-app-v2.js:643` resolve to `''`. Benign today (script-src has no `'strict-dynamic'`, style-src keeps
+      `'unsafe-inline'`), but it becomes an outage if the portal CSP adopts either — fix before any such CSP change.
 - [ ] **`assets/js/language-switcher.js:2` header comment** — see B-4.
 - [ ] **Corporate cron output (GATE Task 81 install):** if web-core itself fails to load, alert.js can only write to stderr, which
       cron discards — consider redirecting the cron command's output to a box log file when installing it.
