@@ -2807,18 +2807,21 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ### Task 37b (controller-inserted 2026-09-13, owner-directed): marketing brand name → `atxwashdryfold` (A3/A4)
 
-> Runs immediately after Task 37 (the locales must exist) and before Task 38. **Owner decision (Rick, 2026-09-13): "marketing page should be atxwashdryfold.com".** The copied pages, their OG/JSON-LD, two `partner.meta.*` strings and four file-header comments still name the business "Rundberg Laundry". The display name is the page's EXISTING wordmark `atxwashdryfold` (`partner.meta.title` already reads "atxwashdryfold — Pickup & Delivery Partner Program" in all four locales); URLs stay `https://atxwashdryfold.com/`. The street address `825 E Rundberg Ln` is a real street and stays. Every edit is content-addressed and count-asserted, nothing is written unless every assertion passes, and no file's line count changes — so the later line/anchor edits (Tasks 53, 55, 62) and the key-count parity (110 here, 119 after Task 53) are unaffected. The live `:3000` pages keep their current copy until the Plan 3 nginx flip.
+> Runs immediately after Task 37 (the locales must exist) and before Task 38. **Owner decision (Rick, 2026-09-13): "marketing page should be atxwashdryfold.com".** The copied pages, their OG/JSON-LD, two `partner.meta.*` strings, four file-header comments and the `/affiliate` social share card (`affiliate-og.png`, which renders "Rundberg Laundry" as image text) still name the business "Rundberg Laundry". The display name is the page's EXISTING wordmark `atxwashdryfold` (`partner.meta.title` already reads "atxwashdryfold — Pickup & Delivery Partner Program" in all four locales); URLs stay `https://atxwashdryfold.com/`. The street address `825 E Rundberg Ln` is a real street and stays. Every text edit is content-addressed and count-asserted, nothing is written unless every assertion passes, and no file's line count changes — so the later line/anchor edits (Tasks 53, 55, 62) and the key-count parity (110 here, 119 after Task 53) are unaffected. The live `:3000` pages keep their current copy until the Plan 3 nginx flip. **Out of scope (owner decision 2026-09-13, counsel hold):** the home hero photo `assets/images/locations/austin-tx/hero-1.webp` is not changed.
 
 **Files:**
 - Modify: `content/atxwashdryfold/index.html`, `content/atxwashdryfold/affiliate/index.html`
 - Modify: `content/atxwashdryfold/locales/{en,es,pt,de}/common.json` — values of `partner.meta.ogTitle` and `partner.meta.description` only
 - Modify: the header-comment line of `assets/css/partner-program.css:2`, `assets/css/affiliate.css:2`, `assets/js/partner-inquiry.js:1`, `assets/js/affiliate-inquiry.js:1`
 - Modify: `affiliate/index.html` stylesheet reference `affiliate.css?v=20260911a` → `?v=20260913a`. The `affiliate.css` bytes change and the old URL was served publicly `immutable` from `:3000`. `partner-program.css?v=20260909a` (Task 36) and both `*-inquiry.js?v=20260909a` (Tasks 33/34) were never served publicly, so they are not re-stamped (the Task 53 rule).
+- Create: `scripts/og/affiliate-og.html` (the share-card template, committed so the card is reproducible) and `content/atxwashdryfold/assets/images/affiliate-og-atxwashdryfold.png` (1350×940, rendered from it)
+- Delete: `content/atxwashdryfold/assets/images/affiliate-og.png`. The new card gets a NEW filename because the old URL is unstamped and was served publicly `immutable` — never overwrite an unstamped asset in place. The marketing manifest count stays 24.
+- Modify: `affiliate/index.html` og:image + twitter:image (`/assets/images/affiliate-og.png` → `/assets/images/affiliate-og-atxwashdryfold.png`, ×2); `tests/content-manifest.test.js` marketing keyFile; `tests/contentHandler.test.js` (Task 34's og-image count assertion URL)
 - Test (create): `tests/marketingBrandName.test.js`
 
 **Interfaces:**
 - Consumes: the Tasks 32–37 tree.
-- Produces: no `/rundberg/i` anywhere under `content/atxwashdryfold/` except the literal `825 E Rundberg Ln`; `og:site_name`, JSON-LD `name`, `provider.name` and `hiringOrganization.name` = `atxwashdryfold`.
+- Produces: no `/rundberg/i` anywhere under `content/atxwashdryfold/` text files except the literal `825 E Rundberg Ln`; `og:site_name`, JSON-LD `name`, `provider.name` and `hiringOrganization.name` = `atxwashdryfold`; `/affiliate` share image `https://atxwashdryfold.com/assets/images/affiliate-og-atxwashdryfold.png`.
 
 - [ ] **Step 1: Write the failing test** `tests/marketingBrandName.test.js`.
 
@@ -2864,6 +2867,12 @@ describe('marketing brand name is atxwashdryfold (owner decision 2026-09-13)', (
     expect(aff).toContain('/assets/css/affiliate.css?v=20260913a');
     expect(aff).not.toContain('affiliate.css?v=20260911a');
   });
+  test('the /affiliate share card is the re-rendered atxwashdryfold card; the Rundberg card is gone', () => {
+    expect(fs.existsSync(path.join(ROOT, 'assets', 'images', 'affiliate-og.png'))).toBe(false);
+    const png = fs.readFileSync(path.join(ROOT, 'assets', 'images', 'affiliate-og-atxwashdryfold.png'));
+    expect({ w: png.readUInt32BE(16), h: png.readUInt32BE(20) }).toEqual({ w: 1350, h: 940 });
+    expect(read('affiliate', 'index.html').split('https://atxwashdryfold.com/assets/images/affiliate-og-atxwashdryfold.png').length - 1).toBe(2);
+  });
   test.each(['/', '/affiliate'])('served %s on a marketing host names no Rundberg Laundry', async (p) => {
     const res = await request(app).get(p).set('Host', 'atxwashateria.com');
     expect(res.status).toBe(200);
@@ -2873,9 +2882,9 @@ describe('marketing brand name is atxwashdryfold (owner decision 2026-09-13)', (
 });
 ```
 
-- [ ] **Step 2: Run it.** `cd /mnt/c/Users/rickh/GitHub/crhs-corporate && npx jest tests/marketingBrandName.test.js`. Expected: `Tests:       6 failed, 1 passed, 7 total`. The street-address test passes already (it is a guard). The failures are `hit: true` on a marketing text file, the missing `og:site_name`/JSON-LD strings, `og: false`/`d: false` in the locale check, the missing `affiliate.css?v=20260913a`, and each served page matching `Rundberg Laundry`.
+- [ ] **Step 2: Run it.** `cd /mnt/c/Users/rickh/GitHub/crhs-corporate && npx jest tests/marketingBrandName.test.js`. Expected: `Tests:       7 failed, 1 passed, 8 total`. The street-address test passes already (it is a guard). The failures are `hit: true` on a marketing text file, the missing `og:site_name`/JSON-LD strings, `og: false`/`d: false` in the locale check, the missing `affiliate.css?v=20260913a`, the old share card still existing, and each served page matching `Rundberg Laundry`.
 
-- [ ] **Step 3: Apply every edit in one all-or-nothing script.** It checks every expected count and every line count first, and writes nothing if any check fails.
+- [ ] **Step 3: Apply every text edit in one all-or-nothing script.** It checks every expected count and every line count first, and writes nothing if any check fails.
 
 ```bash
 cd /mnt/c/Users/rickh/GitHub/crhs-corporate && cat > /tmp/b37-brand-edit.js <<'EOF'
@@ -2900,12 +2909,15 @@ const PAIRS = {
     [`<rect x="60" y="210" width="79" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">RUNDBERG</text>`,
      `<rect x="36" y="210" width="128" height="26" rx="13" fill="#201A17"/><text x="100" y="227" font-family="'Space Grotesk',system-ui,sans-serif" font-weight="700" font-size="12" fill="#ffffff" text-anchor="middle" letter-spacing="0.04em">ATXWASHDRYFOLD</text>`, 1],
     [`>Rundberg — the wash</text>`, `>atxwashdryfold — the wash</text>`, 1],
-    [`/assets/css/affiliate.css?v=20260911a`, `/assets/css/affiliate.css?v=20260913a`, 1]
+    [`/assets/css/affiliate.css?v=20260911a`, `/assets/css/affiliate.css?v=20260913a`, 1],
+    [`/assets/images/affiliate-og.png`, `/assets/images/affiliate-og-atxwashdryfold.png`, 2]
   ],
   [`${D}/assets/css/partner-program.css`]: [[`   Rundberg Laundry — Partner Program landing page`, `   atxwashdryfold — Partner Program landing page`, 1]],
   [`${D}/assets/css/affiliate.css`]: [[`   Rundberg Laundry — UT student affiliate page.`, `   atxwashdryfold — UT student affiliate page.`, 1]],
   [`${D}/assets/js/partner-inquiry.js`]: [[`/* Rundberg Laundry — partner inquiry form + language switch.`, `/* atxwashdryfold — partner inquiry form + language switch.`, 1]],
-  [`${D}/assets/js/affiliate-inquiry.js`]: [[`/* Rundberg Laundry — UT affiliate application form.`, `/* atxwashdryfold — UT affiliate application form.`, 1]]
+  [`${D}/assets/js/affiliate-inquiry.js`]: [[`/* Rundberg Laundry — UT affiliate application form.`, `/* atxwashdryfold — UT affiliate application form.`, 1]],
+  [`tests/content-manifest.test.js`]: [[`'assets/images/affiliate-og.png'`, `'assets/images/affiliate-og-atxwashdryfold.png'`, 1]],
+  [`tests/contentHandler.test.js`]: [[`'https://atxwashdryfold.com/assets/images/affiliate-og.png'`, `'https://atxwashdryfold.com/assets/images/affiliate-og-atxwashdryfold.png'`, 1]]
 };
 const out = [];
 const fail = (m) => { console.error(m); process.exit(1); };
@@ -2942,12 +2954,51 @@ for (const l of ['en', 'es', 'pt', 'de']) {
 for (const [f, s] of out) fs.writeFileSync(f, s);
 console.log(`brand edits applied to ${out.length} files`);
 EOF
-node /tmp/b37-brand-edit.js && grep -rci rundberg content/atxwashdryfold | grep -v ':0$'
+node /tmp/b37-brand-edit.js && grep -rci --include='*.html' --include='*.css' --include='*.js' --include='*.json' rundberg content/atxwashdryfold | grep -v ':0$'
 ```
 
-Expected: `brand edits applied to 10 files`, then exactly one line, `content/atxwashdryfold/affiliate/index.html:2` (the two street-address lines). If the script prints an `expected … found …` or `line count changed` message, nothing was written: STOP and report it.
+Expected: `brand edits applied to 12 files`, then exactly one line, `content/atxwashdryfold/affiliate/index.html:2` (the two street-address lines). If the script prints an `expected … found …` or `line count changed` message, nothing was written: STOP and report it.
 
-- [ ] **Step 4: Run the tests.** `npx jest tests/marketingBrandName.test.js tests/contentHandler.test.js tests/marketingBrandGuard.test.js tests/i18nParity.test.js tests/content-manifest.test.js`. Expected PASS, with `tests/marketingBrandName.test.js` at `Tests:       7 passed, 7 total`. Then run `npm test 2>&1 | grep -E '^Tests:'` (no `failed` segment), `npm run lint`, `npx madge --circular server/`, and the crhsent baseline (`node ~/crhs-cutover-baselines/crhsent-baseline.js "$PWD" > ~/crhs-cutover-baselines/a1/local/after-A3brand.json && diff ~/crhs-cutover-baselines/a1/local/before.json ~/crhs-cutover-baselines/a1/local/after-A3brand.json && echo IDENTICAL`).
+- [ ] **Step 3b: Render the new share card and retire the old one.** Create `scripts/og/affiliate-og.html` with exactly this content (the `/affiliate` "Clean Burnt-Orange" tokens from `assets/css/affiliate.css :root` and the tree's own fonts):
+
+```html
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>affiliate share card</title><style>
+@font-face{font-family:'Space Grotesk';font-weight:400 700;src:url('../../content/atxwashdryfold/assets/fonts/space-grotesk-latin.woff2') format('woff2')}
+@font-face{font-family:'Plus Jakarta Sans';font-weight:400 800;src:url('../../content/atxwashdryfold/assets/fonts/plus-jakarta-sans-latin.woff2') format('woff2')}
+html,body{margin:0;width:1350px;height:940px;overflow:hidden;background:#FFF8F1;color:#201A17}
+.brand{position:absolute;left:56px;top:62px;display:flex;align-items:center;gap:14px;font:700 30px/38px 'Space Grotesk',sans-serif;letter-spacing:-.01em}
+.dot{width:16px;height:16px;border-radius:50%;background:#BF5700;box-shadow:0 0 0 6px #FFEBDC}
+.tag{position:absolute;right:210px;top:56px;height:50px;padding:0 18px;border-radius:25px;background:#BF5700;color:#fff;font:700 19px/50px 'Space Grotesk',sans-serif}
+h1{position:absolute;left:60px;top:170px;margin:0;font:700 124px/108px 'Space Grotesk',sans-serif;letter-spacing:-.035em}
+h1 em{font-style:normal;color:#BF5700}
+.sub{position:absolute;left:60px;top:408px;margin:0;width:560px;font:500 30px/45px 'Plus Jakarta Sans',sans-serif;color:#4A423C;letter-spacing:-.01em}
+.pills{position:absolute;left:60px;top:525px;display:flex;gap:12px}
+.pill{box-sizing:border-box;height:52px;padding:0 18px;border-radius:26px;background:#fff;border:1px solid rgba(32,26,23,.12);font:700 17px/50px 'Space Grotesk',sans-serif}
+.card{position:absolute;left:822px;top:208px;width:318px;height:196px;border-radius:22px;background:#fff;box-shadow:0 14px 34px rgba(32,26,23,.10);transform:rotate(2deg);text-align:center}
+.pct{margin-top:34px;font:700 104px/1 'Space Grotesk',sans-serif;letter-spacing:-.04em;color:#BF5700}
+.yours{margin-top:14px;font:700 18px/1 'Space Grotesk',sans-serif;letter-spacing:.12em;color:#6B615A}
+</style></head><body>
+<div class="brand"><span class="dot"></span>atxwashdryfold</div>
+<div class="tag">UT Austin</div>
+<h1>GET <em>PAID</em> doing<br>laundry</h1>
+<p class="sub">Run pickup &amp; delivery for your dorm. Set your rates. Keep 100%.</p>
+<div class="pills"><span class="pill">Set your hours</span><span class="pill">Set your rates</span><span class="pill">No hands-on laundry</span><span class="pill">1099 · US work-eligible</span></div>
+<div class="card"><div class="pct">100%</div><div class="yours">YOURS</div></div>
+</body></html>
+```
+
+Then render, check the size, and retire the old card:
+
+```bash
+cd /mnt/c/Users/rickh/GitHub/crhs-corporate
+npx --yes playwright@1.47.2 screenshot --viewport-size "1350,940" --wait-for-timeout 1500 "file://$PWD/scripts/og/affiliate-og.html" content/atxwashdryfold/assets/images/affiliate-og-atxwashdryfold.png
+file content/atxwashdryfold/assets/images/affiliate-og-atxwashdryfold.png
+git rm -q content/atxwashdryfold/assets/images/affiliate-og.png && find content/atxwashdryfold -type f | wc -l
+```
+
+Expected: `PNG image data, 1350 x 940`, then `24`. If Playwright reports a missing browser, run `npx --yes playwright@1.47.2 install chromium` once and repeat. **Look at it:** open the new PNG next to the old card (`git show HEAD:content/atxwashdryfold/assets/images/affiliate-og.png > /tmp/b37-old-og.png`). Expected: the same layout — brand dot + wordmark top-left, "UT Austin" pill top-right, the two-line "GET PAID doing / laundry" headline with PAID in burnt orange, the two-line subline, four pills, the tilted "100% / YOURS" card — with `atxwashdryfold` where the old card said "Rundberg Laundry", nothing clipped, the real Space Grotesk / Plus Jakarta Sans faces (not a fallback). Adjust only the template's position/size values if something is clipped or overlaps, re-render, and re-check.
+
+- [ ] **Step 4: Run the tests.** `npx jest tests/marketingBrandName.test.js tests/contentHandler.test.js tests/marketingBrandGuard.test.js tests/i18nParity.test.js tests/content-manifest.test.js`. Expected PASS, with `tests/marketingBrandName.test.js` at `Tests:       8 passed, 8 total`. Then run `npm test 2>&1 | grep -E '^Tests:'` (no `failed` segment), `npm run lint`, `npx madge --circular server/`, and the crhsent baseline (`node ~/crhs-cutover-baselines/crhsent-baseline.js "$PWD" > ~/crhs-cutover-baselines/a1/local/after-A3brand.json && diff ~/crhs-cutover-baselines/a1/local/before.json ~/crhs-cutover-baselines/a1/local/after-A3brand.json && echo IDENTICAL`).
 
 - [ ] **Step 5: Look at the diagram.** The pill label grew from `RUNDBERG` to `ATXWASHDRYFOLD` and the legend from `Rundberg — the wash` to `atxwashdryfold — the wash`.
 
@@ -2958,14 +3009,14 @@ npx --yes playwright@1.47.2 screenshot --full-page --viewport-size "390,844" --w
 pkill -f "http-server@14.1.1 content/atxwashdryfold" || pkill -f "http-server content/atxwashdryfold"
 ```
 
-  Open both PNGs and find the three-card workflow diagram. Expected: `ATXWASHDRYFOLD` sits inside its dark pill with at least 8px of pill on each side, the pill stays inside its card, and the legend `atxwashdryfold — the wash` does not touch the next legend dot. If the label is clipped or crowded, widen the pill symmetrically about `x=100` (keep `x + width/2 = 100`) and re-check; the rect is the only value that may change. If Playwright reports a missing browser, run `npx --yes playwright@1.47.2 install chromium` once and repeat.
+  Open both PNGs and find the three-card workflow diagram. Expected: `ATXWASHDRYFOLD` sits inside its dark pill with at least 8px of pill on each side, the pill stays inside its card, and the legend `atxwashdryfold — the wash` does not touch the next legend dot. If the label is clipped or crowded, widen the pill symmetrically about `x=100` (keep `x + width/2 = 100`) and re-check; the rect is the only value that may change.
 
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add content/atxwashdryfold tests/marketingBrandName.test.js && git commit -m "feat(marketing): brand name → atxwashdryfold across the marketing tree (owner decision 2026-09-13)
+git add -A content/atxwashdryfold && git add scripts/og/affiliate-og.html tests/marketingBrandName.test.js tests/content-manifest.test.js tests/contentHandler.test.js && git commit -m "feat(marketing): brand name → atxwashdryfold across the marketing tree (owner decision 2026-09-13)
 
-Pages, OG/JSON-LD, partner.meta locale strings (en/es/pt/de) and header comments; street address 825 E Rundberg Ln kept; affiliate.css re-stamped 20260913a.
+Pages, OG/JSON-LD, partner.meta locale strings (en/es/pt/de), header comments, and a re-rendered /affiliate share card (affiliate-og-atxwashdryfold.png, template in scripts/og/); street address 825 E Rundberg Ln kept; affiliate.css re-stamped 20260913a.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
