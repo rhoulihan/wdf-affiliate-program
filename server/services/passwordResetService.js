@@ -75,7 +75,15 @@ async function forgotPassword({ email, userType, cryptoWrapper }) {
   user.resetTokenExpiry = Date.now() + RESET_TOKEN_TTL_MS;
   await user.save();
 
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&type=${userType}`;
+  // Link to the SPA shell, not the bare `/reset-password` clean path: that path
+  // exists only in the client-side router (public/assets/js/embed-app-v2.js),
+  // so no server route serves it — on the marketing hosts it fell through to
+  // the marketing page (HTTP 200) and the token was silently discarded. The
+  // shell form is what every other emailed app link uses (see
+  // services/email/dispatcher/customer.js, modules/onboarding/inviteService.js)
+  // and it survives the Plan 3 cutover, where /embed-app-v2.html is 301'd from
+  // the marketing hosts to the portal by the B7 legacy redirects.
+  const resetUrl = `${process.env.FRONTEND_URL}/embed-app-v2.html?route=/reset-password&token=${encodeURIComponent(resetToken)}&type=${userType}`;
   await emailService[RESET_EMAIL_SENDERS[userType]](user, resetUrl);
 }
 

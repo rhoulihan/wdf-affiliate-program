@@ -158,6 +158,29 @@ describe('Email Service Integration', () => {
   });
 
   describe('Email Template Verification', () => {
+    // The dispatchers pass `reset_url` / `first_name`; a template whose
+    // placeholder names don't match renders an EMPTY string (fillTemplate logs
+    // a warning and substitutes ''), so the recipient gets a reset email with
+    // no link at all. Pin both shipped reset templates against that drift.
+    it('renders the reset link in every password-reset template', async () => {
+      const { loadTemplate, fillTemplate } = require('../../server/services/email/template-manager');
+      const resetUrl = 'https://rundberglaundry.com/embed-app-v2.html?route=/reset-password&token=abc123&type=affiliate';
+
+      for (const templateName of ['affiliate-password-reset', 'administrator-password-reset']) {
+        const html = fillTemplate(await loadTemplate(templateName), {
+          first_name: 'Pat',
+          affiliate_id: 'AFF-1',
+          admin_id: 'ADM-1',
+          reset_url: resetUrl,
+          expire_time: '1 hour',
+          current_year: 2026
+        });
+
+        expect(html).toContain(resetUrl);
+        expect(html).toContain('Pat');
+      }
+    });
+
     it('should verify email templates directory exists', async () => {
       const actualFs = jest.requireActual('fs').promises;
       const templateDir = path.join(__dirname, '../../server/templates/emails');

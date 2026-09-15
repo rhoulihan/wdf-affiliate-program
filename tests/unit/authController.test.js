@@ -525,6 +525,50 @@ describe('Auth Controller', () => {
         message: 'If an account with that email exists, a password reset link has been sent.'
       });
     });
+
+    // Regression guard: the emailed link must be the SPA shell
+    // (/embed-app-v2.html?route=/reset-password), never the bare clean path.
+    // There is no server route for GET /reset-password — only the SPA client
+    // router knows it — so the bare form fell through to the marketing page
+    // (HTTP 200) and the token was silently discarded.
+    test.each([
+      ['affiliate', () => Affiliate, 'sendAffiliatePasswordResetEmail'],
+      ['administrator', () => Administrator, 'sendAdministratorPasswordResetEmail']
+    ])('emails a SPA-shell reset link for %s, never the bare /reset-password path', async (userType, getModel, sender) => {
+      const originalFrontendUrl = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://rundberglaundry.com';
+
+      try {
+        const Model = getModel();
+        req.body = { email: `${userType}@example.com`, userType };
+
+        const mockUser = {
+          _id: 'user-1',
+          email: `${userType}@example.com`,
+          save: jest.fn().mockResolvedValue(true)
+        };
+        Model.findOne = createFindOneMock(mockUser);
+        Model.findOne.mockResolvedValue(mockUser);
+        emailService[sender] = jest.fn().mockResolvedValue(true);
+
+        await authController.forgotPassword(req, res, next);
+
+        expect(emailService[sender]).toHaveBeenCalledTimes(1);
+        const resetUrl = emailService[sender].mock.calls[0][1];
+
+        expect(resetUrl).toContain('/embed-app-v2.html?route=/reset-password');
+        expect(resetUrl).toContain('token=mock-token');
+        expect(resetUrl).toContain(`type=${userType}`);
+        // The clean path has no server route — it must never be emailed.
+        expect(resetUrl).not.toMatch(/^https?:\/\/[^/]+\/reset-password\?/);
+      } finally {
+        if (originalFrontendUrl === undefined) {
+          delete process.env.FRONTEND_URL;
+        } else {
+          process.env.FRONTEND_URL = originalFrontendUrl;
+        }
+      }
+    });
   });
 
   describe('resetPassword', () => {
