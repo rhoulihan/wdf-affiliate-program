@@ -585,6 +585,26 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       street address `825 E Rundberg Ln` kept. Delivered in the corporate content app as Plan 2 Task 37b; the live `:3000`
       pages change at the Plan 3 nginx flip.
 
+### Owner decisions 2026-09-14 — franchisor IP exposure ✅ SHIPPED + DEPLOYED
+
+- [x] **`/wavemax-affiliate` retired** (`421bbc87`). The WaveMAX-branded ad-funnel page and its two dedicated assets are deleted;
+      both paths answer **410 Gone** with `public, max-age=86400`, no Location. Chosen over a 301 so no mark-bearing URL stays in
+      service. Printed flyer QR codes pointing at that URL now hit the 410 (accepted); the flyer generator's default URL moved to
+      `/affiliate`. ⚠️ Found en route: that page's OG card `affiliate-ad-og.png` rendered the franchisor's galaxy-swirl logo and was
+      also the app-wide `BRAND_OG_IMAGE_PATH` default — a survivor of the August DMCA sweep, which only covered `images/brand/`.
+      Deleted; the default now points at the clean wordmark.
+- [x] **451 orphaned franchisor location photos deleted** (`a32e4349`, 447 MiB). Provenance recorded in our own code: they mirror
+      `wavemaxlaundry.com/wp-content/uploads/locations/`. Kept the 5 referenced `austin-tx` files (hero-1.webp for the live partner
+      page and the counsel hold; four interiors for the gated design explorer). `wm-image-config.js` was orphaned and removed.
+- [x] **Deployed both boxes 2026-09-14** (oci1 → verified → oci2), `pm2 reload wavemax`. Verified through Cloudflare on all
+      marketing zones. No CF purge needed (page DYNAMIC, assets BYPASS).
+- [ ] **Still exposed: git history.** All 451 photos and the swirl OG card remain in the PUBLIC repo's history; a clone still costs
+      ~448 MiB. Removing them means rewriting history on a public repo — destructive, breaks existing clones. Separate owner decision.
+- [ ] Follow-up (minor): a deleted `/assets/*` path now 302s to `/embed-app-v2.html` via the location quarantine rather than 404ing.
+      Nothing franchisor-owned is served, but a clean 404 would be tidier for crawlers holding old photo URLs.
+- [ ] Follow-up (minor): the separation spec cites a guard `tests/unit/locationImages.test.js` that does not exist — nothing stops the
+      location tree growing back.
+
 ### Owner decision 2026-09-13 — marketing hero photo (COUNSEL HOLD)
 
 - [ ] **For counsel (Miguel):** `public/assets/images/locations/austin-tx/hero-1.webp` is a storefront photo showing the
