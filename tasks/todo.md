@@ -322,6 +322,40 @@ mediator password. Same code: `safeNext` open redirect (`//evil.example`).
 
 ### Plan 3 pre-flight notes (collected from Plan 2 reviews, 2026-09-13/14)
 
+#### ⛔ Cutover gate — marketing-host paths that work TODAY and 404 after the Plan 3 flip
+
+Found by the Plan 2 Task 46 review, by evaluating the affiliate app's own `partnerLanding._isExempt()`
+(`server/middleware/partnerLanding.js:89-112`) — the authoritative list of portal paths that reach the app on the four
+marketing hosts — against B7's `EXACT_PATHS`. **Verified safe:** the only printed QR (`labelSheetService.js:95-96`) and
+every absolute email link (`/embed-app-v2.html?…`, `/api/v1/customers/verify-email/…`) ARE covered by B7, and the email
+logo path resolves 200 on the content app. Gaps:
+
+- [ ] **Legal pages — highest value.** `/privacy-policy(/|.html)`, `/terms-of-service(/)`, `/terms-and-conditions(.html)`.
+      Served at affiliate `server.js:984/986/988`, `embedRoutes.js:17`, static `:673`; exempt at `partnerLanding.js:89-92`;
+      `quarantineConfig.js:45` marks them "required for payment processor + compliance". The content app has NO legal pages,
+      yet corporate `seoRoutes.js:34` already points security.txt's `Policy:` at `portal.atxwashdryfold.com/privacy-policy`.
+      Needs B7 entries or content-app pages BEFORE Phase 0a.
+- [ ] **`/design-explorer` + `/design-explorer/*`** (`server.js:648`, `explorerGuard`, `?k=EXPLORER_TOKEN`). Live on
+      rundberglaundry.com and the `?k=` links were shared for the franchisor design review — litigation-adjacent.
+- [ ] **`*-embed.html` fragments** except `/operator-scan-embed.html` (`embedRoutes.js:14-51`). Low risk (same-origin SPA
+      fetches follow the shell to the portal); breaks only a direct bookmark or a third-party iframe — and this repo ships an
+      `embed` skill that generates exactly such snippets.
+- [ ] **`/wavemax-affiliate`** — now a deliberate **410** (`server.js:826`, trademark compliance, printed flyers). After the
+      flip it becomes a plain 404 on the very hosts the flyers name. Decide whether to carry the 410 into the content app.
+- [ ] **`/monitoring/`** — B7 redirects `/monitoring-dashboard.html`, which the portal 302s to `/monitoring/`; that landing
+      URL (what a bookmark holds) is not covered. Admin-only, no email or QR path.
+- [ ] **`/refund-policy`** — in `quarantineConfig.js:49` but absent from `partnerLanding._isExempt`, so already shadowed
+      today. No regression, but inconsistent with the other legal pages; resolve alongside the first item.
+- [ ] **POST surfaces** `/api/concierge` (`server.js:713`) and the partner-inquiry POST now get Task 45's 404 JSON on
+      marketing hosts. Out of B7 scope by design (GET/HEAD only); handle when the concierge and partner form move.
+
+#### ⛔ PR A6 must not reach a box without PR A7
+
+- [ ] Plan 2 Task 45 makes marketing `POST /api/partner-inquiry` and `/api/affiliate-application` answer 404 JSON until
+      Task 53 mounts the intake router above it. The shipped marketing JS posts to both. Nothing deploys before Phase 0a,
+      so there is no live exposure — but A6 and A7 must land together. Stated in the A6 PR description; check at the gate.
+
+
 - [ ] **Content-owned client JS vs web-core fall-through.** Corporate `server/contentHandler.js` `next()`s to `server/webCoreAssets.js` on ANY
       sendFile error. Before any page ships its own `/assets/js/i18n.js` or `language-switcher.js`, fall through only on a real miss
       (ENOENT/ENOTDIR or `err.status === 404`) and end other errors `no-store` — otherwise a Range/If-Match error on the content-owned
