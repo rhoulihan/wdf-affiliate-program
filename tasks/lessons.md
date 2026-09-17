@@ -78,3 +78,35 @@ implementers all passed first-try, but the margin isn't worth the savings.)
   enterprise architecture → secure, highly-available, enterprise-grade systems *without the
   enterprise price tag*. The DB/AI IP is the credibility/evidence spine, not the headline.
   Keep H1 "WE BUILD THE REAL THING." Generic competitor framing; nothing legal/tax/personal.
+
+## 2026-09-17 — Verifying a deploy with a cache-buster can hide a half-deployed fix
+Fixing the forgot-password form (the shared validator was never loaded, so it
+rejected every email), I deployed `public/` changes, then verified live with
+`curl "…/assets/js/embed-app-v2.min.js?lh=$(date +%s)"` and saw the fix. **That
+proved nothing about real users.** The SPA shell serves the bundle as
+`embed-app-v2.min.js?v={{ASSET_VERSION}}`, and those assets ship
+`public, max-age=31536000, immutable`. A returning browser requests the *old*
+URL it already holds and never re-fetches. New visitors were fixed; repeat
+visitors were not — and every check I ran looked green.
+
+**Rules:**
+1. **Verify at the exact URL a browser will request**, never with a unique
+   cache-buster appended. A `?lh=` probe answers "is the origin correct?", not
+   "will a user get it?" — those are different questions and only the second
+   one matters.
+2. **Changing `embed-app-v2.js`'s `pageScripts`/`pageStyles` maps, or
+   `public/locales/*/common.json`, requires bumping `ASSET_VERSION` in
+   `server/config/assetVersion.js`.** The file documents this; I still missed
+   it. That bump is server code → needs `pm2 reload`, which turns a
+   "static-only, pull is enough" deploy into a reload deploy.
+3. **`public/` edits are not automatically reload-free.** Check whether the
+   change also requires a version token that lives in server code.
+4. Related, already known but it bit again: the SPA shell serves
+   `embed-app-v2.min.js`, **not** `embed-app-v2.js`. A source edit to the route
+   map is inert until `npm run build:assets` regenerates the bundle.
+
+Root defect worth remembering separately: `validateEmail` was
+`!!(window.FormValidation && …)` — a **fail-closed** dependency check. When the
+helper was missing it rejected every address and blamed the user's email. A
+client-side validator that cannot load should fall back or defer to the server,
+never deny.
