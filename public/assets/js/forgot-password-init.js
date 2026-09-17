@@ -28,8 +28,17 @@
 
         // Validation functions — delegates to the shared helper in
         // form-validation.js so the regex lives in exactly one place.
+        // Fall back if that helper is ever absent (a load failure, or a page
+        // that forgets to include it) instead of rejecting every address: the
+        // server validates with validator.isEmail and is the authority, and
+        // failing closed here locks every user out of password reset with a
+        // message that blames their perfectly valid email. The fallback is the
+        // same shape the server enforces in middleware/sanitization.js.
         function validateEmail(email) {
-            return !!(window.FormValidation && window.FormValidation.isValidEmail(email));
+            if (window.FormValidation && window.FormValidation.isValidEmail) {
+                return window.FormValidation.isValidEmail(email);
+            }
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
         }
 
         function showFieldError(field, show = true) {
