@@ -110,3 +110,31 @@ Root defect worth remembering separately: `validateEmail` was
 helper was missing it rejected every address and blamed the user's email. A
 client-side validator that cannot load should fall back or defer to the server,
 never deny.
+
+## Never compare nonce-bearing pages by content hash (2026-09-19)
+
+During Plan 2 Task 76 I hashed `crhsent.com/` on both boxes to check for split-brain after
+deploying new code to oci1 only. The hashes differed (`2d9a1cf44d` vs `1cf6445c23`) and I nearly
+reported a content divergence. The pages were **byte-identical in length** (18680 both) and the
+only differing lines were the 5 occurrences of the **per-request CSP nonce**. There was no
+divergence at all.
+
+**Rule:** a page carrying a per-request nonce (every page in these apps — `<meta name="csp-nonce">`
+plus `nonce=` on every style/script tag) has a different hash on every single request, from the same
+box. Hashing it proves nothing. To compare such pages across boxes, either strip the nonce first
+(`sed -E 's/nonce="[^"]*"//g; s/content="[A-Za-z0-9+\/=]{16,}"//g'`) or compare byte length + a
+structural diff. Same trap applies to comparing before/after a deploy.
+
+## On-box HTTP probes need `X-Forwarded-Proto: https` (2026-09-19)
+
+Third instance in Plan 2. Both apps force HTTPS, so any on-box `curl http://127.0.0.1:<port>/...`
+without `-H "X-Forwarded-Proto: https"` gets a **302** to the public URL instead of the real
+response. Task 75 Steps 8/9 and Task 76 Step 3 all expect `200` from headerless probes and so all
+report a false FAIL on a correct deploy; the Task 77 CORS probe fails the other way and would have
+produced a false PASS.
+
+**How I proved it rather than assuming:** ran the identical headerless probe against the *untouched*
+oci2. It returned the same 302, so the redirect predated the deploy. Then the corrected probe
+returned 200, the 302's `Location` was the https form of the same path, and the public CF URL was
+200. **Always find a control that cannot have been affected by the change** before writing off an
+unexpected result as a probe artifact.
