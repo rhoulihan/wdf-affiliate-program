@@ -162,3 +162,24 @@ mailbox** rather than an alias — Postfix logs `orig_to=` only on a rewrite. `p
 
 **Rule:** match `(orig_)?to=<addr>` when the recipient might be either, and know which of your
 addresses are aliases and which are mailboxes before writing the assertion.
+
+## Never put `&` inside a `run_in_background` call (2026-09-19)
+
+Starting a 16-run Lighthouse sweep, I launched the script with `&` *inside* a Bash call that already
+had `run_in_background: true`. The harness tracked only the trivial foreground part, reported
+**exit 0 within seconds**, and the detached script was killed with its parent shell after **1 of 16
+runs**.
+
+**Rule:** with `run_in_background: true`, run the long command in the *foreground* of that call. The
+harness backgrounds it and notifies on real completion. `&` inside is double-backgrounding and the
+inner process dies.
+
+## A gate that globs files must assert the expected COUNT (2026-09-19)
+
+The consequence of the above was worse than the lost time. The scoring gate globbed
+`*-<date>.json`, found the single report that had been written, graded it, and printed
+`PASS … exit=0`. **A green gate over 1/16 of the evidence.**
+
+The only thing that caught it was the spec printing `files 16` alongside the verdict. Any check that
+iterates over "whatever matched" must assert how many it expected to match, and that assertion — not
+the pass/fail of the items found — is the one that carries the safety.
