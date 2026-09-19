@@ -138,3 +138,27 @@ oci2. It returned the same 302, so the redirect predated the deploy. Then the co
 returned 200, the 302's `Location` was the https form of the same path, and the public CF URL was
 200. **Always find a control that cannot have been affected by the change** before writing off an
 unexpected result as a probe artifact.
+
+## `docker compose logs --since` can silently return nothing (2026-09-19)
+
+Verifying a live mail send on the Mailcow host, `docker compose logs --since 15m postfix-mailcow`
+returned **zero lines** — not zero matches, zero output — while the container was running and
+logging normally. `--tail 4000` returned the full log instantly.
+
+The empty result reads exactly like "the mail never sent", which is the signature of the August 2026
+outage, and the plan's instruction on that branch was to escalate to a rollback. **Use `--tail <n>`
+against this host, not `--since`.**
+
+**Cross-reference that actually works:** the app logs `Email sent: <message-id>`. Grep that ID in the
+postfix log to get the queue ID, then grep the queue ID for `status=`/`dsn=`. That chains app-side
+submission to wire-side delivery with no time filter involved.
+
+## `orig_to=` only appears when Postfix rewrites an address (2026-09-19)
+
+A check written as `grep 'orig_to=<recipient>'` silently fails for any recipient that is a **real
+mailbox** rather than an alias — Postfix logs `orig_to=` only on a rewrite. `pickups@atxwashdryfold.com`
+(an alias) logs `to=<admin@crhsent.com>, orig_to=<pickups@atxwashdryfold.com>`; `admin@crhsent.com`
+(the mailbox itself) logs only `to=<admin@crhsent.com>`.
+
+**Rule:** match `(orig_)?to=<addr>` when the recipient might be either, and know which of your
+addresses are aliases and which are mailboxes before writing the assertion.
