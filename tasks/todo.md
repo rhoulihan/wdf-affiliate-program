@@ -405,6 +405,18 @@ until they do, the only record was prose inside a 61-task plan document.
 - P-12 not executed — superseded by Plan 1 Tasks 59-61 (/health/origin).
 - OUT of P0: P-2/P-4/P-5/P-6 → corporate A1-A9; P-7/P-8 env + gate identity → A69 Task 57/59 + GATE Tasks 74-75; P-9 → Phase 0b; P-11 → Plan 3.
 
+### Plan 2 Phase 0a record (2026-09-19)
+
+- D-1 B3g / B3j / B3k and the repo-wide `tests/brandNeutral.test.js` shipped in `@crhs/web-core` v0.2.1 (tag commit `768bfdbf4fb820a7918b557a4e15f8e3c210e54c`), deployed oci1 2026-09-19T14:03:42Z and oci2 2026-09-19T14:03:51Z.
+- crhs-corporate `c636bf5c59b48266295f4e0d795487ebd7dd54a5` live DARK on :3001 on both boxes; nginx unchanged, the marketing hosts still reach :3000.
+- S1 gate: oci1 `SUMMARY S1 fails=0 pending=0`; oci2 `SUMMARY S1 fails=0 pending=0`.
+- Cross-box parity 20/20 SAME; one normalized body across the four marketing hosts; identical installs and corporate `.env`.
+- Lighthouse dark-origin baseline 2026-09-19: 16/16 Accessibility/Best Practices/SEO = 100; Performance informational (ruling R-8) — `docs/development/LIGHTHOUSE-QUALITY-BAR.md`.
+- F-1 closed: 0 `access-control-allow-origin` for `http://localhost:3000` / `https://wavemax.promo` on crhsent.com, the four marketing hosts and the portal. F-2 closed: `CORPORATE_SITE_URL` deleted.
+- `LOG_DIR` absolute in all four `.env` files; corporate log lines tagged `crhs-corporate`; gate mail sends as `"CRHS Enterprises" <no-reply@crhsent.com>`.
+- Corporate session cookie `__Host-crhsent.sid` + `sessions_corporate`; nobody logged out (0 `req.session` references, ruling R-10).
+- Still open: D-2 (Plan 4 PR B7). D-3 DONE 2026-09-11 (web-core `d2725e7`, affiliate `a37dc497`).
+
 ### D-2. Affiliate PR B7 (rate-limit adoption) → Plan 4
 
 **This section IS the Plan 1 Task 42 hand-off of record** (Task 42 ran 2026-09-12 and found D-2
