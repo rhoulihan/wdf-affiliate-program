@@ -16,13 +16,15 @@ state must be explained or fixed).
 ## How to measure (local Lighthouse, system Chrome)
 
 ```bash
+# H = rundberglaundry.com | runberglaundry.com | atxwashateria.com | atxwashdryfold.com; PAGE = "" (partner page) or "affiliate".
+# These pages are served by crhs-corporate :3001 (see "Content origin baseline (2026-09)" for the pre-flip dark-origin form).
 # Desktop
-CHROME_PATH=/opt/google/chrome/chrome npx --yes lighthouse "https://rundberglaundry.com/?lh=$(date +%s)" \
+CHROME_PATH=/opt/google/chrome/chrome npx --yes lighthouse "https://$H/$PAGE?lh=$(date +%s)" \
   --preset=desktop --output=json --output-path=/tmp/lh-desktop.json \
   --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" --quiet
 
 # Mobile
-CHROME_PATH=/opt/google/chrome/chrome npx --yes lighthouse "https://rundberglaundry.com/?lh=$(date +%s)" \
+CHROME_PATH=/opt/google/chrome/chrome npx --yes lighthouse "https://$H/$PAGE?lh=$(date +%s)" \
   --form-factor=mobile --screenEmulation.mobile=true --output=json --output-path=/tmp/lh-mobile.json \
   --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage" --quiet
 ```
@@ -39,8 +41,8 @@ In-memory template caching + immutable asset caching both mask deploys. After de
 measuring:
 
 ```bash
-curl -s "https://rundberglaundry.com/?lh=$(date +%s)" -o /tmp/p.html
-grep -o "wavemax-mhr-chrome.css?v=[0-9a-z]*" /tmp/p.html   # new ?v= stamp present?
+curl -s "https://$H/?lh=$(date +%s)" -o /tmp/p.html
+grep -o "partner-program.css?v=[0-9a-z]*" /tmp/p.html   # new ?v= stamp present?
 grep -c 'aria-label="Choose language"' /tmp/p.html          # changed markup gone?
 ```
 
@@ -57,8 +59,9 @@ grep -c 'aria-label="Choose language"' /tmp/p.html          # changed markup gon
 2. **`git pull --ff-only` on BOTH web boxes** — dual-AZ active-active: oci1 `161.153.71.201` +
    oci2 `144.24.4.202` (`ssh -i ~/.ssh/oci_wavemax ubuntu@<ip>`). Keep them lockstep — same commit.
    (Ultahost is mail-only now, not a web box.) Full sequence: `docs`/memory "Deployment procedure".
-3. **`pm2 reload wavemax` on BOTH boxes if you touched a server-rendered template**
-   (`franchise-host.html` is cached in memory in prod — `git pull` alone won't deploy it).
+3. **`pm2 reload wavemax` on BOTH boxes if you touched a server-rendered portal template**, and
+   **`pm2 reload crhs-corporate --update-env` on BOTH boxes after any change under `crhs-corporate/server/`**
+   (the marketing hosts' pages are served by the content app on :3001, delivered by rsync, not `git pull`).
    Pure `express.static` assets don't need a reload. See `tasks/lessons.md`.
 
 ---
@@ -119,14 +122,39 @@ grep -c 'aria-label="Choose language"' /tmp/p.html          # changed markup gon
 
 ---
 
-## Current baseline (rundberglaundry.com landing, 2026-05-24)
+## Content origin baseline (2026-09)
 
-| | Performance | Accessibility | Best Practices | SEO |
-|---|---|---|---|---|
-| Desktop | ~95 | **100** | **100** | **100** |
-| Mobile  | **98** | **100** | **100** | **100** |
+Measured on 2026-09-19 in Plan 2 Phase 0a on the DARK content origin (`crhs-corporate` :3001): oci1 all 16 runs,
+oci2 `atxwashdryfold.com/` spot-checked. Path: `--host-resolver-rules="MAP <host> 127.0.0.1:18443"
+--ignore-certificate-errors` -> `scripts/ops/lh-dark-origin-proxy.js` -> ssh tunnel -> box :3001 (the literal
+`MAP <host> <box-ip>` would have measured nginx -> :3000 while the hosts were unflipped).
 
-All four categories at/near 100 on real Google PSI (2026-05-24). Performance is bound by the
-iframe + marketing 3rd-parties (Meta pixel deferred to post-load); our own code scores
-`bootup-time` and `main-thread-work` = 1. SEO reached 100 once CF's managed robots.txt was
-disabled (see SEO section).
+- **Gating (C14): Accessibility 100, Best Practices 100, SEO 100** on `/` and `/affiliate`, mobile and desktop,
+  on all four marketing hosts. These categories do not depend on the network path.
+- **Performance below is informational** (declared deviation, controller ruling R-8): the tunnel adds WAN
+  latency (median `ssh ... true` 0.760 s) and the shim has no nginx gzip or HTTP/2. The authoritative Performance
+  gate (C14: >= 95 mobile and desktop; a per-host spread > 3 points blocks that host's flip) is measured in
+  Plan 3 through Cloudflare, immediately before and immediately after each host's flip, with the commands above.
+
+| Host | Page | Form factor | Accessibility | Best Practices | SEO | Performance (informational) |
+|---|---|---|---|---|---|---|
+| rundberglaundry.com | / | desktop | 100 | 100 | 100 | 98 |
+| rundberglaundry.com | / | mobile | 100 | 100 | 100 | 83 |
+| rundberglaundry.com | /affiliate | desktop | 100 | 100 | 100 | 100 |
+| rundberglaundry.com | /affiliate | mobile | 100 | 100 | 100 | 99 |
+| runberglaundry.com | / | desktop | 100 | 100 | 100 | 98 |
+| runberglaundry.com | / | mobile | 100 | 100 | 100 | 83 |
+| runberglaundry.com | /affiliate | desktop | 100 | 100 | 100 | 99 |
+| runberglaundry.com | /affiliate | mobile | 100 | 100 | 100 | 99 |
+| atxwashateria.com | / | desktop | 100 | 100 | 100 | 100 |
+| atxwashateria.com | / | mobile | 100 | 100 | 100 | 84 |
+| atxwashateria.com | /affiliate | desktop | 100 | 100 | 100 | 100 |
+| atxwashateria.com | /affiliate | mobile | 100 | 100 | 100 | 99 |
+| atxwashdryfold.com | / | desktop | 100 | 100 | 100 | 93 |
+| atxwashdryfold.com | / | mobile | 100 | 100 | 100 | 83 |
+| atxwashdryfold.com | /affiliate | desktop | 100 | 100 | 100 | 99 |
+| atxwashdryfold.com | /affiliate | mobile | 100 | 100 | 100 | 99 |
+
+The 2026-05-24 "Current baseline (rundberglaundry.com landing)" table measured the Phase-4b-retired franchise
+landing (iframe- and third-party-bound, not `partner-program.html`) and is RETIRED: it is not a threshold for
+any page.
