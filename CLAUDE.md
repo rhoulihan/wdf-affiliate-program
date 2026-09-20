@@ -14,7 +14,12 @@ This codebase is mid-refactor. Canonical documents:
 
 **Scope context:** clean-slate redeploy — **the invite-only onboarding + durable-bags + order-at-intake redesign is built** (canonical spec: [`docs/superpowers/specs/2026-06-08-invite-bag-workflow-redesign-design.md`](docs/superpowers/specs/2026-06-08-invite-bag-workflow-redesign-design.md)). V1 Paygistix, customer scheduling / Pickup Now, BetaRequest, and the `?affid` referral funnel are removed. Superseded `.claude/CLAUDE.md` handbook sections carry a *Replaced (redesign)* note pointing at the spec.
 
-**Critical security finding:** `keys/docusign_private.pem` is committed to a public GitHub repo. Treat as compromised. See plan §0.1.
+**Security status (re-verified 2026-09-20):** the historic `keys/docusign_private.pem` finding is **no longer
+present** — no `.pem`/`.key`/`.p12`/`.pfx` file has ever been added on any branch or tag, and a scan of the
+commit history found no private-key blobs. DocuSign itself was removed in the redesign. No live token values
+(`cfat_`, `ghp_`, `AKIA`, key blocks) appear in tracked content. **This repo is PUBLIC**
+(`github.com/rhoulihan/wdf-affiliate-program`) — keep `keys/`, `secure/`, `temp/`, `*.pem`, `*.key` and every
+`.env*` variant out of it, and never commit a secret value even in a test fixture.
 
 ---
 
