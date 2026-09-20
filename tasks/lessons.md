@@ -183,3 +183,21 @@ The consequence of the above was worse than the lost time. The scoring gate glob
 The only thing that caught it was the spec printing `files 16` alongside the verdict. Any check that
 iterates over "whatever matched" must assert how many it expected to match, and that assertion — not
 the pass/fail of the items found — is the one that carries the safety.
+
+## A load-balancer health monitor does not fail over instantly (2026-09-20)
+
+During the Plan 2 P-16 drill I stopped `crhs-corporate` on one of the two OCI boxes, expecting the
+Cloudflare LB to keep crhsent.com served from the other. **2 of 6 public probes returned 502.**
+
+The CF API showed why: the pool was mid-propagation — **188 of 302 PoPs had marked the box unhealthy,
+114 still routed to it**, and those hit an nginx whose `:3001` upstream was dead. The origin's own
+`/health/origin` returned 503 the whole time, so the monitor was working; the gap is purely
+propagation latency across PoPs.
+
+**Rules:**
+- "The LB will fail it over" is not the same as "users see no errors." Budget ~1-2 min of partial
+  5xx for any origin outage, and say so in any plan step that assumes seamless failover.
+- To diagnose, read the LB's per-PoP health from the API, not just the aggregate `healthy` boolean —
+  the aggregate hid a 62/38 split.
+- A self-healing cron can fix the box *faster than the LB converges*, which means the outage can end
+  before failover completes. Both mechanisms are worth having; neither alone makes an outage invisible.
