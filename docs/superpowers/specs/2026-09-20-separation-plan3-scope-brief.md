@@ -137,3 +137,72 @@ leave it half-true.
 6. web-core released with the nonce fix, SMTP timeouts, logger splat and the i18n cache fix.
 7. A single written list of anything escalated to the owner/counsel (LICENSE, legal pages), so the
    backlog is clear **because items were closed or escalated**, never because they were forgotten.
+
+---
+
+# Corrections found during drafting (2026-09-20)
+
+Slices B and E contradicted this brief in nine places. Each below was **re-verified by the controller
+against production or the tree** — these supersede anything above.
+
+## ⛔ Severity-1
+
+**C-1. Item 21 is 26 dead keys, not 3 — and one is a live plaintext private key.**
+Verified on BOTH boxes: `/var/www/wavemax/wavemax-affiliate-program/.env` contains
+`DOCUSIGN_PRIVATE_KEY=` followed by a real `-----BEGIN PRIVATE KEY-----` block (**26 further lines**),
+plus 2 OAuth client secrets per box. DocuSign was deleted from the code in the redesign, so this is
+dead config holding a live credential.
+- It is also now inside every `.env` backup and tree snapshot taken 2026-09-19/20.
+- **Deletion must be by LINE RANGE.** `grep -v '^DOCUSIGN_PRIVATE_KEY='` strips only the first line
+  and leaves 26 orphan base64 lines still holding the key.
+- Revoke at DocuSign regardless of removal — provenance is unknown.
+- Owner decision pending: standalone fix vs inside Plan 3's sequence.
+
+**C-2. Password reset breaks at the `rundberglaundry.com` flip.**
+`server/services/passwordResetService.js:86` builds every reset link from `FRONTEND_URL`, which is
+`https://rundberglaundry.com` on both boxes (verified). Flipping that host breaks password reset for
+affiliates, administrators and operators. **Slice E's `FRONTEND_URL` → `BASE_URL` fix is a hard
+prerequisite of that flip**, and the flip task must ASSERT the fix is deployed before touching nginx.
+
+## Severity-2
+
+**C-3. `ofelia` is being OOM-killed, not merely "near its cap".** The brief (and the controller's own
+2026-09-20 report) said 89% of 256 MiB. Kernel log, verified: `Memory cgroup out of memory: Killed
+process … (ofelia)` at 23:42 and 00:32; `RestartCount` 6 → 7 within an hour; ~40-minute cadence.
+`docker inspect .State.OOMKilled` reads `false` **because that field describes only the last exit** —
+that is what hid it. A cap raise doubles the interval and does not fix the leak.
+
+**C-4. `crhs-transfer` must NOT be deleted — the brief's premise is false.** It holds **privileged
+settlement drafts in an active dispute**; 2 of 5 files differ from the `dc_private` copies and
+`README.md` is unique, carrying three live counsel questions. The controller had recommended deleting
+it earlier the same day; that recommendation was **wrong**. Mirror and reconcile into `dc_private`
+first; delete only once the unique-file count is 0.
+
+**C-5. Item 22 is self-inflicted and identified.** `server/monitoring/connectivity-monitor.js`
+`checkSMTP()` opens a raw socket and `destroy()`s on connect without speaking SMTP; `startMonitoring()`
+runs in **every pm2 worker**. Measured 2 connections/min/box on both boxes at a fixed second offset =
+**91.8% of the postfix submission log**. The brief's "several per second" was the log-line rate.
+
+## Severity-3 — brief items that were already done or misaimed
+
+**C-6. B-1 (item 11) is already shipped** in `6acbf550` — config-driven via `server/config/links.js`
+→ `INTEREST_FORM_URL`, copy already "Apply now" in 4 locales. **One residual hole remains:** the
+`<meta name="interest-form-url">` placeholder exists only in `public/embed-app-v2.html:8`, so the
+directly-served `/affiliate-login-embed.html` falls back to a hardcoded `/affiliate` and **silently
+404s at cutover** (PITFALLS #3). `INTEREST_FORM_URL` is also missing from `.env.example`.
+
+**C-7. B-2 (item 12) targets the wrong repo.** The interest form **already moved** to
+`crhs-corporate/content/atxwashdryfold/affiliate/index.html` (336 lines, zero `data-i18n`). Doing it
+in the affiliate repo would be deleted by item 8. Retarget to corporate.
+
+**C-8. The bridge block is `securityHeaders.js:81-88`, not `:83-88`** — `:81-83` are its comment.
+Cutting 83-88 strands two orphan lines.
+
+**C-9. The portal landing loads two scripts cross-origin from a host that flips.**
+`public/embed-landing.html:314/:317` load `embed-navigation.js` and `revenue-calculator.js` from
+`https://rundberglaundry.com`. The portal loses both at that flip. Also `/privacy-policy`,
+`/terms-and-conditions`, `/terms-of-service`, `/refund-policy` 404 on every marketing host post-flip
+and are absent from `legacyPortalRedirects.EXACT_PATHS`. Assigned to the flips slice.
+
+**C-10. `jest.config.js:24` sets `forceExit: true`** in the affiliate repo, so the project rule
+"tests pass without `--forceExit`" is not true at config level. Escalated, not silently fixed.
