@@ -9908,7 +9908,7 @@ Sum removed before Task 26 runs: **28**, so Task 26 starts from a **derived ~181
 source of truth, and its *"Any value **above** 208 is a STOP"* guard still holds. **Do not** edit Task 26
 to pin 181. The two rules that matter:
 
-1. **Task 46 must land before Task 26.** Task 46 deletes 14 files and repoints ~44 mock sites; running
+1. ~~Task 46 must land before Task 26.~~ **SUPERSEDED — Task 46 is DROPPED.** Task 26 consumes Task 45. Task 46 deletes 14 files and repoints ~44 mock sites; running
    `eslint --fix` first and *then* deleting the files wastes the batch and invalidates every recorded
    per-rule count.
 2. **Task 26 must not run before Task 45.** `storeIPs.js` carries 9 of the 51 `no-trailing-spaces` errors
@@ -10974,8 +10974,8 @@ printf 'SUITE_KNOWN_FAILURES now stale in the record: %s\n' "$(sed -n 's/^SUITE_
 > - **Task 45 consumes Tasks 16 and 36**, because `server/config/storeIPs.js` has [MEASURED] **three** runtime
 >   consumers today (`auth.js:10`, `partnerLanding.js:20`, `locationQuarantine.js:26`) and only those two tasks
 >   remove the other two;
-> - **Task 46 consumes 39–45**, it is their terminus;
-> - **Task 26 consumes Task 46** (§1 above).
+> - ~~Task 46 consumes 39–45~~ — **DROPPED**; Task 45 is the terminus of the adoption series;
+> - **Task 26 consumes Task 45** (Task 46 is DROPPED — see its decision record).
 >
 > So: 25 → 39 → 40 → 41 → 42 → 43 → 44 → 45 → 46 → 26. Each link is asserted.
 >
@@ -13004,382 +13004,53 @@ done
 
 ---
 
-### Task 46: [affiliate] PR B14 — remove all shims; call sites import `@crhs/web-core` directly
+### Task 46: ⛔ DROPPED — PR B14 (remove all shims) is a RECORDED DECISION, not work
 
-> **Execution position: Phase 4, immediately after Task 45 and immediately BEFORE Task 26.** Repo-only.
->
-> ⚠️ **CONTROLLER NOTE — read before scheduling this task.** This is the largest single diff in Plan 3, and the
-> only one in this series whose benefit is a **spec criterion rather than a behaviour**. Measured scope:
-> **14 shim files deleted**, **~101 `server/`+`server.js` files repointed** (`logger` alone is required in
-> **43** files; `auditLogger` 17, `encryption` 13, `controllerHelpers` 13, `clientIp` 4, `ipGate` 3,
-> `geocodingService` 2, `sanitization` 2, and one each for `validateSecrets`, `cspNonce`, `errorHandler`,
-> `mongoCursorRetry`, `mongoOracleDiagnostics`, `rateLimitMongoStore`), and **41 test mock sites rewritten**
-> (16 `jest.mock` + 2 `requireActual` for `auditLogger`, 7 `encryption`, 6 `controllerHelpers`, 4 `jest.mock` +
-> 7 `jest.doMock` for `logger`, 2 + 2 `requireActual` for `geocodingService`) — on a repo whose suite the
-> project memory records as *not reliably 0-fail*.
->
-> What it buys: spec §7.7 criterion 1, *"zero 5-line shims remain."* What the shims cost today: nothing at
-> runtime, **zero** ESLint errors, ~14 lines. What they buy: every call site and every mock site keeps working
-> untouched, and `require('../utils/logger')` is a **swappable seam** while
-> `require('@crhs/web-core').logger` is not. And 41 direct `jest.mock('@crhs/web-core', …)` sites are 41
-> opportunities to write the one thing `src/index.js`'s own header forbids.
->
-> **The recommendation in the final report is that this task be converted to a documented decision** — the
-> shims stay as the permanent seam, `tasks/todo.md` records why, and Task 35 closes it as a deliberate
-> non-goal rather than an open item. *"A clean backlog"* can legitimately mean a written decision not to do
-> something. **The task is written in full here so the owner is choosing between two specified options, not
-> between doing it and forgetting it.** If it is dropped, §1's arithmetic is unaffected (the shims carry 0
-> ESLint errors) and Task 26 may follow Task 45 directly.
->
-> ⛔ **`src/index.js` forbids spreading, and this is the one hazard that can take production down.** Its header
-> says, verbatim: *"Getters are enumerable so `Object.keys()` lists them (`Object.keys` does NOT invoke a
-> getter) — but a spread (`{...core}`) or `Object.assign` WOULD load every module. Do not spread this object."*
-> The DB-touching props (`SystemConfig`, `rateLimiting`, `rateLimitMongoStore`, `mongoOracleDiagnostics`,
-> `mongoCursorRetry`, `buildSessionMiddleware`) must never load unless accessed, because eager-loading them
-> stands up a **second mongoose footprint** per PM2 worker and tipped the PGA-constrained Oracle ADB over
-> `PGA_AGGREGATE_LIMIT` — the **ORA-04036 startup crash-loop of 2026-08-27**. A test writing
-> `jest.mock('@crhs/web-core', () => ({ ...jest.requireActual('@crhs/web-core'), logger: fake }))` reproduces
-> that shape exactly. `tests/helpers/mockWebCore.js` exists to make the safe form the easy form, and Step 1
-> proves the Proxy preserves laziness **and** that a spread does not.
->
-> ⚠️ **`server/services/geocodingService.js` is a shim, and geocoding is a live gate.** The bag-claim
-> registration radius gate (memory `geo_radius_gate_2026-06-22`) calls it; it is default-off and fail-open, but
-> repointing it is a live path, not a utility.
->
-> **The composition modules stay.** [MEASURED] after tasks 39–45 the `server/` files naming `@crhs/web-core`
-> that are **not** 1-statement shims are: `server/models/SystemConfig.js` (Task 41),
-> `server/middleware/rateLimiting.js` (Task 25), `server/config/csrf-config.js` (2 statements),
-> `server/config/csrfTables.js` (85), `server/utils/cspHelper.js` (30),
-> `server/services/email/transport.js` and `…/template-manager.js` (Task 43) — **seven**, exactly the spec's
-> list. Those are compositions, not re-exports, and Step 4 asserts the distinction by statement count.
+**Owner decision, 2026-09-22 — Rick: "drop it and record the decision."**
 
-**Files:**
-- Delete (**14 shims**): `server/middleware/{sanitization,errorHandler,cspNonce,ipGate,rateLimitMongoStore}.js`,
-  `server/utils/{mongoCursorRetry,mongoOracleDiagnostics,auditLogger,clientIp,controllerHelpers,encryption,logger,validateSecrets}.js`,
-  `server/services/geocodingService.js`.
-- Delete: `tests/unit/logger.test.js` (39, duplicate — note its env-reload at `:5`).
-- Modify: every call site (**~101 files**) to `require('@crhs/web-core')` directly.
-- Create: `tests/helpers/mockWebCore.js`, `tests/unit/mockWebCoreHelper.test.js`.
-- Modify: the **41** mock sites.
-- Create: `tests/unit/noShimsRemain.test.js`.
+**This task is not executed.** The one-line shim modules created by Tasks 39–45 are **permanent**.
+Call sites keep importing `../utils/<name>`; those modules re-export `@crhs/web-core`.
 
-**Interfaces:**
+**What B14 would have done.** After Tasks 39–45 the affiliate already *runs* web-core's
+implementations — the local files are one-line re-exports. B14 deletes those re-exports and rewrites
+every import to reference `@crhs/web-core` directly. It is an **import-style change with no runtime
+effect whatsoever**.
 
-*Consumes — the shared Step 0, plus:*
+**Why it is dropped — measured, not estimated (2026-09-22):**
 
-| # | consumed artefact | asserted by |
-|:--|:--|:--|
-| C46-1 | **Task 45 landed** | **Step 0** (`T45_SHA_AFF` ancestor **and** `test ! -e server/config/storeIPs.js`) |
-| C46-2 | all 14 shims exist and are each **exactly 1 statement** — the set this task deletes is derived, never typed | **Step 0** (statement-count scan; list printed and counted) |
-| C46-3 | ⛔ web-core's index is **lazy**, and a spread breaks that laziness | **Step 1** (`Object.keys` touches nothing; a spread loads every module — both measured) |
-| C46-4 | the mock-site inventory is complete before any edit | **Step 2** (per-module counts, summed and recorded) |
-| C46-5 | the suite is at the honest baseline (Task 38) — this is the task most likely to surface a flaky suite | **shared Step 0** + **Step 5** (full suite compared to `T38_FULL_SUITE_BASELINE`) |
+| | measured |
+|:--|:--|
+| files in `server/` + root requiring a local util | **63 of 134** (41 for the logger alone) |
+| test files mocking the modules being shimmed | **~27** (auditLogger 16, encryption 7, logger 4) |
+| ESLint errors the shims cost | **0** |
+| files B14 would delete | ~14, each one line |
+| runtime behaviour changed | **none** |
 
-*Produces:*
-- spec §7.7 criterion 1: the only `server/` modules naming `@crhs/web-core` are the **seven** composition
-  modules; **zero** 1-statement shims;
-- spec §7.7 criterion 2: all 12 duplicate suites gone, `tests/unit/brand-config.test.js` (53, app-owned) kept;
-- `tests/helpers/mockWebCore.js` — the Proxy helper, with its own test proving laziness is preserved;
-- `tests/unit/noShimsRemain.test.js`;
-- **0** ESLint change ([MEASURED] the 14 shims carry no errors) — but the *file set* Task 26 lints shrinks by
-  14, which is why Task 26 must run after this (§1);
-- record: `T46_SHA`, `T46_DONE=yes`, `T46_CALLSITES_REPOINTED`, `T46_MOCKS_REWRITTEN`, `ADOPTION_DONE=yes`.
-- **Does NOT produce:** removal of `--forceExit`. That is ESCALATIONS **row 13** and stays with the owner.
+**The decisive risk.** web-core's `src/index.js` header states, in terms:
 
-- [ ] **Step 0: the shared Step 0**, verbatim. Add:
+> *"a spread ({...core}) or Object.assign WOULD load every module. **Do not spread this object.**"*
 
-```bash
-cd "$AFF"
-anc T45_SHA_AFF
-gone server/config/storeIPs.js
-printf 'web-core consumers in server/ (statements  path):\n'
-for f in $(grep -rl '@crhs/web-core' server/ | sort); do
-  n=$(grep -vc '^\s*\(//.*\)\?$' "$f"); printf '  %4d  %s\n' "$n" "$f"
-done | sort -n
-SHIMS=$(for f in $(grep -rl '@crhs/web-core' server/); do \
-  [ "$(grep -vc '^\s*\(//.*\)\?$' "$f")" = 1 ] && echo "$f"; done | sort)
-printf 'shims (1 statement) = %s\n' "$(echo "$SHIMS" | wc -l)"
-echo "$SHIMS" | sed 's/^/  /'
-chk shim_count "$(echo "$SHIMS" | wc -l)" 14
-[ "$FAIL" = 0 ] && echo "gate=PASS" || echo "gate=HALT"
-```
-  - Expected: `OK T45_SHA_AFF ancestor`, `OK gone server/config/storeIPs.js`; a statement-count table whose
-    first **14** rows read `1 <path>` and whose remaining **seven** rows are the composition modules
-    (`server/config/csrf-config.js` 2, `server/utils/cspHelper.js` 30, `server/config/csrfTables.js` 85, plus
-    `SystemConfig.js`, `rateLimiting.js`, `email/transport.js`, `email/template-manager.js`);
-    `shims (1 statement) = 14` with the 14 paths listed; `OK shim_count=14`; `gate=PASS`.
-  - **The deletion set is `$SHIMS`, derived here.** Do not type a path list from this document; if
-    `shim_count` ≠ 14, record the real number, use the derived list, and say so in the commit body.
-  - A composition module appearing in `$SHIMS` (statement count 1) means an earlier task turned it into a
-    re-export: **STOP** — it is in the spec's keep list for a reason.
+because eager-loading every module is what exhausted the Oracle PGA limit and caused the
+**ORA-04036 crash-loop on 2026-08-27**. Today **zero** test files mock `@crhs/web-core`. B14 would
+create ~27 new places to write exactly the spread that header forbids — and a spread is the natural
+thing to reach for when converting a mock. That is a production crash-loop hazard traded for a
+cosmetic gain, on a suite the project record describes as *not reliably 0-fail*.
 
-- [ ] **Step 1: ⛔ prove the Proxy preserves laziness and a spread destroys it. Write the helper first.**
-      Create `tests/helpers/mockWebCore.js`:
+**Accepted cost of dropping it.** Indirection: a reader of `require('../utils/logger')` does not see
+that it resolves to web-core. Mitigation: each shim carries a one-line header naming its web-core
+source. If this codebase later gains other contributors, revisit — the work is specified above and in
+git history, and nothing in Plan 3 depends on it.
 
-```js
-// Preserves laziness. A spread ({...jest.requireActual('@crhs/web-core')}) would
-// invoke every enumerable getter in src/index.js and load every module -- including
-// SystemConfig, rateLimiting, rateLimitMongoStore, mongoOracleDiagnostics,
-// mongoCursorRetry and buildSessionMiddleware, which stand up a second mongoose
-// footprint per worker. That is the eager-load shape behind the ORA-04036 startup
-// crash-loop of 2026-08-27, and src/index.js's own header forbids it in writing.
-// NEVER replace this with a spread.
-module.exports.mockWebCoreKey = (key, impl) => jest.mock('@crhs/web-core', () =>
-  new Proxy(jest.requireActual('@crhs/web-core'), {
-    get: (t, k) => (k === key ? impl : t[k])
-  }));
-```
-      and `tests/unit/mockWebCoreHelper.test.js`, which must assert **both** directions:
+**Consequences for the rest of this plan — these supersede every other reference:**
 
-```js
-// The DB-touching keys, from src/index.js's header.
-const DB_KEYS = ['SystemConfig', 'rateLimiting', 'rateLimitMongoStore',
-                 'mongoOracleDiagnostics', 'mongoCursorRetry', 'buildSessionMiddleware'];
-const loadedModules = () => Object.keys(require.cache).filter((p) => p.includes('@crhs/web-core/src'));
-
-it('Object.keys does not invoke a getter (the lazy-surface premise)', () => {
-  const before = loadedModules().length;
-  Object.keys(require('@crhs/web-core'));
-  expect(loadedModules().length).toBe(before);
-});
-
-it('reading ONE key does not load the DB-touching modules', () => {
-  const wc = require('@crhs/web-core');
-  void wc.auditLogger;
-  const loaded = loadedModules().join('|');
-  for (const k of DB_KEYS) expect(loaded).not.toContain(`/${k}`);
-});
-
-it('POSITIVE CONTROL: a spread DOES load them — this is the forbidden shape', () => {
-  jest.resetModules();
-  const before = loadedModules().length;
-  // eslint-disable-next-line no-unused-vars
-  const spread = { ...require('@crhs/web-core') };
-  expect(loadedModules().length).toBeGreaterThan(before);
-});
-```
-```bash
-cd "$AFF" && npx jest tests/unit/mockWebCoreHelper.test.js 2>&1 | tail -25
-```
-  - Expected **before** the helper exists: `Cannot find module '../helpers/mockWebCore'`.
-  - Expected **after**: all three pass. The third is the load-bearing one: **`toBeGreaterThan(before)` must
-    actually be satisfied**, i.e. a spread really does load modules a single-key read does not. If it prints
-    "equal", the lazy surface is not lazy in this jest environment and the Proxy buys nothing — **STOP** and
-    re-read `src/index.js`, because the whole safety argument for 41 direct-mock sites rests on this.
-  - Paste the third test's output into the PR body; it is the ORA-04036 guard in one assertion.
-
-- [ ] **Step 2: inventory the call sites and mock sites before touching anything.**
-
-```bash
-cd "$AFF"
-printf '%-26s %-8s %-8s %-10s %s\n' MODULE mock doMock reqActual server_callsites
-for m in auditLogger encryption controllerHelpers logger geocodingService clientIp validateSecrets \
-         cspNonce ipGate sanitization errorHandler mongoCursorRetry mongoOracleDiagnostics rateLimitMongoStore; do
-  printf '%-26s %-8s %-8s %-10s %s\n' "$m" \
-    "$(git grep -c "jest.mock(.*$m"        -- tests | awk -F: '{s+=$2} END{print s+0}')" \
-    "$(git grep -c "jest.doMock(.*$m"      -- tests | awk -F: '{s+=$2} END{print s+0}')" \
-    "$(git grep -c "requireActual(.*$m"    -- tests | awk -F: '{s+=$2} END{print s+0}')" \
-    "$(git grep -l "require(.*[/']$m'"     -- server server.js | grep -v "server/.*/$m\.js" | wc -l)"
-done
-git grep -l -E "require\(['\"]\.\.?/.*(utils|middleware|services)/(sanitization|errorHandler|cspNonce|ipGate|rateLimitMongoStore|mongoCursorRetry|mongoOracleDiagnostics|auditLogger|clientIp|controllerHelpers|encryption|logger|validateSecrets|geocodingService)['\"]\)" \
-  -- server server.js | sort > /tmp/t46-callsites.txt
-wc -l < /tmp/t46-callsites.txt
-```
-  - Expected, **[MEASURED] today**: `logger` `mock=4 doMock=7 callsites=43`; `auditLogger` `mock=16 reqActual=2
-    callsites=17`; `encryption` `mock=7 callsites=13`; `controllerHelpers` `mock=6 callsites=13`;
-    `geocodingService` `mock=2 reqActual=2 callsites=2`; `clientIp` `callsites=4`; `ipGate` `callsites=3`;
-    `sanitization` `callsites=2`; and 1 each for the rest — **41 mock/doMock/requireActual sites and ~101
-    files**.
-  - `recput T46_CALLSITES_REPOINTED "$(wc -l < /tmp/t46-callsites.txt)"` and
-    `recput T46_MOCKS_REWRITTEN "<sum of the three mock columns>"`. These are the numbers the commit body
-    quotes, and the numbers a reviewer checks the diff against.
-  - ⚠️ If `logger`'s `callsites` is materially different from 43, **re-scope before starting.** A ~101-file
-    mechanical edit whose size was misjudged is how a "one commit" task becomes an unreviewable one.
-
-- [ ] **Step 3: write the terminus guard, red.** Create `tests/unit/noShimsRemain.test.js` asserting:
-      each of the 14 paths does **not** exist; every `server/` file naming `@crhs/web-core` has **more than one
-      statement** (the acceptance grep, as a test); the seven composition modules **do** exist and each names
-      `@crhs/web-core`; no file under `tests/` contains `...jest.requireActual('@crhs/web-core')` or
-      `Object.assign({}, require('@crhs/web-core')` — the forbidden spread, banned by a test, not a comment;
-      and `POST`-booting the app under `supertest` still answers `/health` **200** (the boot proof).
-
-```bash
-cd "$AFF" && npx jest tests/unit/noShimsRemain.test.js 2>&1 | tail -25
-```
-  - Expected: 14 existence cases failing with `Expected: false / Received: true`, and the statement-count case
-    failing with the 14 shim paths listed. The `/health` case **passes** (it is a regression net).
-
-- [ ] **Step 4: delete the shims, repoint every call site, rewrite every mock, then run the acceptance greps.**
-
-```bash
-cd "$AFF"
-git rm -q $(cat /tmp/t46-shims.txt)      # the derived $SHIMS list from Step 0, written to a file
-git rm -q tests/unit/logger.test.js
-# after repointing all ~101 call sites and all 41 mock sites:
-printf 'web-core consumers in server/ (statements  path):\n'
-for f in $(grep -rl '@crhs/web-core' server/ | sort); do
-  n=$(grep -vc '^\s*\(//.*\)\?$' "$f"); printf '  %4d  %s\n' "$n" "$f"
-done | sort -n
-printf 'one-statement files remaining = %s\n' \
-  "$(for f in $(grep -rl '@crhs/web-core' server/); do [ "$(grep -vc '^\s*\(//.*\)\?$' "$f")" = 1 ] && echo "$f"; done | wc -l)"
-printf 'forbidden spreads = %s\n' \
-  "$(git grep -c -E "\.\.\.\s*jest\.requireActual\(['\"]@crhs/web-core|Object\.assign\(\{\}\s*,\s*require\(['\"]@crhs/web-core" -- tests | wc -l)"
-printf 'stale relative requires = %s\n' \
-  "$(git grep -c -E "require\(['\"]\.\.?/.*(utils|middleware|services)/(sanitization|errorHandler|cspNonce|ipGate|rateLimitMongoStore|mongoCursorRetry|mongoOracleDiagnostics|auditLogger|clientIp|controllerHelpers|encryption|logger|validateSecrets|geocodingService)['\"]\)" -- server server.js tests | wc -l)"
-node --check server.js && echo SYNTAX_OK
-node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK')" 2>&1 | tail -2
-PORT=3099 NODE_ENV=production node -e '
-process.on("uncaughtException",(e)=>{console.log("BOOT_FAIL "+e.message);process.exit(1);});
-process.on("unhandledRejection",(e)=>{console.log("BOOT_FAIL "+e);process.exit(1);});
-require("./server.js"); setTimeout(()=>{console.log("PROD_BOOT_OK");process.exit(0);},2500);'
-```
-  - Expected: a statement table with **exactly seven rows**, each `> 1`, naming the seven composition modules;
-    `one-statement files remaining = 0`; `forbidden spreads = 0`; `stale relative requires = 0`;
-    `SYNTAX_OK`; `BOOT_OK`; `PROD_BOOT_OK`.
-  - **`one-statement files remaining = 0` is spec §7.7 criterion 1 in one number.**
-  - 🚨 `forbidden spreads` ≠ 0 → **STOP.** That is the ORA-04036 eager-load shape, in a test file, on a repo
-    that runs in PM2 cluster mode against a PGA-constrained ADB. Convert it to `mockWebCoreKey`.
-  - `stale relative requires` ≠ 0 → a call site still points at a deleted path; the app may still boot if the
-    file is not on the boot path, so **the grep, not the boot probe, is the gate here**.
-  - `PROD_BOOT_OK` is required in addition to `BOOT_OK`: `NODE_ENV=test` short-circuits enough of `server.js`
-    that a test boot does not exercise the session/DB paths this deletion touches.
-
-- [ ] **Step 5: §7.7 criteria 1 and 2, the size rules, and the full suite.**
-
-```bash
-cd "$AFF"
-# §7.7 criterion 1 — no file exists twice in both repos.
-# Counted, not inferred from an exit status: `$?` after a for-loop is the last
-# iteration's status and would be 0 whether or not a duplicate was printed (R-9).
-DUP=0
-for f in $(cd server && find . -name '*.js'); do
-  c="$WC/src/${f#./}"
-  if [ -f "$c" ] && diff -q "server/$f" "$c" >/dev/null 2>&1; then echo "IDENTICAL server/$f"; DUP=$((DUP+1)); fi
-done
-echo "DUPLICATE_FILES=$DUP"
-# §7.7 criterion 2 — the 12 duplicate suites are gone, brand-config.test.js is kept
-for s in systemConfig rateLimitMongoStore rateLimitKeyGen rateLimitingMiddleware sanitization errorHandler \
-         auditLogger storeIPs mongoCursorRetry mongoOracleDiagnostics logger emailTransport; do
-  printf '%-26s %s\n' "$s" "$(test -e "tests/unit/$s.test.js" && echo STILL_PRESENT || echo gone)"
-done
-wc -l tests/unit/brand-config.test.js
-npx madge --circular server/ 2>&1 | tail -2
-find server -name '*.js' -exec wc -l {} + | sort -rn | sed -n '2,6p'
-find server/controllers -name '*.js' -exec wc -l {} + | sort -rn | sed -n '2,4p'
-npx eslint server/ server.js 2>&1 | grep -E 'problems?' | tail -1
-TZ=America/Chicago npx jest --runInBand 2>&1 | tee /tmp/t46-full.txt | tail -10
-grep -cE '^FAIL ' /tmp/t46-full.txt; true
-```
-  - Expected: **no `IDENTICAL` line** and `DUPLICATE_FILES=0` (any `IDENTICAL` line is a file that exists twice
-    — the exact condition this series exists to remove); **twelve `gone` lines**; `53 tests/unit/brand-config.test.js` (app-owned, kept);
-    `✔ No circular dependency found!`; **nothing in `server/` over 800 lines**; an ESLint total **unchanged**
-    from Task 45's recorded value; a `Tests:` line matching `T38_FULL_SUITE_BASELINE`; and `0` failing suites.
-  - ⚠️ **`server/controllers/administratorController.js` is [MEASURED] 716 lines — over the 500-line controller
-    rule.** It is a **pre-existing** violation; this task neither causes nor fixes it, and it must be recorded
-    as a named ESCALATIONS row, not silently accepted and not opportunistically split (the opposite of "one
-    concern per PR"). [MEASURED] it also carries **13** of the ESLint errors Task 26 will fix.
-  - A failing suite: **re-run it alone first** (memory `test_suite_fully_green_2026-06-20`, amended
-    2026-08-24 — three suites have failed in a full run and passed in isolation). If it passes alone, record
-    it in `T46_FLAKY_SUITES`; if it fails alone, fix it **in this commit**.
-
-- [ ] **Step 6: commit.**
-
-```bash
-cd "$AFF"
-git add -A server server.js tests
-git commit -m "refactor(webcore): B14 -- the shim terminus; call sites import @crhs/web-core directly
-
-Removes the 14 one-statement shims left by the move-then-delete convention and
-repoints every call site (~101 files in server/ + server.js; logger alone was
-required in 43) and every test mock site (41: 16 jest.mock + 2 requireActual for
-auditLogger, 7 encryption, 6 controllerHelpers, 4 jest.mock + 7 jest.doMock for
-logger, 2 + 2 requireActual for geocodingService). Spec §7.7 criterion 1 is now
-mechanically true: the only server/ modules naming @crhs/web-core are the SEVEN
-composition modules -- SystemConfig, rateLimiting, csrf-config, csrfTables,
-cspHelper, email/transport and email/template-manager -- and a test asserts it by
-statement count rather than by a path list.
-
-THE HAZARD THIS TASK IS DESIGNED AROUND: src/index.js's surface is lazy, by its own
-header, because the eager index used to stand up web-core's SystemConfig, 12 rate
-limiters and a session/store footprint at require -- a second mongoose footprint per
-PM2 worker that tipped the PGA-constrained Oracle ADB over PGA_AGGREGATE_LIMIT and
-crash-looped startup on 2026-08-27 (ORA-04036). Spreading that object loads every
-getter. tests/helpers/mockWebCore.js makes the safe Proxy form the easy form, its
-own test proves reading one key loads no DB module AND that a spread does load them
-(the positive control), and a repo-wide grep for the forbidden spread is now a test.
-Never replace the Proxy with a spread.
-
-Recorded, not fixed: server/controllers/administratorController.js is 716 lines,
-over the 500-line controller rule. Pre-existing, untouched by this task, escalated
-by name rather than silently accepted or opportunistically split.
-
-Does NOT remove --forceExit: that is an escalation row with its own owner, and the
-open-handle work it needs is not this task's concern.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
-git push origin main
-SHA=$(git rev-parse HEAD); recput T46_SHA "$SHA"; recput T46_DONE yes; recput ADOPTION_DONE yes
-echo "T46_SHA=$SHA  — Task 26 may now run"
-```
-  - Expected: one commit, pushed; `ADOPTION_DONE=yes` in both record copies. **Task 26's Step 0 re-measures
-    `LINT_TOTAL_0` from scratch, so no number needs handing over** — only the ordering does (§1).
-
-**Rollback (exact; repo-only — the largest revert in the plan).**
-```bash
-AFF=/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program; cd "$AFF"
-WS_REC=/var/www/wavemax/cutover-logs/plan3-record.env
-S=$(sed -n 's/^T46_SHA=//p' "$WS_REC" | tail -1); test -n "$S" || { echo 'STOP: no T46_SHA'; exit 1; }
-git revert --no-edit "$S" || { echo 'REVERT CONFLICTED — using the deterministic fallback'; \
-  git revert --abort; git checkout "$S"~1 -- server/ server.js tests/; git commit -m "revert: B14 (checkout fallback)"; }
-printf 'shims back = %s\n' \
-  "$(for f in $(grep -rl '@crhs/web-core' server/); do [ "$(grep -vc '^\s*\(//.*\)\?$' "$f")" = 1 ] && echo "$f"; done | wc -l)"
-ls server/utils/logger.js server/utils/auditLogger.js server/services/geocodingService.js
-node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK')" | tail -1
-PORT=3099 NODE_ENV=production node -e '
-process.on("uncaughtException",(e)=>{console.log("BOOT_FAIL "+e.message);process.exit(1);});
-require("./server.js"); setTimeout(()=>{console.log("PROD_BOOT_OK");process.exit(0);},2500);'
-TZ=America/Chicago npx jest --runInBand 2>&1 | tail -6
-```
-- Rollback expected: the revert (or the fallback commit); **`shims back = 14`**; the three paths listed;
-  `BOOT_OK`; `PROD_BOOT_OK`; a `Tests:` line matching `T38_FULL_SUITE_BASELINE`.
-- **`shims back = 14` is the discriminating assertion.** A ~101-file revert that conflicts on even one call
-  site leaves a tree that requires a deleted path; `ls` and a test-mode boot can both succeed while a
-  production boot path is broken, which is why `PROD_BOOT_OK` is also required.
-- `git checkout "$S"~1 -- server/ server.js tests/` is the deterministic fallback and is **preferred over
-  resolving conflicts by hand** at this size.
-- ⚠️ If this is reverted, **Task 26 must be re-baselined**: its Step 0 re-measures, so simply run Task 26's
-  Step 0 again before its first batch. Do not carry a `LINT_TOTAL_0` recorded on the post-B14 tree into a
-  pre-B14 tree.
-
----
-
-## Exit criteria for tasks 36–46
-
-1. **36** — no code path in the portal can `res.redirect` to `www.wavemaxlaundry.com`; `server/` contains no
-   `wavemaxlaundry.com` literal; `QUARANTINE_NON_AUSTIN` and `CORPORATE_SITE_URL` recorded as dead for Task 29.
-2. **37** — every in-code host list in the portal names only `portal.atxwashdryfold.com` plus the three
-   documented retirement-301 hosts; outage-alert emails link to a dashboard the portal serves; the legal-copy
-   host lists and four mailto addresses are an owner/counsel ESCALATIONS row, not a silent skip.
-3. **38** — `SUITE_KNOWN_FAILURES=0`, `T38_FULL_SUITE_BASELINE` recorded, and every later full-suite gate in
-   Plan 3 compares against it.
-4. **39–46** — spec §7.7 criteria 1 and 2 hold mechanically: no `server/` file is byte-identical to a
-   `crhs-web-core/src/` file; the 12 duplicate suites are gone and `brand-config.test.js` is kept; the only
-   `server/` modules naming `@crhs/web-core` are the seven composition modules; `madge --circular server/` = 0;
-   nothing in `server/` over 800 lines.
-5. **42** — the production session cookie is still `__Host-portal.sid`, pinned explicitly and asserted on the
-   wire after Task 30's deploy.
-6. **45** — exactly one process registers the five gate models; the sweep cron is installed on at least oci1;
-   no code path in the repo can `drop()` a collection.
-7. **26 runs after 46**, and its Step 0 re-derives every total (§1).
-8. Every ESCALATIONS row this document creates is in `docs/superpowers/ESCALATIONS.md` before Task 35 closes:
-   the Anthropic-adjacent rows are Task 17's; these are — `ensure-indexes.js` is an IIFE that connects on
-   require and honours no flag (**with its fix**: corporate's exported/injectable shape); orphan `ratelimit_*`
-   collections need a by-hand `deleteMany({})`, never a `drop()`; six models were **not** added to
-   `ensure-indexes.js`; `CORS_ORIGIN` must never be emptied on a box; the legal-copy host lists and four
-   `@rundberglaundry.com` mailto addresses; `administratorController.js` is 716 lines against a 500-line rule;
-   and web-core's `DEFAULT_COOKIE_BASE` is `app.sid`, which is wrong for every existing consumer.
-
----
+1. **Task 26 consumes Task 45, not Task 46.** Task 45 is the terminus of the adoption series.
+2. Any statement elsewhere in this document that *"Task 46 deletes"* a shim, mock or file is
+   **superseded**: those files are permanent. Where a task's rollback says "if taken after Task 46,
+   revert Task 46 first", that clause is inert.
+3. The shim and composition inventory that B14 was to consume remains as **documentation** of what
+   the adoption produced.
+4. Task 35 (backlog closure) records this as a **closed decision**, not an open item — the backlog is
+   clear because this was decided, not forgotten.
 
 # Known gaps and controller corrections
 
