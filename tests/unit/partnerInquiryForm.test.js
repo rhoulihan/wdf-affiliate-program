@@ -64,8 +64,14 @@ describe('partner-program inquiry form ↔ server contract', () => {
     expect(allWavemaxOccurrencesAreSanctioned(HTML)).toEqual({ unsanctioned: [] });
   });
 
-  test('canonical points at the primary domain (rundberglaundry.com)', () => {
-    expect(HTML).toMatch(/<link rel="canonical" href="https:\/\/rundberglaundry\.com\/">/);
+  // Plan 3 T3 (M24): this page must be SELF-canonical, not point at rundberglaundry.com.
+  // The content app serves atxwashdryfold.com with canonical https://atxwashdryfold.com/, so
+  // while the portal still served that host with a canonical at rundberglaundry.com, flipping
+  // rundberglaundry.com first made the two hosts canonical to each other (A -> B -> A). Pointing
+  // this copy at its own apex makes the loop impossible in any flip order.
+  test('canonical is self-referential (https://atxwashdryfold.com/), so no A->B->A loop can form', () => {
+    expect(HTML).toMatch(/<link rel="canonical" href="https:\/\/atxwashdryfold\.com\/">/);
+    expect(HTML).not.toMatch(/<link rel="canonical" href="https:\/\/rundberglaundry\.com\/">/);
   });
 
   test('page is marked indexable (not noindex)', () => {
