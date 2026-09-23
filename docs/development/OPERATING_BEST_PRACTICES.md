@@ -205,6 +205,20 @@ When the command "run coverage test" is issued, the system performs the followin
      - `test-coverage-results.txt`: Raw test output
      - `/public/coverage-analysis/test-results-summary.html`: Updated HTML report
 
+## ESLint Policy
+
+Two commands, two different rules:
+
+- `npm run lint:server` — **`server/` and `server.js` must be ZERO errors.** Guarded in-suite by
+  `tests/unit/eslintServerClean.test.js`. A new server-side error fails `npm test`.
+- `npm run lint:baseline` — everything else (`public/`, `tests/`, `docs/`, `scripts/`, `tools/`) is an
+  **accepted baseline** recorded in `.eslint-baseline.json`, guarded by
+  `tests/unit/eslintRepoBaseline.test.js`. The count **may go down, never up**.
+
+Lowering the baseline is always welcome: re-measure with
+`node scripts/ops/lint-baseline.js --write` and commit the new, lower number together with the change
+that lowered it. Never raise it to make a commit pass — fix the new error instead.
+
 ## Git Workflow
 
 ### Before Major Changes
