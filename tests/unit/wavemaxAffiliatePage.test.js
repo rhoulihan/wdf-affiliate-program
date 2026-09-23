@@ -54,14 +54,10 @@ describe('/wavemax-affiliate is retired (410 Gone)', () => {
     expect(res.status).toBe(404);
   });
 
-  // The quarantine allowlist runs BEFORE the route, so its entries stay load-bearing:
-  // drop them and the quarantined host families would answer with a corporate redirect
-  // instead of the 410. (The partner-landing host gate ran here too until Plan 3
-  // Task 16 deleted it along with the marketing surface it protected.)
-  describe('the quarantine still lets the path reach its 410 handler', () => {
-    const quarantine = require('../../server/config/quarantineConfig');
-    for (const p of PATHS) {
-      it(`quarantine allows ${p}`, () => expect(quarantine.isAllowed(p)).toBe(true));
-    }
-  });
+  // The quarantine allowlist used to run BEFORE this route, so its rows for these
+  // paths were load-bearing — drop them and the quarantined host families answered
+  // with a corporate redirect instead of the 410. Both gates are gone now: the
+  // partner-landing host gate with the marketing surface (Plan 3 Task 16) and the
+  // quarantine itself in Task 36, so the 410 assertions above are the whole story.
+  // tests/unit/quarantineRetired.test.js keeps the middleware deleted.
 });

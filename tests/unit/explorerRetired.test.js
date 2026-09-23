@@ -21,7 +21,9 @@
 //   6. .env.example names neither credential NOR either subsystem — a comment
 //      block that outlives the key it describes is the same rot as the key;
 //   7. the config rows whose subject no longer exists are gone: the .gitignore
-//      row for the render tree, the quarantine allowlist row, and build:explorer.
+//      row for the render tree and build:explorer. (The quarantine allowlist row
+//      was the third; Plan 3 Task 36 deleted the whole middleware, so that row's
+//      file no longer exists — quarantineRetired.test.js subsumes it.)
 //
 // It deliberately asserts NOTHING about CSRF_CONFIG.PUBLIC_ENDPOINTS: the
 // /api/concierge exemption row is left standing here on purpose (csrfTables.test.js's
@@ -144,9 +146,10 @@ describe('the design explorer and the concierge are retired', () => {
       expect(read('.gitignore')).not.toMatch(/design-explorer/);
     });
 
-    it('the quarantine allowlist has no design-explorer row', () => {
-      expect(read('server/config/quarantineConfig.js')).not.toMatch(/design-explorer/);
-    });
+    // The quarantine allowlist carried a /design-explorer row; the whole
+    // middleware (and its config) was deleted in Plan 3 Task 36, so there is no
+    // longer a file to assert about. tests/unit/quarantineRetired.test.js keeps
+    // it deleted, which subsumes this row.
 
     it('package.json has no build:explorer script', () => {
       // eslint-disable-next-line global-require

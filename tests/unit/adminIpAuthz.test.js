@@ -61,16 +61,10 @@ describe('rbac authz-layer admin IP enforcement (catches operator/system-config/
   });
 });
 
-describe('quarantine lets the /admin clean URL reach its handler', () => {
-  const quarantine = require('../../server/config/quarantineConfig');
-  it('allows /admin and /admin/ (so it is not 302-redirected to corporate)', () => {
-    expect(quarantine.isAllowed('/admin')).toBe(true);
-    expect(quarantine.isAllowed('/admin/')).toBe(true);
-  });
-  it('still redirects an unrelated non-Austin path', () => {
-    expect(quarantine.isAllowed('/some-marketing-page')).toBe(false);
-  });
-});
+// The quarantine allowlist used to stand between /admin and its handler, so it
+// needed its own row here; the middleware was deleted in Plan 3 Task 36 and
+// nothing host-scoped runs ahead of the route any more. tests/unit/
+// quarantineRetired.test.js keeps it deleted.
 
 describe('/admin clean URL + gate wiring', () => {
   const serverSrc = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');

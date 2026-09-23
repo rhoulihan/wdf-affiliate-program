@@ -527,21 +527,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Location quarantine — lock deployment down to Austin + affiliate-program
-// app. Activated by env var QUARANTINE_NON_AUSTIN=true. Mounted here so it
-// runs before all route handlers and static middleware, redirecting any
-// non-Austin/non-app request to the corporate site (wavemaxlaundry.com).
-// No-op when the env var is unset/false.
-const locationQuarantine = require('./server/middleware/locationQuarantine');
-
-// IMPORTANT ORDERING — these two handlers must run BEFORE
-// locationQuarantine. The quarantine middleware redirects any request
-// it doesn't recognize as Austin/app content to www.wavemaxlaundry.com.
-// Without an explicit short-circuit for these paths, our security.txt
-// route and sensitive-path 404 handler are bypassed and the responses
-// turn into 302s back to the franchisor's domain (which itself 404s,
-// producing the broken-redirect chain the comparative audit flagged).
-
 // .well-known/security.txt — RFC 9116 disclosure policy.
 // Explicit route because Express's serve-static ignores dotfiles by
 // default (and globally allowing dotfiles would expose other dot-paths
@@ -550,20 +535,22 @@ app.get('/.well-known/security.txt', (req, res) => {
   res.type('text/plain').sendFile(path.join(__dirname, 'public', '.well-known', 'security.txt'));
 });
 
-// Favicon — serve the brand icon directly. Must run BEFORE locationQuarantine:
-// without it, /favicon.ico falls through to the quarantine redirect (302 to
-// www.wavemaxlaundry.com/favicon.ico), which then trips CSP img-src 'self' in
-// every embedded page and iframe whose document declares no favicon. Serving a
-// same-origin icon here kills that console error site-wide in one place.
+// Favicon — serve the brand icon directly. Without an explicit route,
+// /favicon.ico falls through to a cross-origin or missing icon, which trips CSP
+// img-src 'self' in every embedded page and iframe whose document declares no
+// favicon. Serving a same-origin icon here kills that console error site-wide in
+// one place.
 app.get('/favicon.ico', (req, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   res.type('image/png').sendFile(path.join(__dirname, 'public', 'assets', 'images', 'brand', 'favicon-32x32.png'));
 });
 
 // Explicit 404s for common sensitive-path probes — closes the 302 leak
-// the comparative audit flagged. Files are not exposed either way; this
-// just produces the clean response semantic scanners and audit tools
-// expect. List intentionally short — common scanner targets only.
+// the comparative audit flagged (the quarantine middleware that produced
+// those 302s was deleted in Plan 3 Task 36; these 404s are the standing
+// behaviour now). Files are not exposed either way; this just produces the
+// clean response semantic scanners and audit tools expect. List
+// intentionally short — common scanner targets only.
 const sensitiveProbePaths = [
   '/.env', '/.env.local', '/.env.production',
   '/.git', '/.git/config', '/.git/HEAD',
@@ -580,9 +567,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// NOW the quarantine — runs after the two early-route handlers above.
-app.use(locationQuarantine);
 
 // Mount embed routes with CSP nonce support BEFORE static file serving
 const embedRoutes = require('./server/routes/embedRoutes');

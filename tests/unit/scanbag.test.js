@@ -57,13 +57,9 @@ describe('/scanbag mobile PWA', () => {
     expect(manifest.icons.some(i => /192/.test(i.sizes))).toBe(true);
   });
 
-  // The partner-landing host gate used to run ahead of these paths and needed its own
-  // exemption for each; it went with the marketing surface on 2026-09-22 (Plan 3
-  // Task 16), so the quarantine allowlist is now the only gate in front of them.
-  describe('gate exemptions (the quarantine allowlist must let the PWA through)', () => {
-    const quarantine = require('../../server/config/quarantineConfig');
-    for (const p of ['/scanbag', '/scanbag/', '/scanbag-sw.js', '/scanbag-manifest.json']) {
-      it(`quarantine allows ${p}`, () => expect(quarantine.isAllowed(p)).toBe(true));
-    }
-  });
+  // Two host-scoped gates used to run ahead of these paths and each needed its own
+  // exemption row: the partner-landing gate went with the marketing surface on
+  // 2026-09-22 (Plan 3 Task 16), and the location quarantine went in Task 36. No
+  // gate runs in front of the PWA any more, so there is nothing left to exempt it
+  // from — tests/unit/quarantineRetired.test.js keeps both deletions in place.
 });
