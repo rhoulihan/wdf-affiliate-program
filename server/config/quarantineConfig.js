@@ -53,7 +53,7 @@ const ALLOWLIST = [
   // set. Search crawlers (Googlebot, Bingbot) don't carry session cookies
   // or whitelisted IPs, so these must be public.
   /^\/robots\.txt$/,
-  /^\/sitemap\.xml$/,
+  /^\/sitemap\.xml$/
 ];
 
 /**
@@ -113,7 +113,7 @@ const SUSPICIOUS_PATTERNS = [
   /^\/docker-compose\.ya?ml$/,
   /^\/package(-lock)?\.json$/,
   /^\/composer(-lock)?\.json$/,
-  /^\/yarn\.lock$/,
+  /^\/yarn\.lock$/
 ];
 
 /**
@@ -160,5 +160,5 @@ module.exports = {
   isAllowed,
   isSuspicious,
   buildCorporateRedirect,
-  isQuarantineEnabled,
+  isQuarantineEnabled
 };

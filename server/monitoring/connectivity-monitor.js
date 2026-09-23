@@ -11,7 +11,7 @@ const MONITORING_CONFIG = {
   timeout: 10000, // 10 seconds per check
   retryAttempts: 3,
   retryDelay: 5000,
-  alertCooldown: 3600000, // 1 hour between alerts for same service
+  alertCooldown: 3600000 // 1 hour between alerts for same service
 };
 
 // Services to monitor
@@ -20,28 +20,28 @@ const SERVICES = [
     name: 'MongoDB Atlas',
     type: 'mongodb',
     url: process.env.MONGODB_URI,
-    critical: true,
+    critical: true
   },
   {
     name: 'Mailcow SMTP',
     type: 'smtp',
     host: process.env.EMAIL_HOST || 'mail.rundberglaundry.com',
     port: process.env.EMAIL_PORT || 587,
-    critical: false,
+    critical: false
   },
   {
     name: 'DNS Resolution',
     type: 'dns',
     hostname: 'google.com',
-    critical: true,
-  },
+    critical: true
+  }
 ];
 
 // In-memory storage for monitoring data
 const monitoringData = {
   services: {},
   lastAlert: {},
-  startTime: Date.now(),
+  startTime: Date.now()
 };
 
 // Initialize monitoring data
@@ -56,7 +56,7 @@ SERVICES.forEach(service => {
     totalChecks: 0,
     failedChecks: 0,
     responseTime: 0,
-    history: [],
+    history: []
   };
 });
 
@@ -81,19 +81,19 @@ async function checkMongoDB(service) { // eslint-disable-line no-unused-vars
       return {
         success: false,
         error: `mongoose not connected (readyState ${readyState})`,
-        responseTime: Date.now() - startTime,
+        responseTime: Date.now() - startTime
       };
     }
     await mongoose.connection.db.admin().ping();
     return {
       success: true,
-      responseTime: Date.now() - startTime,
+      responseTime: Date.now() - startTime
     };
   } catch (error) {
     return {
       success: false,
       error: error.message,
-      responseTime: Date.now() - startTime,
+      responseTime: Date.now() - startTime
     };
   }
 }
@@ -154,19 +154,19 @@ async function checkHTTPS(service) {
   try {
     const response = await axios.get(service.url, {
       timeout: MONITORING_CONFIG.timeout,
-      validateStatus: () => true, // Don't throw on any status
+      validateStatus: () => true // Don't throw on any status
     });
 
     return {
       success: response.status < 500,
       statusCode: response.status,
-      responseTime: Date.now() - startTime,
+      responseTime: Date.now() - startTime
     };
   } catch (error) {
     return {
       success: false,
       error: error.message,
-      responseTime: Date.now() - startTime,
+      responseTime: Date.now() - startTime
     };
   }
 }
@@ -181,13 +181,13 @@ async function checkDNS(service) {
     return {
       success: addresses.length > 0,
       addresses,
-      responseTime: Date.now() - startTime,
+      responseTime: Date.now() - startTime
     };
   } catch (error) {
     return {
       success: false,
       error: error.message,
-      responseTime: Date.now() - startTime,
+      responseTime: Date.now() - startTime
     };
   }
 }
@@ -238,7 +238,7 @@ async function checkService(service) {
     timestamp: new Date(),
     success: result.success,
     responseTime: result.responseTime,
-    error: result.error,
+    error: result.error
   });
 
   if (serviceData.history.length > 60) {
@@ -271,7 +271,7 @@ async function handleAlert(service, result) {
   logger.error(`CRITICAL: ${service.name} is down`, {
     service: service.name,
     error: result.error,
-    responseTime: result.responseTime,
+    responseTime: result.responseTime
   });
 
   // Send email alert
@@ -280,7 +280,7 @@ async function handleAlert(service, result) {
       serviceName: service.name,
       error: result.error,
       timestamp: new Date(),
-      serviceData: monitoringData.services[service.name],
+      serviceData: monitoringData.services[service.name]
     });
   } catch (error) {
     logger.error('Failed to send alert email:', error);
@@ -306,7 +306,7 @@ function getMonitoringStatus() {
     uptime,
     services: {},
     overallHealth: 'healthy',
-    criticalServicesDown: [],
+    criticalServicesDown: []
   };
 
   for (const [name, data] of Object.entries(monitoringData.services)) {
@@ -326,7 +326,7 @@ function getMonitoringStatus() {
       failedChecks: data.failedChecks,
       lastError: data.lastError,
       history: data.history,
-      critical: service.critical,
+      critical: service.critical
     };
 
     if (data.status === 'down' && service.critical) {
@@ -369,5 +369,5 @@ module.exports = {
   checkMongoDB,
   runMonitoringCycle,
   SERVICES,
-  monitoringData,
+  monitoringData
 };

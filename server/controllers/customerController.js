@@ -63,7 +63,7 @@ const VERIFY_LANDING = require('path').join(__dirname, '..', '..', 'public', 'em
 const { readHTMLWithNonce } = require('../utils/cspHelper');
 const VERIFY_COPY = {
   ok: {
-    en: { t: 'Email confirmed', m: "Thanks — your email is confirmed. You'll now receive order updates." },
+    en: { t: 'Email confirmed', m: 'Thanks — your email is confirmed. You\'ll now receive order updates.' },
     es: { t: 'Correo confirmado', m: 'Gracias — su correo está confirmado. Ahora recibirá actualizaciones de su pedido.' },
     pt: { t: 'E-mail confirmado', m: 'Obrigado — seu e-mail está confirmado. Você agora receberá atualizações do pedido.' },
     de: { t: 'E-Mail bestätigt', m: 'Danke — Ihre E-Mail ist bestätigt. Sie erhalten ab jetzt Bestellaktualisierungen.' }

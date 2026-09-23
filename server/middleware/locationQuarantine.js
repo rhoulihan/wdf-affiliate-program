@@ -21,7 +21,7 @@
 const {
   isAllowed,
   buildCorporateRedirect,
-  isQuarantineEnabled,
+  isQuarantineEnabled
 } = require('../config/quarantineConfig');
 const storeIPs = require('../config/storeIPs');
 const { clientIp } = require('../utils/clientIp');

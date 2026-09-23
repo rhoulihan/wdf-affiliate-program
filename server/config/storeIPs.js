@@ -65,7 +65,7 @@ module.exports = {
     renewThreshold: parseInt(process.env.STORE_SESSION_RENEW_THRESHOLD || 1800000), // Default: 30 minutes
 
     // Maximum session duration for store IPs (in milliseconds)
-    maxSessionDuration: parseInt(process.env.STORE_SESSION_MAX_DURATION || 86400000), // Default: 24 hours
+    maxSessionDuration: parseInt(process.env.STORE_SESSION_MAX_DURATION || 86400000) // Default: 24 hours
   },
 
   // Function to check if an IP is whitelisted
