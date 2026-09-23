@@ -2,7 +2,7 @@ const logger = require('../../../utils/logger');
 // Affiliate-facing email dispatchers.
 // Extracted from utils/emailService.js in Phase 2.
 
-const { loadTemplate, fillTemplate, formatTimeSlot } = require('../template-manager');
+const { loadTemplate, fillTemplate } = require('../template-manager');
 const { sendEmail } = require('../transport');
 const brand = require('../../../config/brand');
 
@@ -31,7 +31,7 @@ exports.sendAffiliateWelcomeEmail = async (affiliate) => {
         EMAIL_TITLE: `Welcome to ${brand.displayName} Affiliate Program`,
         EMAIL_HEADER: 'Welcome to the Affiliate Program!',
         GREETING: `Hi ${affiliate.firstName},`,
-        WELCOME_MESSAGE: `Congratulations and welcome to the ${brand.displayName} Affiliate Program! We\'re excited to have you join our network of affiliate partners.`,
+        WELCOME_MESSAGE: `Congratulations and welcome to the ${brand.displayName} Affiliate Program! We're excited to have you join our network of affiliate partners.`,
         READY_MESSAGE: 'You\'re now ready to start offering premium wash, dry, fold laundry services to your customers, with pickup and delivery handled by you.',
         YOUR_INFO_TITLE: 'Your Affiliate Information',
         AFFILIATE_ID_LABEL: 'Affiliate ID',

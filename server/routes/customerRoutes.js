@@ -37,7 +37,7 @@ const emailVerifyLimiter = createCustomLimiter({
  * @desc    Check if registration rate limit would be exceeded
  * @access  Public
  */
-router.get('/check-rate-limit', (req, res, next) => {
+router.get('/check-rate-limit', (req, res, _next) => {
   // Apply the registration rate limiter to check
   registrationLimiter(req, res, (err) => {
     if (err) {

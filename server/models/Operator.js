@@ -3,7 +3,6 @@
 
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { encrypt, decrypt } = require('../utils/encryption');
 
 // Wrapper for crypto.randomBytes to allow mocking in tests
 const cryptoWrapper = {

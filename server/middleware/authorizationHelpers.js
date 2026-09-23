@@ -4,7 +4,6 @@
  * to reduce code duplication across controllers
  */
 
-const Affiliate = require('../models/Affiliate');
 const Order = require('../models/Order');
 const logger = require('../utils/logger');
 

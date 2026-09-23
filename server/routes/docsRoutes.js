@@ -1,7 +1,6 @@
 // Routes for serving documentation HTML files with CSP nonces
 const express = require('express');
 const router = express.Router();
-const { serveHTMLWithNonce } = require('../utils/cspHelper');
 const path = require('path');
 const fs = require('fs').promises;
 const logger = require('../utils/logger');

@@ -1,7 +1,6 @@
 // Affiliate Model for Laundromat Affiliate Program
 
 const mongoose = require('mongoose');
-const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const encryptionUtil = require('../utils/encryption');
 

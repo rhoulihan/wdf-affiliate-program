@@ -2,7 +2,7 @@ const logger = require('../../../utils/logger');
 // Customer-facing email dispatchers.
 // Extracted from utils/emailService.js in Phase 2.
 
-const { loadTemplate, fillTemplate, formatTimeSlot } = require('../template-manager');
+const { loadTemplate, fillTemplate } = require('../template-manager');
 const { sendEmail } = require('../transport');
 const brand = require('../../../config/brand');
 // =============================================================================

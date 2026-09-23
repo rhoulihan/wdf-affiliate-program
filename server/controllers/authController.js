@@ -1,17 +1,12 @@
 // Authentication Controller for Laundromat Affiliate Program
 
-const RefreshToken = require('../models/RefreshToken');
-const TokenBlacklist = require('../models/TokenBlacklist');
 const Affiliate = require('../models/Affiliate');
 const Administrator = require('../models/Administrator');
 const Operator = require('../models/Operator');
 const encryptionUtil = require('../utils/encryption');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const emailService = require('../utils/emailService');
 const logger = require('../utils/logger');
 const { logLoginAttempt, logAuditEvent, AuditEvents } = require('../utils/auditLogger');
-const { sanitizeInput } = require('../middleware/sanitization');
 const { escapeRegex } = require('../utils/securityUtils');
 
 const passwordResetService = require('../services/passwordResetService');

@@ -10,7 +10,6 @@
 //     last 5 passwords from being reused) — delegates to the model's
 //     setPassword which also rehashes and appends to the history.
 
-const crypto = require('crypto');
 const Administrator = require('../models/Administrator');
 const { fieldFilter } = require('../utils/fieldFilter');
 const encryptionUtil = require('../utils/encryption');

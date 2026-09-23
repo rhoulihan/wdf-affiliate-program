@@ -20,7 +20,7 @@ const sanitizeInput = (input) => {
   } else if (input !== null && typeof input === 'object') {
     const sanitized = {};
     for (const key in input) {
-      if (input.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(input, key)) {
         sanitized[key] = sanitizeInput(input[key]);
       }
     }
@@ -92,7 +92,7 @@ const sanitizePath = (path) => {
   if (!path || typeof path !== 'string') return '';
 
   // Remove any directory traversal attempts and preserve backslashes for Windows paths
-  return path.replace(/\.\./g, '').replace(/[^a-zA-Z0-9._\-\/\\:]/g, '');
+  return path.replace(/\.\./g, '').replace(/[^a-zA-Z0-9._\-/\\:]/g, '');
 };
 
 module.exports = {

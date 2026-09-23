@@ -51,7 +51,7 @@ const validatePasswordStrength = (password, options = {}) => {
   }
 
   // Check for special characters
-  if (!/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) {
+  if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(password)) {
     errors.push('Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)');
   }
 
@@ -135,7 +135,7 @@ const passwordValidationMiddleware = (req, res, next) => {
 /**
  * Express validator custom validator function
  */
-const customPasswordValidator = (options = {}) => {
+const customPasswordValidator = (_options = {}) => {
   return (value, { req } = {}) => {
     if (!req) {
       const validation = validatePasswordStrength(value);
@@ -214,7 +214,7 @@ const getPasswordStrength = (password) => {
   if (/[a-z]/.test(password)) score += 10;
   if (/[A-Z]/.test(password)) score += 10;
   if (/\d/.test(password)) score += 10;
-  if (/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)) score += 10;
+  if (/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(password)) score += 10;
 
   // Complexity bonus (max 30 points)
   if (!/(.)\1{1,}/.test(password)) score += 10; // No repeated chars

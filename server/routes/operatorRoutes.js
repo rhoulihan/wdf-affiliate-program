@@ -19,7 +19,7 @@ router.post('/', checkRole(['administrator']), checkAdminPermission(['operators.
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').custom(customPasswordValidator())
 ], administratorController.createOperator);
-router.get('/:id', authenticate, async (req, res, next) => {
+router.get('/:id', authenticate, async (req, res, _next) => {
   // Allow operators to view their own profile
   if (req.user.role === 'operator' && req.user.id === req.params.id) {
     return administratorController.getOperatorSelf(req, res);
@@ -31,7 +31,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
     });
   });
 });
-router.patch('/:id', authenticate, async (req, res, next) => {
+router.patch('/:id', authenticate, async (req, res, _next) => {
   // Allow operators to update their own profile with limited fields
   if (req.user.role === 'operator' && req.user.id === req.params.id) {
     // Call a special self-update method for operators

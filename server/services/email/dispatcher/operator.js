@@ -24,7 +24,7 @@ exports.sendOperatorWelcomeEmail = async (operator, temporaryPin) => {
         EMAIL_HEADER: `Welcome to ${brand.displayName} Operations`,
         EMAIL_SUBHEADER: 'Your Operator Account is Ready',
         GREETING: `Welcome aboard, ${operator.firstName}!`,
-        WELCOME_MESSAGE: `We\'re excited to have you join the ${brand.displayName} operations team. Your operator account has been created and you\'re ready to start processing orders.`,
+        WELCOME_MESSAGE: `We're excited to have you join the ${brand.displayName} operations team. Your operator account has been created and you're ready to start processing orders.`,
         CREDENTIALS_TITLE: 'Your Login Credentials',
         EMPLOYEE_ID_LABEL: 'Employee ID',
         TEMPORARY_PIN_LABEL: 'Temporary PIN',
@@ -368,7 +368,7 @@ exports.sendOperatorShiftReminderEmail = async (operator) => {
 /**
  * Note: sendOperatorPasswordResetEmail is not needed since operators use PINs
  */
-exports.sendOperatorPasswordResetEmail = async (operator, resetUrl) => {
+exports.sendOperatorPasswordResetEmail = async (_operator, _resetUrl) => {
   // Operators don't have passwords, they use PINs
   // This method is here for interface compatibility but should not be called
   logger.error('Operators use PINs, not passwords. Use sendOperatorPinResetEmail instead.');

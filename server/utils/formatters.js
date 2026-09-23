@@ -160,13 +160,14 @@ class Formatters {
     if (customer.zipCode) cityStateZip.push(customer.zipCode);
 
     switch (format) {
-    case 'multi':
+    case 'multi': {
       // Multi-line format
       const lines = [...parts];
       if (cityStateZip.length > 0) {
         lines.push(cityStateZip.join(', '));
       }
       return lines.join('\n');
+    }
 
     case 'short':
       // Short format (city, state only)

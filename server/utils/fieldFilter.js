@@ -12,7 +12,7 @@ const filterFields = (obj, allowedFields) => {
 
   const filtered = {};
   allowedFields.forEach(field => {
-    if (obj.hasOwnProperty(field)) {
+    if (Object.prototype.hasOwnProperty.call(obj, field)) {
       filtered[field] = obj[field];
     }
   });

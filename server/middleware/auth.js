@@ -1,13 +1,8 @@
 // Authentication Middleware for Laundromat Affiliate Program
 
 const jwt = require('jsonwebtoken');
-const Affiliate = require('../models/Affiliate');
-const Customer = require('../models/Customer');
-const Administrator = require('../models/Administrator');
-const Operator = require('../models/Operator');
 const TokenBlacklist = require('../models/TokenBlacklist');
 
-const storeIPConfig = require('../config/storeIPs');
 const logger = require('../utils/logger');
 
 // Import rate limiters from centralized configuration
@@ -45,13 +40,10 @@ exports.authenticate = async (req, res, next) => {
     // signs with the same default). Without this, a future jsonwebtoken
     // version change or accidental package downgrade could re-enable the
     // alg-confusion attack class. APP-008 / prod-lockdown-2026-05-20.
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-    } catch (verifyError) {
-      // Re-throw the error to be handled by the error handling block below
-      throw verifyError;
-    }
+    // A verify failure propagates to this function's own catch block, which maps
+    // JsonWebTokenError / TokenExpiredError to 401s. It used to be caught here and
+    // rethrown unchanged, which was a no-op.
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     // No special token renewal for store IPs - removed for security
 
     // Check if token is blacklisted

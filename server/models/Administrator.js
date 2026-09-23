@@ -5,7 +5,6 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const encryptionUtil = require('../utils/encryption');
 const { mongooseValidators } = require('../utils/validators');
-const { validatePasswordStrength } = require('../utils/passwordValidator');
 
 const administratorSchema = new mongoose.Schema({
   adminId: {

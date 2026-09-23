@@ -35,7 +35,7 @@ function getAuthClient() {
       if (!path) {
         throw new Error('FIREBASE_SERVICE_ACCOUNT_PATH is not configured');
       }
-      // eslint-disable-next-line global-require, import/no-dynamic-require
+      // eslint-disable-next-line global-require
       const serviceAccount = require(path);
       app = initializeApp({ credential: cert(serviceAccount) });
       logger.info('Firebase Admin SDK initialized for phone verification');

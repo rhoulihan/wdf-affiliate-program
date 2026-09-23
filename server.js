@@ -496,7 +496,6 @@ app.use((req, res, next) => {
   if (req.session && req.session.cookie) {
     // Force reset cookie properties to ensure they're valid
     const originalMaxAge = req.session.cookie.maxAge;
-    const originalExpires = req.session.cookie._expires;
 
     // Always ensure maxAge is a valid number.
     if (typeof originalMaxAge !== 'number' || isNaN(originalMaxAge) || originalMaxAge < 0) {

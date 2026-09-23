@@ -1,22 +1,10 @@
 // Administrator Controller for Laundromat Affiliate Program
 // Handles system configuration, operator management, and analytics
 
-const Administrator = require('../models/Administrator');
-const Operator = require('../models/Operator');
-const Order = require('../models/Order');
 const Affiliate = require('../models/Affiliate');
-const Customer = require('../models/Customer');
-const SystemConfig = require('../models/SystemConfig');
-const Transaction = require('../models/Transaction');
-const { fieldFilter } = require('../utils/fieldFilter');
-const emailService = require('../utils/emailService');
-const { logAuditEvent, AuditEvents } = require('../utils/auditLogger');
-const { validatePasswordStrength } = require('../utils/passwordValidator');
 const { validationResult } = require('express-validator');
 const { escapeRegex } = require('../utils/securityUtils');
-const crypto = require('crypto');
 const mongoose = require('mongoose');
-const encryptionUtil = require('../utils/encryption');
 const logger = require('../utils/logger');
 
 const systemConfigService = require('../services/systemConfigService');
