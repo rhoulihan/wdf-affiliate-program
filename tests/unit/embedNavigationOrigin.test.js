@@ -21,20 +21,21 @@ const SRC = fs.readFileSync(
   path.join(__dirname, '../../public/assets/js/embed-navigation.js'), 'utf8');
 
 describe('embed-navigation postMessage origin check', () => {
-  // The origin check must name no franchisor domain. File-wide there is exactly
-  // ONE pre-existing franchisor reference — a data-utm-source attribute on
-  // outbound links — which is a separate concern (traffic attribution, not
-  // trust). Pinning the count at 1 keeps this guard able to catch a NEW one.
   it('the origin check names no franchisor domain', () => {
     const handler = SRC.slice(SRC.indexOf('function handleParentMessage'),
       SRC.indexOf('switch (event.data.type)'));
     expect(handler).not.toMatch(/wavemaxlaundry\.com/i);
   });
 
-  it('has exactly one franchisor reference file-wide, the known utm attribute', () => {
-    const hits = SRC.match(/wavemaxlaundry\.com/gi) || [];
-    expect(hits).toHaveLength(1);
-    expect(SRC).toMatch(/data-utm-source'\s*,\s*'wavemaxlaundry\.com'/);
+  // Owner decision 2026-09-23: the outbound utm-source was retagged from the
+  // franchisor's domain to our own, so this file now carries NO franchisor
+  // reference at all and the guard is absolute rather than a pinned count.
+  it('carries no franchisor reference anywhere in the file', () => {
+    expect(SRC).not.toMatch(/wavemaxlaundry\.com/i);
+  });
+
+  it('attributes outbound links to our own domain', () => {
+    expect(SRC).toMatch(/data-utm-source'\s*,\s*'atxwashdryfold\.com'/);
   });
 
   it('does not trust a bare localhost/127.0.0.1 prefix', () => {

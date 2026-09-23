@@ -184,7 +184,7 @@
     // Add UTM tracking for affiliate links
     const affiliateLinks = document.querySelectorAll('[data-navigate*="affiliate"], [data-href*="affiliate"]');
     affiliateLinks.forEach(link => {
-      link.setAttribute('data-utm-source', 'wavemaxlaundry.com');
+      link.setAttribute('data-utm-source', 'atxwashdryfold.com');
       link.setAttribute('data-utm-medium', 'embedded');
       link.setAttribute('data-utm-campaign', 'austin-affiliate');
     });
