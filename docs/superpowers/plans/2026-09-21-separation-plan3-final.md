@@ -3229,7 +3229,7 @@ decision file and carried as an escalation — not left as an unstated gap in ex
 **Rollback (exact).** Restore all five monitor fields from the recorded before-state.
 ```bash
 EV=/var/www/wavemax/cutover-logs; REC=$EV/plan3-record.env; set -a; . "$REC"; set +a
-TOK=$(tr -d '\n' < ~/.cf_api_token); ACC=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2
+TOK=$(tr -d '\n' < ~/.cf_api_token); ACC=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2e0cfd7b40c4f414b5ddf20d9   # full 32-hex id; the plan had it truncated
 echo "restoring to: $MONITOR_BEFORE"
 curl -s -X PATCH -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
   "https://api.cloudflare.com/client/v4/accounts/$ACC/load_balancers/monitors/$MON" \
@@ -3254,7 +3254,7 @@ chk all_flipped "${ALL_HOSTS_FLIPPED:-}"  yes
 chk snip1       "${SNIPPET_READY_oci1:-}" yes
 chk gate1       "${GATE_DELETED_oci1:-}"  yes
 chk box_busy    "${BOX_BUSY:-}"           ""
-TOK=$(tr -d '\n' < ~/.cf_api_token); ACC=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2
+TOK=$(tr -d '\n' < ~/.cf_api_token); ACC=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2e0cfd7b40c4f414b5ddf20d9   # full 32-hex id; the plan had it truncated
 # ~/.cf_api_token is an ACCOUNT-owned cfat_ token: /accounts/{id}/tokens/verify is the only
 # endpoint that reports it correctly. /user/tokens/verify falsely answers "Invalid".
 chk token "$(curl -s -H "Authorization: Bearer $TOK" "https://api.cloudflare.com/client/v4/accounts/$ACC/tokens/verify" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(j.success?j.result.status:"INVALID")})')" active
@@ -3371,7 +3371,7 @@ rec BOX_BUSY ""
 ```bash
 EV=/var/www/wavemax/cutover-logs; REC=$EV/plan3-record.env; set -a; . "$REC"; set +a
 rec() { printf '%s=%q\n' "$1" "$2" >> "$REC"; }
-TOK=$(tr -d '\n' < ~/.cf_api_token); ACC=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2
+TOK=$(tr -d '\n' < ~/.cf_api_token); ACC=b69ef162d008b11492296d3b35cad2fe; MON=be6953d2e0cfd7b40c4f414b5ddf20d9   # full 32-hex id; the plan had it truncated
 A=$(curl -s -X PATCH -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
   "https://api.cloudflare.com/client/v4/accounts/$ACC/load_balancers/monitors/$MON" \
   --data '{"interval":30,"retries":1}' \

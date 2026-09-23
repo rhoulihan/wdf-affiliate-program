@@ -83,7 +83,11 @@ async function forgotPassword({ email, userType, cryptoWrapper }) {
   // services/email/dispatcher/customer.js, modules/onboarding/inviteService.js)
   // and it survives the Plan 3 cutover, where /embed-app-v2.html is 301'd from
   // the marketing hosts to the portal by the B7 legacy redirects.
-  const resetUrl = `${process.env.FRONTEND_URL}/embed-app-v2.html?route=/reset-password&token=${encodeURIComponent(resetToken)}&type=${userType}`;
+  if (!process.env.BASE_URL) {
+    throw new PasswordResetError('missing_base_url',
+      'BASE_URL is not configured; refusing to email a reset link with an undefined origin', 500);
+  }
+  const resetUrl = `${process.env.BASE_URL}/embed-app-v2.html?route=/reset-password&token=${encodeURIComponent(resetToken)}&type=${userType}`;
   await emailService[RESET_EMAIL_SENDERS[userType]](user, resetUrl);
 }
 

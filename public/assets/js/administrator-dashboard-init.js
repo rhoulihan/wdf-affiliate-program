@@ -2662,7 +2662,7 @@
 
     // Group variables by category
     const categories = {
-      'Application': ['NODE_ENV', 'PORT', 'BASE_URL', 'FRONTEND_URL', 'BACKEND_URL', 'CORS_ORIGIN', 'TRUST_PROXY', 'COOKIE_SECURE'],
+      'Application': ['NODE_ENV', 'PORT', 'BASE_URL', 'BACKEND_URL', 'CORS_ORIGIN', 'TRUST_PROXY', 'COOKIE_SECURE'],
       'Database': ['MONGODB_URI'],
       'Security & Authentication': ['JWT_SECRET', 'SESSION_SECRET', 'ENCRYPTION_KEY'],
       'Email': ['EMAIL_PROVIDER', 'EMAIL_FROM', 'EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_USER', 'EMAIL_PASS', 'EMAIL_SECURE'],

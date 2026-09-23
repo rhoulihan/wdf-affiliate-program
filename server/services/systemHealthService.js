@@ -17,7 +17,7 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const ALLOWED_ENV_VARS = [
   // Application
-  'NODE_ENV', 'PORT', 'BASE_URL', 'FRONTEND_URL', 'BACKEND_URL',
+  'NODE_ENV', 'PORT', 'BASE_URL', 'BACKEND_URL',
   'CORS_ORIGIN', 'TRUST_PROXY', 'COOKIE_SECURE',
   // Database
   'MONGODB_URI',
