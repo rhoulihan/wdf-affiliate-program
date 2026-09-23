@@ -121,7 +121,7 @@ Styles live in matching `*-modern.css` files; client behavior in `*-modern.js`. 
 
 ### What's instrumented
 
-Each content page ships a structured SEO config object that the iframe pushes to the parent frame over `postMessage` via [`public/assets/js/parent-iframe-bridge-v3.js`](public/assets/js/parent-iframe-bridge-v3.js). The parent (the WaveMAX marketing site) injects the values into the actual `<head>` so search engine crawlers see them on the canonical URL, not on the iframe origin.
+Each content page ships a structured SEO config object. This was historically pushed to the parent frame over `postMessage` by a parent-frame iframe bridge, which injected the values into the parent's real `<head>` so crawlers saw them on the canonical URL rather than on the iframe origin. **That bridge is retired** — the owner decision is that we will never embed in the franchisor site, so there is no parent frame to push to. What the config carries is recorded below.
 
 What gets injected, per page:
 
@@ -141,13 +141,13 @@ What gets injected, per page:
    - `amenityFeature` array (`UV Sanitization`, `Free WiFi`, `Wheelchair Accessible`, `Touchless Payment`, `Free Parking` for self-serve; `24-Hour Turnaround`, `Professional Folding`, `Hospital-Grade UV` for WDF)
    - `hasMap` link to the Google Maps place
 7. **Stable `@id` cross-linking.** All structured-data blocks share a single `@id` (`https://www.wavemaxlaundry.com/austin-tx/#localbusiness`) so Google treats the multiple service pages as views of the same business entity rather than as separate businesses.
-8. **Hreflang via i18n.** The same content is served in en / es / pt / de from `public/locales/`; translations are loaded at runtime by `i18n.js` and the parent-frame bridge updates `<link rel="alternate" hreflang="...">` to match.
+8. **Hreflang via i18n.** The same content is served in en / es / pt / de from `public/locales/`; translations are loaded at runtime by `i18n.js`. Keeping `<link rel="alternate" hreflang="...">` in step was the retired parent-frame bridge's job.
 
 ### Why this lives in the iframe app, not the marketing site
 
 The marketing site (`wavemaxlaundry.com`) historically rendered location pages from a content management system, and pushing per-page schema and OG tags through that pipeline required the marketing-site vendor to be in the loop for every change. By moving the SEO-instrumented content into iframes served from `wavemax.promo` and pushing meta-tag updates over `postMessage`, page-level SEO becomes a code change in this repository — reviewable, testable, versioned, and deployable on the same cadence as the rest of the application.
 
-The `parent-iframe-bridge-v3.js` contract is also what allows multiple cities to share a single content template: the iframe knows its slug from the parent URL, the loader chooses the right SEO config bundle, and the location-specific values (telephone, address, geo, hours) flow into the schema before the parent frame writes it into the DOM.
+That bridge contract is also what allowed multiple cities to share a single content template: the iframe knew its slug from the parent URL, the loader chose the right SEO config bundle, and the location-specific values (telephone, address, geo, hours) flowed into the schema before the parent frame wrote it into the DOM. Retired with the bridge.
 
 ---
 

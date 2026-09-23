@@ -26,7 +26,7 @@ service-area matching, DocuSign W-9, and OAuth/social-auth were all removed.)
 ## 📚 Guides
 
 - [i18n Best Practices](./guides/i18n-best-practices.md) — four-language (en/es/pt/de) workflow
-- [Mobile Parent Integration](./guides/mobile-parent-integration-guide.md) — iframe parent bridge (`parent-iframe-bridge-v3.js`)
+- [Mobile Parent Integration](./guides/mobile-parent-integration-guide.md) — historical: the retired iframe parent bridge (owner decision: we will never embed in the franchisor site)
 
 ## ⚙️ Operations & Setup
 

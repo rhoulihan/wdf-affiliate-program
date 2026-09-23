@@ -23,8 +23,6 @@ const ROOT = path.resolve(__dirname, '..');
 
 // [type, source (relative to repo root), output]
 const ASSETS = [
-  ['js',  'public/assets/js/iframe-bridge-v2.js',           'public/assets/js/iframe-bridge-v2.min.js'],
-  ['js',  'public/assets/js/parent-iframe-bridge-v3.js',    'public/assets/js/parent-iframe-bridge-v3.min.js'],
   ['js',  'public/assets/js/embed-app-v2.js',               'public/assets/js/embed-app-v2.min.js'],
 ];
 

@@ -38,6 +38,10 @@ const EXCLUDED_FILES = new Set([
   // Guard-style test that asserts the ABSENCE of the mark in locales — its
   // /wavemax/i matcher is load-bearing, so it is allowlisted like this file.
   'tests/unit/i18n-brand-token.test.js',
+  // Guard-style test asserting the bridges are GONE — it spells the retired bridge's
+  // global API identifier in order to assert the allowlist row above is removed, so it is
+  // excluded like the file above. Without it, the guard would red on its own guard.
+  'tests/unit/bridgeRetired.test.js',
   // DB-name-only dev/admin scripts (infra: connect string names the ADB database).
   'scripts/seed-claim-bag.js', 'scripts/admin/delete-admin-operators.js',
   'scripts/diagnostics/check-data-distribution.js',
@@ -84,11 +88,10 @@ const INFRA_ALLOW = [
   // franchisor mark + entity; mechanically tokenizing them is legally wrong).
   /WaveMAX is a trademark/gi, /WaveMAX™/gi, /the WaveMAX logo/gi,
   /WaveMAX Franchise, LLC/gi, /WaveMAX WDF Affiliate Portal/gi,
-  // Client-JS infra identifiers — postMessage source tag, localStorage key,
-  // host-page DOM id, and the global bridge API name. Functional bindings
-  // across the iframe/host boundary (never display copy).
+  // Client-JS infra identifiers — postMessage source tag, localStorage key and
+  // host-page DOM id. Functional bindings, never display copy. (The bridge API
+  // name row was removed with the bridges themselves; see bridgeRetired.test.js.)
   /wavemax-embed/gi, /wavemax-language/gi, /wavemax-iframe/gi,
-  /WaveMaxBridgeV3/gi,
   // ---- anchored infra/operational identifiers ----
   // MongoDB database name in local/docker connection strings + init.
   /localhost:27017\/wavemax/gi, /mongo:27017\/wavemax/gi,
