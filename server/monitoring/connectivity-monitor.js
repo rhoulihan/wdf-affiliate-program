@@ -101,46 +101,46 @@ async function checkMongoDB(service) { // eslint-disable-line no-unused-vars
 /**
  * Check SMTP connectivity
  */
-async function checkSMTP(service) {
+async function checkSMTP(service, timeoutMs) {
   const startTime = Date.now();
+  const limit = timeoutMs || MONITORING_CONFIG.timeout;
   return new Promise((resolve) => {
     const client = new net.Socket();
     let resolved = false;
+    let banner = '';
 
-    const cleanup = () => {
-      if (!resolved) {
-        resolved = true;
-        client.destroy();
-      }
+    // Complete the conversation instead of abandoning it. Destroying the socket
+    // on 'connect' -- before the server has sent its 220 -- is logged by Postfix
+    // as "lost connection after CONNECT ... commands=0/0", and with this monitor
+    // running in every pm2 worker on both boxes that was ~31% of the mail host's
+    // submission log. It also proved only that a TCP port accepts: a silent port
+    // counted as healthy. Reading the 220 and sending QUIT proves SMTP is really
+    // answering AND leaves a clean disconnect in the peer's log.
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      client.destroy();
+      resolve({ ...result, responseTime: Date.now() - startTime });
     };
 
-    client.setTimeout(MONITORING_CONFIG.timeout);
+    client.setTimeout(limit);
 
-    client.on('connect', () => {
-      cleanup();
-      resolve({
-        success: true,
-        responseTime: Date.now() - startTime,
-      });
+    client.on('data', (chunk) => {
+      banner += chunk.toString();
+      if (/^220[ -]/.test(banner) && /\r?\n/.test(banner)) {
+        // Say goodbye properly; end() flushes QUIT then half-closes.
+        client.end('QUIT\r\n');
+        finish({ success: true, banner: banner.split(/\r?\n/)[0].slice(0, 120) });
+      } else if (/^[45]\d\d[ -]/.test(banner)) {
+        finish({ success: false, error: 'SMTP refused: ' + banner.split(/\r?\n/)[0].slice(0, 120) });
+      }
     });
 
-    client.on('error', (error) => {
-      cleanup();
-      resolve({
-        success: false,
-        error: error.message,
-        responseTime: Date.now() - startTime,
-      });
-    });
-
-    client.on('timeout', () => {
-      cleanup();
-      resolve({
-        success: false,
-        error: 'Connection timeout',
-        responseTime: Date.now() - startTime,
-      });
-    });
+    client.on('error', (error) => finish({ success: false, error: error.message }));
+    client.on('timeout', () => finish({
+      success: false,
+      error: banner ? 'SMTP incomplete greeting' : 'Connection timeout'
+    }));
 
     client.connect(service.port, service.host);
   });
@@ -365,6 +365,7 @@ module.exports = {
   getMonitoringStatus,
   getMonitoringDashboard,
   checkService,
+  checkSMTP,
   checkMongoDB,
   runMonitoringCycle,
   SERVICES,
