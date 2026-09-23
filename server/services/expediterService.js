@@ -23,16 +23,72 @@ const MAX_AFFILIATE_ROWS = 100;
  * hours (system_timezone, default America/Chicago) — using the server's own
  * local midnight would misalign the day boundary by the tz offset.
  */
+/**
+ * The zone's UTC offset in ms at a given instant (east of UTC is positive).
+ * Derived from the zone's own wall-clock reading of that instant, so it is
+ * DST-correct by construction and never consults the server clock.
+ */
+function tzOffsetMsAt(date, tz) {
+  const p = {};
+  for (const { type, value } of new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  }).formatToParts(date)) p[type] = value;
+  // Some ICU builds render midnight as hour "24" with hour12:false.
+  const hour = p.hour === '24' ? 0 : Number(p.hour);
+  const asIfUtc = Date.UTC(
+    Number(p.year), Number(p.month) - 1, Number(p.day),
+    hour, Number(p.minute), Number(p.second)
+  );
+  // Compare against the instant truncated to the second, because formatToParts
+  // gives no sub-second field.
+  return asIfUtc - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+/**
+ * The instant at which "today" began on the wall clock of `tz`.
+ *
+ * MUST NOT depend on the server's own timezone. The previous implementation
+ * round-tripped toLocaleString() through new Date() and then called
+ * setHours(0,0,0,0) -- but setHours works in SERVER-local time while the offset
+ * it subtracted was the target zone's, so the result was wrong by exactly the
+ * server's own UTC offset. It looked correct only because both boxes run
+ * Etc/UTC; `npm test` pins TZ=America/Chicago, which is where it surfaced.
+ */
 function startOfTodayInTz(tz) {
   const now = new Date();
-  // Reinterpret "now" as the tz wall clock and as UTC, both in server-local
-  // epoch space, to recover the tz→UTC offset (DST-correct for the instant).
-  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-  const utcNow = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const offsetMs = tzNow.getTime() - utcNow.getTime();
-  const localMidnight = new Date(tzNow);
-  localMidnight.setHours(0, 0, 0, 0);
-  return new Date(localMidnight.getTime() - offsetMs);
+  // Today's calendar date as the target zone sees it.
+  const p = {};
+  for (const { type, value } of new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(now)) p[type] = value;
+  const y = Number(p.year); const mo = Number(p.month); const d = Number(p.day);
+  const midnightAsIfUtc = Date.UTC(y, mo - 1, d);
+
+  // Subtract the zone's offset to get the real instant. Two candidates, because a
+  // zone that changes offset AT midnight makes the first guess land on the wrong
+  // side of the jump:
+  //   c1 -- offset sampled at the naive instant
+  //   c2 -- offset re-sampled at c1
+  // On a FALL-BACK-at-midnight day (e.g. Europe/Chisinau 2026-10-25) c1 reads
+  // 01:00 and skips the repeated hour, so c2 is right. On a
+  // SPRING-FORWARD-at-midnight day (e.g. America/Santiago 2026-09-06) midnight
+  // does not exist at all and c2 lands at 23:00 on the PREVIOUS day, so c1 --
+  // the first instant of the target date that does exist -- is right.
+  // So: keep only candidates whose wall clock still falls on the target date,
+  // and take the earliest. Neither pass alone is correct.
+  const c1 = midnightAsIfUtc - tzOffsetMsAt(new Date(midnightAsIfUtc), tz);
+  const c2 = midnightAsIfUtc - tzOffsetMsAt(new Date(c1), tz);
+  const onTargetDate = (ts) => {
+    const q = {};
+    for (const { type, value } of new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date(ts))) q[type] = value;
+    return Number(q.year) === y && Number(q.month) === mo && Number(q.day) === d;
+  };
+  const valid = [c1, c2].filter(onTargetDate);
+  return new Date(valid.length ? Math.min(...valid) : c1);
 }
 
 /**
@@ -122,4 +178,4 @@ async function getExpediterSummary() {
   };
 }
 
-module.exports = { getExpediterSummary };
+module.exports = { getExpediterSummary, startOfTodayInTz };
