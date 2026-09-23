@@ -48,8 +48,6 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-const MongoStore = require('connect-mongo');
-
 // Oracle ADB MongoDB-API resilience: transparently retry the intermittent
 // "BSON element cursor is missing" error on findOne (degraded long-lived
 // pooled connections). Patches the shared mongodb driver Collection prototype,
@@ -374,46 +372,6 @@ const { apiLimiter } = require('./server/middleware/rateLimiting');
 // The middleware itself handles test environment and relaxed mode
 app.use('/api/', apiLimiter);
 
-// Setup session middleware - add this after other middleware like helmet, cors, etc.
-const session = require('express-session');
-
-// Calculate maxAge once to ensure consistency
-const sessionMaxAge = 10 * 60 * 1000; // 10 minutes — inactivity TTL (extended on activity via touchAfter). Was 24h, which let CF load-balancer health-check sessions (~11/sec, one per request via saveUninitialized) pile to ~2M on ADB, which never runs a TTL sweep.
-
-// Configure session store based on environment
-const sessionStore = process.env.NODE_ENV === 'test'
-  ? undefined // Use default MemoryStore for tests
-  : MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
-    // connect-mongo runs its OWN MongoClient pool. Keep its connections pooled
-    // (no idle churn) + enable command monitoring so the Oracle diagnostics capture
-    // the sessions.findOne malformed replies (where 100% of the cursor errors are).
-    mongoOptions: {
-      // connect-mongo has its OWN pool — cap it too (sessions are infrequent).
-      maxPoolSize: 3,
-      minPoolSize: 1,
-      monitorCommands: process.env.ORACLE_DIAG !== 'false'
-    },
-    touchAfter: 60, // seconds — re-save an active session at most once/min so the 10-min TTL is inactivity-based (a busy user isn't dropped mid-session), without writing on every request
-    // Purge expired sessions with a periodic deleteMany rather than a Mongo
-    // TTL index. The Oracle ADB MongoDB API rejects TTL index creation unless
-    // the schema holds CREATE JOB, and connect-mongo's default
-    // autoRemove:'native' throws an unhandled rejection on connect there
-    // (crash-loops startup). 'interval' performs cleanup with a plain query
-    // Oracle supports; session validity is also enforced on read via the
-    // `expires` field, so correctness never depended on the TTL sweep.
-    autoRemove: 'interval',
-    autoRemoveInterval: 2 // minutes — purge expired sessions fast (ADB runs no TTL sweep, so this deleteMany is the only cleanup)
-  });
-
-// __Host- prefix in production: enforces Secure + Path=/ + no Domain
-// attribute, blocking sub-domain cookie injection. In dev/test we keep
-// the bare name because __Host- requires Secure which we only set in
-// prod. APP-009 / prod-lockdown-2026-05-20.
-const sessionCookieName = process.env.NODE_ENV === 'production'
-  ? '__Host-portal.sid'
-  : 'portal.sid';
-
 // Liveness probe — handled BEFORE the session middleware so the Cloudflare
 // Load Balancer health monitor (~11/sec, ~99% of origin traffic) does NOT mint
 // a session per check. Leaving it after session re-bloats the ADB session store
@@ -460,71 +418,42 @@ app.get('/health/origin', async (req, res) => {
   });
 });
 
-app.use(session({
-  name: sessionCookieName,
-  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'default-dev-secret'),
-  resave: false, // Don't resave session if unmodified
-  saveUninitialized: true, // Changed to true to ensure sessions are created for CSRF
-  rolling: false, // Disable rolling to avoid maxAge issues
-  store: sessionStore,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production', // Only use secure in production
-    httpOnly: true,
-    maxAge: sessionMaxAge, // Use pre-calculated value
-    originalMaxAge: sessionMaxAge, // Store original maxAge
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' required for cross-site iframe in production
-    path: '/', // Ensure cookie is available for all paths
-    domain: undefined // Let browser handle domain (works better for same-origin)
-  },
-  // Add genid to ensure consistent session IDs
-  genid: function(req) {
-    // For iframe contexts, try to use a consistent ID based on authorization token
-    if (req.headers.authorization) {
-      const crypto = require('crypto');
-      const token = req.headers.authorization.replace('Bearer ', '');
-      // Create a deterministic session ID based on the auth token
-      return 'sess_' + crypto.createHash('sha256').update(token).digest('hex').substring(0, 32);
-    }
-    // Default to random ID
-    return require('crypto').randomBytes(16).toString('hex');
-  }
-}));
-
-// Add middleware to ensure session cookie maxAge is always valid
-app.use((req, res, next) => {
-  if (req.session && req.session.cookie) {
-    // Force reset cookie properties to ensure they're valid
-    const originalMaxAge = req.session.cookie.maxAge;
-
-    // Always ensure maxAge is a valid number.
-    if (typeof originalMaxAge !== 'number' || isNaN(originalMaxAge) || originalMaxAge < 0) {
-      // MUTATE IN PLACE -- never replace this object. It used to be replaced with a
-      // plain-object spread ("to avoid prototype issues"), but the prototype IS the
-      // point: express-session serialises Set-Cookie from Cookie#data, a getter on
-      // that prototype. A plain object has no `data`, so on the repair path the
-      // emitted cookie lost Path, HttpOnly, Secure, SameSite and Expires. This app's
-      // production cookie is __Host- prefixed, and that prefix REQUIRES Secure and
-      // Path=/ -- so the browser rejected the cookie outright and the session
-      // silently dropped. Proven with a live express-session round-trip and fixed in
-      // @crhs/web-core's _maxAgeFixer at the same time (2026-09-11).
-      const cookie = req.session.cookie;
-      const until = new Date(Date.now() + sessionMaxAge);
-      cookie.maxAge = sessionMaxAge;
-      // A real Cookie derives these via its setter; a plain object (a cookie already
-      // in the degraded state this fixer exists for) does not, so backfill only what
-      // is still missing.
-      if (cookie.originalMaxAge !== sessionMaxAge) cookie.originalMaxAge = sessionMaxAge;
-      if (!(cookie.expires instanceof Date)) cookie.expires = until;
-      if (!(cookie._expires instanceof Date)) cookie._expires = until;
-    }
-
-    // Double-check the maxAge is still valid
-    if (typeof req.session.cookie.maxAge !== 'number') {
-      req.session.cookie.maxAge = sessionMaxAge;
-    }
-  }
-  next();
+// Session middleware — @crhs/web-core's shared builder (spec §7.2). The cookie
+// config, connect-mongo store options, TTL, genid and the maxAge repair path are a
+// verbatim extraction of the block that used to live here, so ONE copy of the
+// 2026-09-11 outage fix exists instead of two divergent ones. Core returns
+// express-session already composed WITH its _maxAgeFixer, so that guard cannot be
+// mounted away by accident.
+//
+// cookieName is pinned EXPLICITLY. web-core's DEFAULT_COOKIE_BASE is 'app.sid', so a
+// default-shaped call would rename the production cookie from __Host-portal.sid to
+// __Host-app.sid and sign out every logged-in affiliate, customer, administrator and
+// operator on the next reload. Core applies the __Host- prefix in production
+// (enforces Secure + Path=/ + no Domain attribute, blocking sub-domain cookie
+// injection — APP-009 / prod-lockdown-2026-05-20); dev/test keeps the bare name
+// because __Host- requires Secure. An explicit argument also outranks
+// SESSION_COOKIE_NAME, so no box-level env value can rename the live cookie.
+// Pinned both ways by tests/integration/sessionMount.test.js.
+//
+// ttlSeconds 600 is the 10-minute inactivity TTL (extended on activity via core's
+// touchAfter: 60). It was 24h, which let CF load-balancer health-check sessions
+// (~11/sec, one per request via saveUninitialized) pile to ~2M on ADB, which never
+// runs a TTL sweep — hence also the two /health routes registered above this mount.
+// The session secret chain is core's and is character-identical to the one this
+// block used: SESSION_SECRET → JWT_SECRET → a dev default, and '' in production so
+// the fail-fast secret validation at the top of this file is what surfaces a
+// missing value.
+//
+// `sessionStore` stays a named binding: the Oracle ADB cursor diagnostics attach
+// above reaches connect-mongo's OWN MongoClient through sessionStore.clientP, where
+// 100% of the observed malformed cursor replies occur.
+const { middleware: sessionMiddleware, store: sessionStore } = webCore.buildSessionMiddleware({
+  mongoUrl: process.env.MONGODB_URI,
+  ttlSeconds: 600,
+  cookieName: 'portal.sid'
 });
+
+app.use(sessionMiddleware);
 
 // .well-known/security.txt — RFC 9116 disclosure policy.
 // Explicit route because Express's serve-static ignores dotfiles by
