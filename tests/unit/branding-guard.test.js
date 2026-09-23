@@ -49,9 +49,6 @@ const EXCLUDED_FILES = new Set([
   // Security blocklist: 'wavemax' must stay in the weak-password list to reject
   // the WaveMAX!2024 default credential — it is a control, not display copy.
   'server/utils/passwordValidator.js',
-  // Partner-landing middleware — names the real WaveMAX franchisor mark in
-  // marketing/legal copy; de-brand deferred to Phase 4 (marketing-content pass).
-  'server/middleware/partnerLanding.js',
   'scripts/ops/refresh-hibu.sh', 'tools/flyers/build-flyers.js',
   // Build script whose only marks are the wavemax-*.css asset filenames (Phase-4
   // asset rename). Excluded rather than allowlisting the filename globally, which
@@ -60,11 +57,6 @@ const EXCLUDED_FILES = new Set([
   // Proprietary LICENSE names the CRHS/WaveMAX marks verbatim (legal text) +
   // dev-persona doc — both kept literal.
   'LICENSE', 'init.prompt',
-  //   Partner-landing middleware (excluded partnerLanding.js) + its no-brand guard:
-  'tests/unit/partnerLanding.test.js',
-  // Guard-style tests whose /wavemax/i absence-matcher is load-bearing (asserts the
-  // page carries NO brand) — allowlisted like i18n-brand-token.test.js above.
-  'tests/unit/affiliateApplicationForm.test.js', 'tests/unit/partnerInquiryForm.test.js',
   // Security-control test: asserts 'wavemax' stays in the weak-password blocklist
   // (source passwordValidator.js is excluded for the same reason — a control, not copy).
   'tests/unit/passwordValidator.test.js',

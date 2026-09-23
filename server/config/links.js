@@ -5,13 +5,16 @@
 // INVITE-ONLY, so the portal's login page must not send people to the
 // invite-gated /affiliate-register flow; it sends them here instead.
 //
-// WHY THIS IS CONFIG AND NOT A LITERAL: the interest form (public/affiliate.html,
-// route /affiliate) MOVES out of this app and into the content app
-// (crhs-corporate, atxwashdryfold.com) in Plan 3 of the separation work. A naive
-// same-origin "/affiliate" link works today and silently 404s the moment that
-// cutover happens. At cutover, set INTEREST_FORM_URL on both boxes to the
-// absolute content origin (https://atxwashdryfold.com/affiliate, canonical per
-// decision D8) and this link follows without a code change.
+// WHY THIS IS CONFIG AND NOT A LITERAL: the interest form used to live in this app
+// (public/affiliate.html, route /affiliate). That cutover HAS NOW HAPPENED — Plan 3
+// Task 16 deleted both, and crhs-corporate serves the form at
+// https://atxwashdryfold.com/affiliate (canonical per decision D8).
+//
+// ⚠ The '/affiliate' fallback below is therefore DEAD on this origin: nothing here
+// routes it any more, so if INTEREST_FORM_URL is unset the invite-only programme's
+// only public application link 404s. It is set on both production boxes (verified at
+// the Task 16 gate) and is the single source of truth; treat an unset value as a
+// misconfiguration, not a default.
 
 const INTEREST_FORM_URL = process.env.INTEREST_FORM_URL || '/affiliate';
 

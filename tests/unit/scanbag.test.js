@@ -57,11 +57,12 @@ describe('/scanbag mobile PWA', () => {
     expect(manifest.icons.some(i => /192/.test(i.sizes))).toBe(true);
   });
 
-  describe('gate exemptions (reachable on the rundberglaundry.com partner-landing host)', () => {
-    const partnerLanding = require('../../server/middleware/partnerLanding');
+  // The partner-landing host gate used to run ahead of these paths and needed its own
+  // exemption for each; it went with the marketing surface on 2026-09-22 (Plan 3
+  // Task 16), so the quarantine allowlist is now the only gate in front of them.
+  describe('gate exemptions (the quarantine allowlist must let the PWA through)', () => {
     const quarantine = require('../../server/config/quarantineConfig');
     for (const p of ['/scanbag', '/scanbag/', '/scanbag-sw.js', '/scanbag-manifest.json']) {
-      it(`partner-landing exempts ${p}`, () => expect(partnerLanding._isExempt(p)).toBe(true));
       it(`quarantine allows ${p}`, () => expect(quarantine.isAllowed(p)).toBe(true));
     }
   });

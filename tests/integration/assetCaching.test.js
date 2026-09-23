@@ -35,7 +35,10 @@ describe('Static asset caching — /assets immutable', () => {
     // of REVALIDATED origin round-trips (~0.2s): public + a long immutable TTL.
     // (Static asset GETs don't modify the session, so prod responses carry no
     // session cookie and CF caches them; the immutable TTL keeps them HIT.)
-    const res = await request(app).get('/assets/images/locations/austin-tx/hero-1.webp?v=20260524');
+    // (Was the austin-tx storefront .webp until 2026-09-22; those location photos
+    // went with the marketing surface in Plan 3 Task 16. Any served image proves the
+    // same header contract, so this uses one the app will always ship.)
+    const res = await request(app).get('/assets/images/brand/logo.png?v=20260524');
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toMatch(/public/);
     expect(res.headers['cache-control']).toMatch(/max-age=31536000/);

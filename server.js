@@ -361,15 +361,11 @@ app.use(sanitizeRequest); // Sanitize all inputs for XSS prevention
 // Compression for all responses
 app.use(compression());
 
-// Partner-program landing page for the Austin per-location domains
-// (rundberglaundry.com + the runberg/atxwashateria/atxwashdryfold aliases).
-// Indexable public recruitment page for the pickup/delivery partner program;
-// runs before the location quarantine and content routes so it covers every
-// marketing path and prevents any other host handler from leaking onto these
-// domains. Exempt paths (API, .well-known, assets, locales, app surfaces,
-// favicon/robots/sitemap) pass through.
-const partnerLanding = require('./server/middleware/partnerLanding');
-app.use(partnerLanding);
+// (The partner-program landing middleware for the Austin per-location domains
+// lived here until 2026-09-22. crhs-corporate on :3001 now owns rundberglaundry.com,
+// atxwashateria.com, atxwashdryfold.com and the runberglaundry.com typo alias
+// outright — nginx routes those host families there on both boxes — so this app
+// no longer has a marketing surface to gate. See Plan 3 Task 16.)
 
 // Rate limiting for API endpoints
 // Import centralized rate limiting configuration
@@ -797,9 +793,9 @@ app.use('/api', (req, res, next) => {
 // Root route: portal.atxwashdryfold.com/ lands on the affiliate login. Serve the
 // affiliate-program SPA shell with window.__DEFAULT_ROUTE='/affiliate-login' injected
 // (clean address bar, mirrors the /admin and /operator handlers). PUBLIC — the affiliate
-// login credentials are the gate. On the marketing hosts (rundberglaundry.com,
-// atxwashdryfold.com, …) partnerLanding pre-empts `/` before it reaches here, so this
-// fires only for the app host (portal.atxwashdryfold.com) and any non-marketing host.
+// login credentials are the gate. Since the marketing host families moved to
+// crhs-corporate on :3001 (Plan 3), nothing pre-empts `/` any more: every host that
+// reaches this app — the portal and any other — gets the affiliate-login shell.
 const { readHTMLWithNonce: adminReadHTML } = require('./server/utils/cspHelper');
 app.get('/', async (req, res) => {
   try {
@@ -814,11 +810,12 @@ app.get('/', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
-// Public UT-student affiliate recruitment landing page (rundberglaundry.com/affiliate).
-// Exempted from partnerLanding + the quarantine allowlist so it is fully public.
-app.get(['/affiliate', '/affiliate/'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'affiliate.html'));
-});
+// (The public affiliate-interest form served here until 2026-09-22. It is now
+// crhs-corporate's, at https://atxwashdryfold.com/affiliate — translated into all
+// four languages, which the portal's copy never was. The portal links to it through
+// INTEREST_FORM_URL / server/config/links.js, so nothing here should route /affiliate
+// again: a local route would silently shadow the configured URL. Plan 3 Task 16.)
+
 // RETIRED 2026-09-14 (owner decision). This slug served a franchisor-branded
 // affiliate interest page; it is withdrawn following the 2026-08-26 trademark
 // complaints. The URL answers 410 Gone — deliberately NOT a 301 to /affiliate,
@@ -1018,22 +1015,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Marketing-host fall-through — keep the store off the API catch-all below.
-// partnerLanding answers every non-exempt GET on these host families, so the
-// only client that reaches here is the store IP, which it deliberately bypasses
-// ("the store sees the real app on every route"). Without this, that bypass
-// lands nowhere and the store gets API JSON instead of a page. Match on HOST,
-// not path: these vhosts may rewrite `location = /` to a path the app no longer
-// serves (the /austin-tx/ tree went in Phase 4b), so the forwarded path is not
-// something we can rely on. /api/* is excluded so real API 404s stay JSON.
-app.use((req, res, next) => {
-  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-  if (req.path.startsWith('/api/')) return next();
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
-    .toLowerCase().split(':')[0].trim();
-  if (!partnerLanding._hosts.includes(host)) return next();
-  return res.redirect(302, '/embed-app-v2.html');
-});
+// (The marketing-host fall-through lived here until 2026-09-22. It existed only to
+// catch the store IP, the one client that bypassed the partner-landing gate on those
+// host families, and send it to the app shell instead of the API JSON 404. With those
+// hosts now served entirely by crhs-corporate on :3001, no request on them reaches
+// this app at all, so the handler had nothing left to catch. Plan 3 Task 16.)
 
 // Catch all other routes and return API error
 app.use('*', (req, res) => {

@@ -9,7 +9,11 @@
 //      would be a compliance regression, not a convenience.
 //   2. The three deleted files stay deleted (a restore would re-publish the
 //      mark even if the route still 410s, since /assets/ is served statically).
-//   3. /affiliate — the live recruitment page — is untouched collateral.
+//   3. the 410 is not quietly re-routed to /affiliate. That slug is no longer the
+//      portal's at all — crhs-corporate serves the recruitment page (Plan 3 Task 16)
+//      — so a local /affiliate route reappearing here would be a double regression:
+//      it would shadow the configured INTEREST_FORM_URL and give this retired slug
+//      somewhere on-origin to point.
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
@@ -45,20 +49,18 @@ describe('/wavemax-affiliate is retired (410 Gone)', () => {
     expect(serverJs).not.toContain('\'wavemax-affiliate.html\'');
   });
 
-  it('leaves the live /affiliate recruitment page serving', async () => {
+  it('does not serve /affiliate locally — that page is crhs-corporate\'s now', async () => {
     const res = await request(app).get('/affiliate');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
   });
 
-  // The host gates run BEFORE the route (partnerLanding at server.js:372, the
-  // quarantine at :589), so both entries stay load-bearing: drop either and the
-  // marketing host families would answer with the partner landing / a corporate
-  // redirect instead of the 410.
-  describe('host gates still let the path reach its 410 handler', () => {
-    const partnerLanding = require('../../server/middleware/partnerLanding');
+  // The quarantine allowlist runs BEFORE the route, so its entries stay load-bearing:
+  // drop them and the quarantined host families would answer with a corporate redirect
+  // instead of the 410. (The partner-landing host gate ran here too until Plan 3
+  // Task 16 deleted it along with the marketing surface it protected.)
+  describe('the quarantine still lets the path reach its 410 handler', () => {
     const quarantine = require('../../server/config/quarantineConfig');
     for (const p of PATHS) {
-      it(`partnerLanding exempts ${p}`, () => expect(partnerLanding._isExempt(p)).toBe(true));
       it(`quarantine allows ${p}`, () => expect(quarantine.isAllowed(p)).toBe(true));
     }
   });
