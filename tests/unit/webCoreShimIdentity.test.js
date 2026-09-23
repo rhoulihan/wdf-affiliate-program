@@ -88,3 +88,45 @@ describe('B5: the errorHandler shim does not move where errors are logged', () =
     expect(require('../../server/utils/logger')).toBe(wc.logger);
   });
 });
+
+// PR B6 (Plan 3 Task 40): auditLogger joins the shim set. WHERE its events land is
+// pinned by tests/integration/auditLogDestination.test.js in both directions; this is
+// the identity half, plus the deploy guard for the release the destination depends on.
+describe('B6: auditLogger re-exports @crhs/web-core', () => {
+  it('server/utils/auditLogger is core.auditLogger by identity', () => {
+    expect(require('../../server/utils/auditLogger')).toBe(wc.auditLogger);
+  });
+
+  it('is a re-export, not an implementation', () => {
+    const src = fs.readFileSync(path.join(REPO, 'server/utils/auditLogger.js'), 'utf8');
+    expect(src).toMatch(/require\('@crhs\/web-core'\)/);
+    const statements = src.split('\n').filter((l) => l.trim() && !l.trim().startsWith('//'));
+    expect(statements).toHaveLength(1);
+  });
+
+  // web-core <= 0.3.1 resolved its LOG_DIR-unset fallback to <package>/logs, which
+  // installed is node_modules/@crhs/web-core/logs -- wiped by every npm install and
+  // deleted outright by the boot-breaker remedy (`rm -rf node_modules/@crhs/web-core`).
+  // From this commit the portal's audit trail rides that resolution, so a box left on
+  // a stale copy must fail here rather than lose security evidence quietly. npm does
+  // NOT re-copy a `file:` dependency on a version bump alone.
+  it('requires web-core 0.3.2 or newer, the release that moved that fallback out of node_modules', () => {
+    const [maj, min, pat] = require('@crhs/web-core/package.json').version.split('.').map(Number);
+    expect(maj > 0 || min > 3 || (min === 3 && pat >= 2)).toBe(true);
+  });
+
+  it('resolves its log directory outside the installed package when LOG_DIR is unset', () => {
+    const saved = process.env.LOG_DIR;
+    delete process.env.LOG_DIR;
+    try {
+      let mod;
+      jest.isolateModules(() => { mod = require('../../server/utils/auditLogger'); });
+      const dirs = mod.auditLogger.transports.filter((t) => t.dirname).map((t) => t.dirname);
+      expect(dirs.length).toBeGreaterThan(0);
+      for (const d of dirs) expect(d.split(path.sep)).not.toContain('node_modules');
+    } finally {
+      if (saved === undefined) delete process.env.LOG_DIR;
+      else process.env.LOG_DIR = saved;
+    }
+  });
+});
