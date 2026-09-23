@@ -10054,8 +10054,13 @@ defect; none below does.
 ```bash
 AFF=/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program; cd "$AFF"
 WS_REC=/var/www/wavemax/cutover-logs/plan3-record.env
-recget() { local k="$1" v; v=$(sed -n "s/^$k=//p" "$WS_REC" 2>/dev/null | tail -1); \
-  [ -n "$v" ] || v=$(ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "sed -n 's/^$k=//p' $WS_REC 2>/dev/null | tail -1"); \
+# ⚠️ AMENDED 2026-09-23 (Task 42 finding D1). The `awk '{print $1}'` is REQUIRED.
+# Without it `sed -n "s/^$k=//p"` returns the whole REST OF THE LINE, and several tasks
+# wrote more than one `KEY=value` pair on a line — so `anc T3x_SHA` compared a SHA plus
+# trailing junk and printed a FALSE `FAIL … not an ancestor of HEAD`, i.e. a spurious
+# `gate=HALT` at the top of the task. Tasks 39–41 each worked around it by hand.
+recget() { local k="$1" v; v=$(sed -n "s/^$k=//p" "$WS_REC" 2>/dev/null | tail -1 | awk '{print $1}'); \
+  [ -n "$v" ] || v=$(ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "sed -n 's/^$k=//p' $WS_REC 2>/dev/null | tail -1 | awk '{print \$1}'"); \
   v=${v#\'}; v=${v%\'}; printf '%s' "$v"; }
 
 FAIL=0
@@ -10747,8 +10752,13 @@ node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK
 ```bash
 AFF=/mnt/c/Users/rickh/GitHub/wavemax-affiliate-program; cd "$AFF"
 WS_REC=/var/www/wavemax/cutover-logs/plan3-record.env
-recget() { local k="$1" v; v=$(sed -n "s/^$k=//p" "$WS_REC" 2>/dev/null | tail -1); \
-  [ -n "$v" ] || v=$(ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "sed -n 's/^$k=//p' $WS_REC 2>/dev/null | tail -1"); \
+# ⚠️ AMENDED 2026-09-23 (Task 42 finding D1). The `awk '{print $1}'` is REQUIRED.
+# Without it `sed -n "s/^$k=//p"` returns the whole REST OF THE LINE, and several tasks
+# wrote more than one `KEY=value` pair on a line — so `anc T3x_SHA` compared a SHA plus
+# trailing junk and printed a FALSE `FAIL … not an ancestor of HEAD`, i.e. a spurious
+# `gate=HALT` at the top of the task. Tasks 39–41 each worked around it by hand.
+recget() { local k="$1" v; v=$(sed -n "s/^$k=//p" "$WS_REC" 2>/dev/null | tail -1 | awk '{print $1}'); \
+  [ -n "$v" ] || v=$(ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "sed -n 's/^$k=//p' $WS_REC 2>/dev/null | tail -1 | awk '{print \$1}'"); \
   v=${v#\'}; v=${v%\'}; printf '%s' "$v"; }
 FAIL=0
 chk()  { if [ "$2" = "$3" ]; then echo "  OK   $1=$2"; else echo "  FAIL $1=[$2] want=[$3]"; FAIL=1; fi; }
@@ -11000,8 +11010,13 @@ WC=/mnt/c/Users/rickh/GitHub/crhs-web-core
 CORP=/mnt/c/Users/rickh/GitHub/crhs-corporate
 WS_REC=/var/www/wavemax/cutover-logs/plan3-record.env
 cd "$AFF"
-recget() { local k="$1" v; v=$(sed -n "s/^$k=//p" "$WS_REC" 2>/dev/null | tail -1); \
-  [ -n "$v" ] || v=$(ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "sed -n 's/^$k=//p' $WS_REC 2>/dev/null | tail -1"); \
+# ⚠️ AMENDED 2026-09-23 (Task 42 finding D1). The `awk '{print $1}'` is REQUIRED.
+# Without it `sed -n "s/^$k=//p"` returns the whole REST OF THE LINE, and several tasks
+# wrote more than one `KEY=value` pair on a line — so `anc T3x_SHA` compared a SHA plus
+# trailing junk and printed a FALSE `FAIL … not an ancestor of HEAD`, i.e. a spurious
+# `gate=HALT` at the top of the task. Tasks 39–41 each worked around it by hand.
+recget() { local k="$1" v; v=$(sed -n "s/^$k=//p" "$WS_REC" 2>/dev/null | tail -1 | awk '{print $1}'); \
+  [ -n "$v" ] || v=$(ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "sed -n 's/^$k=//p' $WS_REC 2>/dev/null | tail -1 | awk '{print \$1}'"); \
   v=${v#\'}; v=${v%\'}; printf '%s' "$v"; }
 recput() { printf '%s=%q\n' "$1" "$2" >> "$WS_REC"; \
   ssh -o ConnectTimeout=15 -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "printf '%s=%s\n' '$1' '$2' >> $WS_REC"; }
@@ -12115,6 +12130,33 @@ node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK
 - If reverted after Task 30 deployed: `git pull --ff-only && pm2 reload wavemax --update-env` on **one box at a
   time under `BOX_BUSY`** (C-7), then confirm the cookie name on the wire:
   `curl -sI https://portal.atxwashdryfold.com/api/csrf-token | grep -i '^set-cookie' | grep -c '__Host-portal.sid'` → `1`.
+
+---
+
+> ✅ **EXECUTED 2026-09-23 — `8f2779b1`.** `T42_COOKIE_PROD=__Host-portal.sid`,
+> `T42_COOKIE_TEST=portal.sid`, `matches_live=true`; 27 targeted suites (321 tests) green; 12/12 model
+> registrations identical in both `NODE_ENV` branches; `lint:server` 0 → 0; repo baseline 9405 → 9405;
+> madge clean; `BOOT_OK` + `PROD_BOOT_OK` (amended probe form). web-core unchanged — **no forced re-copy
+> needed.** Nine plan defects, recorded as `T42_D1`…`T42_D9`; the ones a later reader needs:
+>
+> - **D5 — the ESLint expectation in Step 5 is wrong.** [MEASURED] pre-swap `server.js` had **0** ESLint
+>   errors and contained **no `originalExpires`** binding at all (the inline fixer used `originalMaxAge`,
+>   which *was* used). The correct expectation is an ESLint total **UNCHANGED**, not "exactly 1 lower";
+>   this series closes **no** out-of-`server/` error.
+> - **D6 — the Files list omits `tests/unit/sessionCookiePrototype.test.js`**, a *source-level* guard on the
+>   inline fixer that goes red the instant the block is swapped (its own header says to delete it here).
+>   Deleted, and replaced by a **behavioural** guard in `tests/integration/sessionMount.test.js`: NaN `maxAge`
+>   in → `Path=/` + `HttpOnly` still out, with a plain-object spread as the negative control that proves the
+>   assertion has teeth.
+> - **D2/D3/D4 — three defective expectations.** `tests/integration/csrf.test.js` does not exist
+>   (it is `csrfTokenEndpoint.test.js`); `clientP consumers` is **2**, not 1 (`grep -c` counts *lines*, and the
+>   attach spans two); and `health=427 health_origin=445 session=468` had drifted to **422/440/463**
+>   (the ordering premise still held).
+> - **D7 — the per-box `SESSION_COOKIE_NAME` grep was skipped** (repo-only execution; no box touched) and made
+>   **non-load-bearing** instead: `opts.cookieName` outranks the env var inside core's resolver, so no box
+>   value can rename the live cookie — and that precedence is now pinned by a test. Also **D8**:
+>   `resolveSessionCookieName` is **not** exported from web-core's package index, only from
+>   `src/config/sessionStore` (the deep path this plan already uses).
 
 ---
 
