@@ -30,19 +30,18 @@
   function handleParentMessage(event) {
     console.log('[Embed Navigation] Message received:', event.data);
 
-    // Security: Only handle messages from trusted origins
-    const trustedOrigins = [
-      'https://www.wavemaxlaundry.com',
-      'https://wavemaxlaundry.com',
-      'http://localhost',
-      'http://127.0.0.1'
-    ];
-
-    const originAllowed = trustedOrigins.some(origin =>
-      event.origin.startsWith(origin)
-    );
-
-    if (!originAllowed) {
+    // Security: same-origin only. server.js sets `frame-ancestors 'self'`, so the
+    // only page that can ever frame this app is the app itself — deriving the
+    // trusted origin from the document keeps this check in step with the CSP
+    // instead of duplicating it as a literal list that can drift from it.
+    //
+    // This replaced a hardcoded allowlist that named two retired third-party
+    // domains plus a bare loopback host, matched by string prefix. A prefix
+    // match is not an origin match: any host that merely BEGINS with an allowed
+    // origin satisfies it, so an attacker-controlled subdomain of a lookalike
+    // domain passed. Exact equality is the only correct comparison here.
+    // Guarded by tests/unit/embedNavigationOrigin.test.js.
+    if (event.origin !== window.location.origin) {
       console.log('[Embed Navigation] Message rejected - untrusted origin:', event.origin);
       return;
     }
