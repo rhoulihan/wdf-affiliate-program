@@ -21,7 +21,7 @@ async function main() {
 
     // Find the administrator
     const admin = await Administrator.findOne({ email: email.toLowerCase() });
-    
+
     if (!admin) {
       console.log(`❌ Administrator with email ${email} not found!`);
       return;
@@ -32,7 +32,7 @@ async function main() {
 
     // Update the password
     const { salt, hash } = encryptionUtil.hashPassword(newPassword);
-    
+
     await Administrator.updateOne(
       { _id: admin._id },
       {

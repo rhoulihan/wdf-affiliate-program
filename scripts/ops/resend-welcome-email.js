@@ -17,7 +17,7 @@ async function resendWelcomeEmail(email) {
 
     // Find affiliate
     const affiliate = await Affiliate.findOne({ email });
-    
+
     if (!affiliate) {
       console.error(`❌ Affiliate with email ${email} not found`);
       return;
@@ -25,13 +25,13 @@ async function resendWelcomeEmail(email) {
 
     console.log(`Found affiliate: ${affiliate.firstName} ${affiliate.lastName}`);
     console.log(`Affiliate ID: ${affiliate.affiliateId}`);
-    
+
     // Send welcome email
     console.log('\nSending welcome email...');
     await emailService.sendAffiliateWelcomeEmail(affiliate);
-    
+
     console.log('✅ Welcome email sent successfully!');
-    
+
   } catch (error) {
     console.error('❌ Failed to send email:', error.message);
     if (error.responseCode === 535) {

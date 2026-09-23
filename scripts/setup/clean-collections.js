@@ -54,7 +54,7 @@ async function main() {
     console.log('1. Start the server: pm2 start wavemax');
     console.log('2. The default administrator account will be created automatically');
     console.log(`3. Default admin email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com'}`);
-    console.log('4. Default password: WaveMAX!2024 (must be changed on first login)');
+    console.log('4. Password: the DEFAULT_ADMIN_PASSWORD you supplied (must be changed on first login)');
 
   } catch (error) {
     console.error('\n❌ Error:', error.message);

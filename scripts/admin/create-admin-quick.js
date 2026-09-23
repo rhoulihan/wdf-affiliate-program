@@ -8,9 +8,22 @@ const mongoose = require('mongoose');
 const Administrator = require('../../server/models/Administrator');
 const encryptionUtil = require('../../server/utils/encryption');
 
+
+// This repo is PUBLIC: no default admin password may live here. Fail loudly
+// rather than provision an all-permissions account with a guessable secret.
+function requireAdminPassword() {
+  const pw = process.env.DEFAULT_ADMIN_PASSWORD;
+  if (!pw) {
+    console.error('DEFAULT_ADMIN_PASSWORD is required — refusing to create an administrator with a default password.');
+    console.error('Set it in the environment, e.g. DEFAULT_ADMIN_PASSWORD=... node <script>');
+    process.exit(1);
+  }
+  return pw;
+}
+
 // Configuration - CHANGE THESE VALUES
 const ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com';
-const ADMIN_PASSWORD = 'WaveMAX!2024';  // Default password as per README
+const ADMIN_PASSWORD = requireAdminPassword();
 const ADMIN_FIRST_NAME = 'System';
 const ADMIN_LAST_NAME = 'Administrator';
 
@@ -31,10 +44,10 @@ async function main() {
 
     // Create new administrator
     console.log('Creating new administrator...');
-    
+
     // Create password hash
     const { salt, hash } = encryptionUtil.hashPassword(ADMIN_PASSWORD);
-    
+
     const newAdmin = new Administrator({
       firstName: ADMIN_FIRST_NAME,
       lastName: ADMIN_LAST_NAME,

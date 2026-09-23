@@ -1,14 +1,14 @@
 {
-  "measuredAt": "2026-09-23T19:46:11.351Z",
-  "measuredAtSha": "79c2c2d48d48fc1c10e5ee99b32d4bd914f39895",
+  "measuredAt": "2026-09-23T20:06:06.725Z",
+  "measuredAtSha": "e11b52757ce33be81df78a8ee9bd33ec0e55bfa1",
   "policy": "server/ and server.js are ZERO (npm run lint:server, guarded by tests/unit/eslintServerClean.test.js). Everything else is an ACCEPTED BASELINE that may not grow (owner decision, Plan 3 task 27). Lowering it is always welcome — re-measure with `node scripts/ops/lint-baseline.js --write` and commit the new, lower number with the change.",
-  "errors": 9530,
+  "errors": 9408,
   "warnings": 611,
   "byDirectory": {
     "public": 8166,
-    "tests": 956,
+    "tests": 959,
     "docs": 263,
-    "scripts": 137,
+    "scripts": 12,
     "tools": 6,
     "init-defaults.js": 2
   }

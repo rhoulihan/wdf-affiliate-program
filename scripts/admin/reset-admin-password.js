@@ -64,7 +64,7 @@ async function main() {
 
     // List all administrators
     const admins = await Administrator.find({}, 'adminId email firstName lastName isActive');
-    
+
     if (admins.length === 0) {
       console.log('No administrators found in the database.');
       return;
@@ -76,7 +76,7 @@ async function main() {
     });
 
     const selection = await question('\nSelect administrator by number (or enter email address): ');
-    
+
     let selectedAdmin;
     if (/^\d+$/.test(selection)) {
       const index = parseInt(selection) - 1;
@@ -93,7 +93,7 @@ async function main() {
     }
 
     console.log(`\nResetting password for: ${selectedAdmin.firstName} ${selectedAdmin.lastName} (${selectedAdmin.email})`);
-    
+
     const newPassword = await questionHidden('Enter new password: ');
     const confirmPassword = await questionHidden('Confirm new password: ');
 
@@ -109,7 +109,7 @@ async function main() {
 
     // Update the password
     const { salt, hash } = encryptionUtil.hashPassword(newPassword);
-    
+
     await Administrator.updateOne(
       { _id: selectedAdmin._id },
       {

@@ -23,7 +23,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 // [type, source (relative to repo root), output]
 const ASSETS = [
-  ['js',  'public/assets/js/embed-app-v2.js',               'public/assets/js/embed-app-v2.min.js'],
+  ['js',  'public/assets/js/embed-app-v2.js',               'public/assets/js/embed-app-v2.min.js']
 ];
 
 function banner(src) {
@@ -43,7 +43,7 @@ async function build() {
       const res = await terserMinify(code, {
         compress: true,
         mangle: true,
-        format: { comments: false },
+        format: { comments: false }
       });
       if (res.error) throw res.error;
       out = res.code;

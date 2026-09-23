@@ -63,18 +63,18 @@ async function checkInitialization() {
     if (adminCount > 0) {
       console.log('\nDefault admin login:');
       console.log(`  Email: ${admins[0].email}`);
-      console.log('  Password: WaveMAX!2024');
+      console.log('  Password: (the DEFAULT_ADMIN_PASSWORD supplied at setup)');
     }
 
     if (operatorCount > 0) {
       console.log('\nDefault operator login:');
       console.log(`  Username: ${operators[0].username}`);
-      console.log('  Password: Operator!2024');
+      console.log('  Password: (the DEFAULT_OPERATOR_PASSWORD supplied at setup)');
     }
 
     await mongoose.connection.close();
     console.log('\nDatabase connection closed');
-    
+
     process.exit(0);
   } catch (error) {
     console.error('Error:', error.message);

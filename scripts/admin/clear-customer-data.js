@@ -58,13 +58,13 @@ const TARGETS = [
   },
   {
     key: 'refreshTokens',
-    label: "customer refresh tokens (userType:'customer')",
+    label: 'customer refresh tokens (userType:\'customer\')',
     model: RefreshToken,
     filter: { userType: 'customer' }
   },
   {
     key: 'tokenBlacklist',
-    label: "customer token-blacklist entries (userType:'customer')",
+    label: 'customer token-blacklist entries (userType:\'customer\')',
     model: TokenBlacklist,
     filter: { userType: 'customer' }
   }

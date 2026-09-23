@@ -5,6 +5,19 @@ const mongoose = require('mongoose');
 const Administrator = require('./server/models/Administrator');
 const logger = require('./server/utils/logger');
 
+
+// This repo is PUBLIC: no default admin password may live here. Fail loudly
+// rather than provision an all-permissions account with a guessable secret.
+function requireAdminPassword() {
+  const pw = process.env.DEFAULT_ADMIN_PASSWORD;
+  if (!pw) {
+    console.error('DEFAULT_ADMIN_PASSWORD is required — refusing to create an administrator with a default password.');
+    console.error('Set it in the environment, e.g. DEFAULT_ADMIN_PASSWORD=... node <script>');
+    process.exit(1);
+  }
+  return pw;
+}
+
 async function initializeDefaultAdmin() {
   try {
     // Check if any administrator exists
@@ -21,7 +34,7 @@ async function initializeDefaultAdmin() {
       firstName: 'System',
       lastName: 'Administrator',
       email: adminEmail,
-      password: 'WaveMAX!2024',
+      password: requireAdminPassword(),
       permissions: ['all'], // Super admin with all permissions
       isActive: true,
       requirePasswordChange: true // Force password change on first login
@@ -31,7 +44,7 @@ async function initializeDefaultAdmin() {
 
     logger.info('Default administrator account created successfully');
     logger.info(`Email: ${adminEmail}`);
-    logger.info('Default Password: WaveMAX!2024 (must be changed on first login)');
+    logger.info('Password: the DEFAULT_ADMIN_PASSWORD you supplied (must be changed on first login)');
 
     return defaultAdmin;
   } catch (error) {

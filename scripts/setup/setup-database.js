@@ -40,12 +40,12 @@ async function setupDatabase() {
     logger.info('=== Database Setup Complete ===');
     logger.info('Default Administrator:');
     logger.info(`  Email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com'}`);
-    logger.info('  Password: WaveMAX!2024');
+    logger.info('  Password: (the DEFAULT_ADMIN_PASSWORD you supplied)');
     logger.info('  Note: Password must be changed on first login');
     logger.info('');
     logger.info('Default Operator:');
     logger.info('  Username: operator1');
-    logger.info('  Password: Operator!2024');
+    logger.info('  Password: (the DEFAULT_OPERATOR_PASSWORD you supplied)');
     logger.info('  Shift: 24 hours (00:00 - 23:59)');
     logger.info('  Workstation: W1');
     logger.info('');

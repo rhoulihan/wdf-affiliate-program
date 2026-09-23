@@ -8,9 +8,19 @@ const mongoose = require('mongoose');
 const Operator = require('../../server/models/Operator');
 const Administrator = require('../../server/models/Administrator');
 
+
+function requireOperatorPassword() {
+  const pw = process.env.DEFAULT_OPERATOR_PASSWORD;
+  if (!pw) {
+    console.error('DEFAULT_OPERATOR_PASSWORD is required — refusing to create an operator with a default password.');
+    process.exit(1);
+  }
+  return pw;
+}
+
 // Configuration
 const OPERATOR_USERNAME = 'operator1';
-const OPERATOR_PASSWORD = 'Operator!2024';
+const OPERATOR_PASSWORD = requireOperatorPassword();
 const OPERATOR_EMAIL = 'operator@crhsent.com';
 const OPERATOR_ID = 'OP001';
 
@@ -38,7 +48,7 @@ async function main() {
 
     // Create new operator
     console.log('Creating new operator...');
-    
+
     const newOperator = new Operator({
       firstName: 'Default',
       lastName: 'Operator',
