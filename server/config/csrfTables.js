@@ -20,20 +20,6 @@ module.exports = {
     '/api/health',
     '/api/v1/health',
 
-    // ---- PLAN 3: the next five rows retire WITH their routes, not before ----
-    // server.js:680 (/api/concierge), :736 (partnerInquiryRoutes), :737
-    // (affiliateApplicationRoutes) are still mounted, and the public pages POST
-    // with a plain fetch (no token). Pruning these rows while the routes live
-    // returns 403 on two live marketing forms and reds
-    // tests/integration/partnerInquiry.test.js + affiliateApplication.test.js.
-    // Delete them in the Plan 3 PR that deletes the routes. Pinned by
-    // tests/unit/csrfTables.test.js.
-
-    // Public concierge — credential-free, no ambient cookie/session, so it is
-    // not a CSRF target (an attacker's forged POST gains nothing). Same-origin
-    // from the design-explorer pages; abuse is bounded by conciergeLimiter.
-    '/api/concierge',
-
     // Scan-session engine (PR 4) — public/credential-light: /session is gated
     // by a one-time role code + lockout; resolve/apply/undo are gated by
     // scanAuth (operator JWT or scan-session token). None carries an ambient
@@ -48,20 +34,7 @@ module.exports = {
     // Customer self-service edit (Edit my info) — authorized by the same
     // scan-session token (x-scan-session header), no ambient cookie, same
     // CSRF rationale as the scan engine above.
-    '/api/v1/customers/me',
-
-    // Partner-program inquiry form — public marketing landing on the
-    // per-location domains. Credential-free, no ambient cookie/session, so a
-    // forged POST gains an attacker nothing (same rationale as /api/concierge
-    // above). Abuse is bounded by contactFormBurstLimiter + contactFormLimiter
-    // on the route. Lets the static cached page submit with a plain fetch.
-    '/api/v1/partner-inquiry',
-    '/api/partner-inquiry',
-
-    // Affiliate application form — same rationale as partner-inquiry above
-    // (credential-free public form, rate-limited on the route).
-    '/api/v1/affiliate-application',
-    '/api/affiliate-application'
+    '/api/v1/customers/me'
   ],
 
   // Authentication endpoints - rate limited instead of CSRF

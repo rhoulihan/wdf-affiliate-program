@@ -747,8 +747,6 @@ apiV1Router.use('/orders', orderRoutes);
 apiV1Router.use('/administrators', administratorRoutes);
 apiV1Router.use('/operators', operatorRoutes);
 apiV1Router.use('/system/config', systemConfigRoutes);
-apiV1Router.use('/', require('./server/routes/partnerInquiryRoutes'));  // /partner-inquiry
-apiV1Router.use('/', require('./server/routes/affiliateApplicationRoutes'));  // /affiliate-application
 apiV1Router.use('/', require('./server/routes/mapsConfigRoute'));  // /maps-config — Maps API key for corporate pages
 apiV1Router.use('/', require('./server/routes/firebaseConfigRoute'));  // /firebase-config — Firebase web config + phone-verify flag (PR 7)
 apiV1Router.use('/', require('./server/routes/brandRoute'));  // /brand — public display-name config (Phase 3 de-brand)

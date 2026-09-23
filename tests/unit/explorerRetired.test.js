@@ -27,10 +27,18 @@
 // /api/concierge exemption row is left standing here on purpose (csrfTables.test.js's
 // PLAN 3 GUARD pins all five retired rows together), and Task 18 retires all five
 // in one commit. A CSRF exemption on a path that 404s is inert for exactly one task.
+//
+// Task 18 update: that exemption is now gone, and its removal changed the status
+// here. conditionalCsrf runs ahead of the 404 handler, so an untokened POST to a
+// no-longer-exempt path is rejected at 403 before routing is consulted — the
+// standing behaviour of every unlisted /api path. The boot proof this case carries
+// is worth keeping, so it now sends a valid token: CSRF steps aside and the 404 is
+// once again evidence about the ROUTE rather than about the exemption.
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
 const app = require('../../server');
+const { createAgent, getCsrfToken } = require('../helpers/csrfHelper');
 
 const ROOT = path.join(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -83,9 +91,12 @@ describe('the design explorer and the concierge are retired', () => {
 
   describe('(d) the endpoints answer 404 through the real app', () => {
     it('POST /api/concierge is 404', async () => {
-      const res = await request(app)
+      const agent = createAgent(app);
+      const csrfToken = await getCsrfToken(app, agent);
+      const res = await agent
         .post('/api/concierge')
         .set('X-Forwarded-Proto', 'https')
+        .set('x-csrf-token', csrfToken)
         .send({ message: 'hello' });
       expect(res.status).toBe(404);
     });
