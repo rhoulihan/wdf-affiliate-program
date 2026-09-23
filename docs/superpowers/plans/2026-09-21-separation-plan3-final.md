@@ -11826,6 +11826,16 @@ ls server/config/systemConfigDefaults.js 2>&1 | tail -1
 
 ---
 
+> ⛔ **AMENDED 2026-09-23 (Task 41 finding D3). Every `NODE_ENV=production` boot probe below MUST
+> override `MONGODB_URI` first.** `server.js:111` is `if (process.env.NODE_ENV !== 'test')
+> mongoose.connect(process.env.MONGODB_URI)`, and `:384` stands up connect-mongo against the same URI.
+> So `NODE_ENV=production node -e 'require("./server.js")'` points a throwaway boot at the **shared
+> Oracle-backed production database**. The probe's purpose is to catch `OverwriteModelError`, and model
+> registration is DB-independent, so prefixing an in-memory or bogus URI keeps its meaning:
+> `MONGODB_URI=mongodb://127.0.0.1:27017/plan3-probe PORT=3099 NODE_ENV=production node -e '…'`
+> (or stand up `mongodb-memory-server` and use its URI). The `NODE_ENV='test'` probes are unaffected —
+> that branch skips the connect entirely.
+
 ### Task 42: [affiliate] PR B9 — session adoption, with the cookie name pinned explicitly
 
 > **Execution position: Phase 4, immediately after Task 41.** Repo-only.
@@ -12020,7 +12030,7 @@ printf 'health=%s health_origin=%s session=%s\n' \
 cd "$AFF"
 npx jest tests/integration/sessionMount.test.js tests/integration/domainMigration.test.js \
          tests/integration/webCoreConsumptionGolden.test.js tests/integration/csrf.test.js 2>&1 | grep -E '^(Tests:|Test Suites:)|✕'
-NODE_ENV=production node -e '
+MONGODB_URI=mongodb://127.0.0.1:27017/plan3-probe NODE_ENV=production node -e '
 const src=require("fs").readFileSync("server.js","utf8");
 const m=src.match(/cookieName:\s*'\''([^'\'']+)'\''/);
 const p=require.resolve("@crhs/web-core/package.json").replace(/package\.json$/,"src/config/sessionStore");
@@ -12040,7 +12050,7 @@ console.log("matches_live      =", require(p).resolveSessionCookieName({ cookieN
 ```bash
 cd "$AFF"
 node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK')" 2>&1 | tail -2
-PORT=3099 NODE_ENV=production node -e '
+MONGODB_URI=mongodb://127.0.0.1:27017/plan3-probe PORT=3099 NODE_ENV=production node -e '
 process.on("uncaughtException",(e)=>{console.log("BOOT_FAIL "+e.message);process.exit(1);});
 process.on("unhandledRejection",(e)=>{console.log("BOOT_FAIL "+e);process.exit(1);});
 require("./server.js"); setTimeout(()=>{console.log("PROD_BOOT_OK");process.exit(0);},2500);'
