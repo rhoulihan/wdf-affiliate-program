@@ -57,7 +57,7 @@ async function cleanAndReinitialize() {
     let defaultAdmin;
     
     if (existingAdminCount === 0) {
-      const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@wavemaxlaundry.com';
+      const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com';
       defaultAdmin = new Administrator({
         firstName: 'System',
         lastName: 'Administrator',
@@ -81,7 +81,7 @@ async function cleanAndReinitialize() {
       const defaultOperator = new Operator({
         firstName: 'Default',
         lastName: 'Operator',
-        email: 'operator@wavemaxlaundry.com',
+        email: 'operator@crhsent.com',
         username: 'operator1',
         password: 'Operator!2024',
         operatorId: 'OP001',
@@ -101,7 +101,7 @@ async function cleanAndReinitialize() {
     logger.info('=== Database Cleanup and Reinitialization Complete ===');
     logger.info('');
     logger.info('Default Administrator Account:');
-    logger.info(`  Email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@wavemaxlaundry.com'}`);
+    logger.info(`  Email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com'}`);
     logger.info('  Password: WaveMAX!2024');
     logger.info('  Note: Password must be changed on first login');
     logger.info('');

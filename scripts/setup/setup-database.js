@@ -39,7 +39,7 @@ async function setupDatabase() {
     // Display summary
     logger.info('=== Database Setup Complete ===');
     logger.info('Default Administrator:');
-    logger.info(`  Email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@wavemaxlaundry.com'}`);
+    logger.info(`  Email: ${process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com'}`);
     logger.info('  Password: WaveMAX!2024');
     logger.info('  Note: Password must be changed on first login');
     logger.info('');

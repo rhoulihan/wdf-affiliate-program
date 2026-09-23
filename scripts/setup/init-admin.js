@@ -16,7 +16,7 @@ async function initializeDefaultAdmin() {
     }
 
     // Create default administrator account
-    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@wavemaxlaundry.com';
+    const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com';
     const defaultAdmin = new Administrator({
       firstName: 'System',
       lastName: 'Administrator',

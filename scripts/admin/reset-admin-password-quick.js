@@ -10,7 +10,7 @@ const encryptionUtil = require('../../server/utils/encryption');
 
 // Get command line arguments
 const args = process.argv.slice(2);
-const email = args[0] || 'admin@wavemaxlaundry.com';
+const email = args[0] || 'admin@crhsent.com';
 const newPassword = args[1] || 'Admin@2025!';
 
 async function main() {
@@ -71,10 +71,10 @@ async function main() {
 // Show usage if help is requested
 if (args.includes('--help') || args.includes('-h')) {
   console.log('Usage: node reset-admin-password-quick.js [email] [password]');
-  console.log('  email    - Administrator email (default: admin@wavemaxlaundry.com)');
+  console.log('  email    - Administrator email (default: admin@crhsent.com)');
   console.log('  password - New password (default: Admin@2025!)');
   console.log('\nExample:');
-  console.log('  node reset-admin-password-quick.js admin@wavemaxlaundry.com MyNewPassword123!');
+  console.log('  node reset-admin-password-quick.js admin@crhsent.com MyNewPassword123!');
   process.exit(0);
 }
 

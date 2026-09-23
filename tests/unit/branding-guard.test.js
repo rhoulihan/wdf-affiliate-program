@@ -79,13 +79,14 @@ const INFRA_ALLOW = [
   // / "WaveMAX Laundry" (the franchisor's marks) are NOT allowed and still fail.
   /WaveMAX Austin/gi,
   /wavemax\.promo/gi, /@wavemax\.promo/gi,
-  // The franchisor's domain, in both the plain form and the regex-ESCAPED form
-  // (`wavemaxlaundry\.com`, one or more backslashes). The escaped spelling only ever
+  // The franchisor's domain ONLY in its regex-ESCAPED form (`wavemaxlaundry\.com`,
+  // at least one backslash). The PLAIN form is deliberately NOT allowlisted: it is
+  // the leak this guard exists to catch. The escaped spelling only ever
   // occurs inside a matcher, and every matcher in this repo asserts the domain is
   // ABSENT — see quarantineRetired.test.js and embedNavigationOrigin.test.js. Bare
   // "WaveMAX Laundry" and any other franchisor host still fail (falsified in the
   // Plan 3 Task 38 PR body).
-  /wavemaxlaundry\\*\.com/gi, /wavemax-bag-registration/gi,
+  /wavemaxlaundry\\+\.com/gi, /wavemax-bag-registration/gi,
   /wavemax_affiliate/gi, /wavemax-affiliate-program/gi,
   // Trademark / proprietary legal notices kept VERBATIM (they name the real
   // franchisor mark + entity; mechanically tokenizing them is legally wrong).
@@ -127,11 +128,60 @@ function isExcludedPath(p) {
   if (EXCLUDED_SUFFIXES.some((suf) => p.endsWith(suf))) return true;
   return false;
 }
+// Naming the franchisor's domain in a COMMENT or a test name is documentation,
+// not a leak — several guards in this repo have to state what they assert is
+// absent, and a guard that forbids saying the word cannot be documented. In CODE
+// the same string IS a leak. That distinction is exactly why the plain form is
+// NOT in INFRA_ALLOW; it is allowed here and nowhere else.
+const COMMENT_ONLY_ALLOW = [/wavemaxlaundry\.com/gi];
+function isCommentOrTestName(line) {
+  return /^\s*(\/\/|\*|#|<!--)/.test(line) || /^\s*(it|test|describe)\(/.test(line);
+}
 function isInfraOnly(line) {
   let stripped = line;
   for (const re of INFRA_ALLOW) stripped = stripped.replace(re, '');
+  if (isCommentOrTestName(line)) {
+    for (const re of COMMENT_ONLY_ALLOW) stripped = stripped.replace(re, '');
+  }
   return !/wavemax/i.test(stripped);
 }
+
+// The guard exists to catch a franchisor brand/domain leak. Before trusting any
+// INFRA_ALLOW row, prove the guard still FAILS on the leaks that matter — an
+// allowlist entry that strips the plain domain form silently disarms it.
+// (It did, from d00763f3 until Plan 3 task 38's follow-up: the row was
+// /wavemaxlaundry\.com/gi, which strips the real thing as readily as a matcher.)
+describe('branding guard can still fail', () => {
+  const MUST_BE_CAUGHT = [
+    ['a plain franchisor URL in source', 'const x = "https://www.wavemaxlaundry.com/austin-tx";'],
+    ['a franchisor link in a template', '<a href="https://wavemaxlaundry.com">Home</a>'],
+    ['a franchisor redirect', 'res.redirect("https://www.wavemaxlaundry.com" + p);'],
+    ['the bare franchisor mark', 'Powered by WaveMAX'],
+    ['the full franchisor mark', 'WaveMAX Laundry'],
+    ['another franchisor TLD', 'https://wavemaxlaundry.net'],
+    ['the retired cookie, hyphen form', 'wavemax-sid']
+  ];
+  test.each(MUST_BE_CAUGHT)('flags %s', (_name, sample) => {
+    expect(isInfraOnly(sample)).toBe(false);
+  });
+
+  const MUST_BE_ALLOWED = [
+    ['the permitted business name', 'WaveMAX Austin is the fulfillment partner'],
+    ['an ESCAPED domain inside an absence matcher', 'expect(SRC).not.toMatch(/wavemaxlaundry\\.com/i);'],
+    ['the domain named in a // comment', '  // no file under server/ contains wavemaxlaundry.com'],
+    ['the domain named in a test name', "  it('server/ contains no wavemaxlaundry.com', () => {"],
+    ['the domain in a # comment', '#   https://wavemaxlaundry.com/*']
+  ];
+
+  // The comment allowance must NOT leak into code: the same text, as code, fails.
+  it('the comment allowance does not cover the same string in code', () => {
+    expect(isInfraOnly('  // see wavemaxlaundry.com')).toBe(true);
+    expect(isInfraOnly('  const u = "wavemaxlaundry.com";')).toBe(false);
+  });
+  test.each(MUST_BE_ALLOWED)('permits %s', (_name, sample) => {
+    expect(isInfraOnly(sample)).toBe(true);
+  });
+});
 
 describe('branding guard', () => {
   const raw = execSync('git grep -inI wavemax -- . ":!tests/fixtures/branding-guard-baseline.json"', {

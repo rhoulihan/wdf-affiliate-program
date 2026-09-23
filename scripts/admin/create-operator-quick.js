@@ -11,7 +11,7 @@ const Administrator = require('../../server/models/Administrator');
 // Configuration
 const OPERATOR_USERNAME = 'operator1';
 const OPERATOR_PASSWORD = 'Operator!2024';
-const OPERATOR_EMAIL = 'operator@wavemaxlaundry.com';
+const OPERATOR_EMAIL = 'operator@crhsent.com';
 const OPERATOR_ID = 'OP001';
 
 async function main() {

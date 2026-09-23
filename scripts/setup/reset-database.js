@@ -37,7 +37,7 @@ async function resetDatabase() {
     console.log('\nTo initialize default data:');
     console.log('1. Start the server: pm2 start wavemax');
     console.log('2. Default accounts will be created automatically');
-    console.log('3. Default admin: admin@wavemaxlaundry.com / WaveMAX!2024');
+    console.log('3. Default admin: admin@crhsent.com / WaveMAX!2024');
     console.log('4. Default operator: operator1 / Operator!2024');
 
     await mongoose.connection.close();

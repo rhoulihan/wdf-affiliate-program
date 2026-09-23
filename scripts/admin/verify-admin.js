@@ -20,7 +20,7 @@ async function main() {
     if (adminCount > 0) {
       // Find the default admin
       const defaultAdmin = await Administrator.findOne({
-        email: process.env.DEFAULT_ADMIN_EMAIL || 'admin@wavemaxlaundry.com'
+        email: process.env.DEFAULT_ADMIN_EMAIL || 'admin@crhsent.com'
       });
 
       if (defaultAdmin) {

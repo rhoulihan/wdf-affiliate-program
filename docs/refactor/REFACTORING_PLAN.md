@@ -179,7 +179,7 @@ scripts/
 
 Disposition:
 
-- **Keep → `scripts/admin/`:** `create-admin-*.js`, `reset-admin-password*.js`, `update-admin-email.js`, `verify-admin.js`, `clear-admin-session.js`, `backup-database.js`, `restore-database.js`, `rotate-credentials.sh`, `delete-admin-operators.js`.
+- **Keep → `scripts/admin/`:** `create-admin-*.js`, `reset-admin-password*.js`, `verify-admin.js`, `clear-admin-session.js`, `backup-database.js`, `restore-database.js`, `rotate-credentials.sh`, `delete-admin-operators.js`. (`update-admin-email.js` was deleted in Plan 3 task 38's follow-up: a spent one-off migration that hardcoded an admin password.)
 - **Keep → `scripts/setup/`:** `setup-database.js`, `init-defaults.js` (moved), `init-admin.js`, `clean-install-db.js`, `clean-and-reinit-db.js`, `reset-database.js`, `generate-sample-data.js`, `generate-service-area.js`.
 - **Keep → `scripts/security/`:** `generate-docusign-keys.js`, `extract-public-key.js`, `fix-docusign-key.js`, `encrypt-oauth-tokens.js`.
 - **Keep → `scripts/ops/`:** `configure-imap*.js`, `configure-mailcow*.js`, `clean-logs.sh`.
