@@ -8,6 +8,12 @@
 const mongoose = require('mongoose');
 const { logAuditEvent, AuditEvents } = require('../utils/auditLogger');
 const logger = require('../utils/logger');
+// Held as modules, never destructured: APP_LIMITER_NAMES is a live getter over
+// the bucket registry, which grows after this module loads.
+const rateLimiting = require('../middleware/rateLimiting');
+const wcRateLimiting = require('@crhs/web-core').rateLimiting;
+
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const ALLOWED_ENV_VARS = [
   // Application
@@ -20,15 +26,14 @@ const ALLOWED_ENV_VARS = [
   // Email
   'EMAIL_PROVIDER', 'EMAIL_FROM', 'EMAIL_HOST', 'EMAIL_PORT',
   'EMAIL_USER', 'EMAIL_PASS', 'EMAIL_SECURE',
-  // AWS (optional)
-  'AWS_S3_BUCKET', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION',
-  // Stripe (deprecated but still in env)
-  'STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY',
   // Feature flags
   'SHOW_DOCS', 'ENABLE_DELETE_DATA_FEATURE',
   'CSRF_PHASE', 'RELAX_RATE_LIMITING',
-  // Rate limiting
-  'RATE_LIMIT_WINDOW_MS', 'RATE_LIMIT_MAX_REQUESTS', 'AUTH_RATE_LIMIT_MAX',
+  // Rate limiting — RATE_LIMIT_MAX_REQUESTS is live (the apiLimiter max).
+  // RATE_LIMIT_WINDOW_MS and AUTH_RATE_LIMIT_MAX were removed in Plan 3
+  // task 25 (X31): no limiter reads either, so the env viewer rendered them
+  // to admins as if they were live knobs.
+  'RATE_LIMIT_MAX_REQUESTS',
   // Logging
   'LOG_LEVEL', 'LOG_DIR',
   // Business configuration
@@ -87,6 +92,23 @@ async function getEnvironmentVariables({ user, req }) {
   };
 }
 
+/**
+ * Clear rate-limit counters across every registered bucket.
+ *
+ * Until Plan 3 task 25 this deleted from a differently-named collection that
+ * nothing writes, filtering a `key` field the store has never had. The store
+ * writes one collection per limiter (`ratelimit_<name>`) keyed on `_id`, so the
+ * endpoint returned `success: true` with `deletedCount: 0` and an admin could
+ * not clear a jammed bucket. It now fans out over the live bucket registry.
+ *
+ * @param {object}  args
+ * @param {string} [args.type] Limiter name (or a substring of one) to narrow to.
+ * @param {string} [args.ip]   Bucket key substring — regex metacharacters escaped.
+ * @param {object}  args.user  Acting administrator (audit).
+ * @param {object}  args.req   Express request (audit).
+ * @returns {Promise<{deletedCount: number, collections: Array<{collection: string, deletedCount: number}>}>}
+ * @throws {SystemHealthError} 400 on an unknown limiter name; 500 with no database.
+ */
 async function resetRateLimits({ type, ip, user, req }) {
   const db = mongoose.connection.db;
   if (!db) {
@@ -94,21 +116,24 @@ async function resetRateLimits({ type, ip, user, req }) {
     throw new SystemHealthError('db_unavailable', 'Database connection not available');
   }
 
-  const filter = {};
-  if (ip) {
-    const escapedIp = ip.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.key = new RegExp(escapedIp);
-  } else if (type) {
-    filter.key = new RegExp(`^${type}:`);
+  // Read INSIDE the function: APP_LIMITER_NAMES is a getter over a registry
+  // that codeAttemptLockout and the route-local limiters add to after load.
+  const all = rateLimiting.APP_LIMITER_NAMES;
+  const names = type ? all.filter((n) => n === type || n.includes(type)) : all;
+  if (type && names.length === 0) {
+    throw new SystemHealthError('unknown_limiter', `Unknown rate limiter: ${type}`, 400);
   }
 
-  const result = await db.collection('rate_limits').deleteMany(filter);
+  const collections = await wcRateLimiting.resetBuckets({
+    names, idPattern: ip ? new RegExp(escapeRegExp(ip)) : undefined
+  });
+  const deletedCount = collections.reduce((sum, c) => sum + c.deletedCount, 0);
 
   await logAuditEvent(AuditEvents.ADMIN_RESET_RATE_LIMITS, user, {
-    type, ip, deletedCount: result.deletedCount
+    type, ip, deletedCount
   }, req);
 
-  return { deletedCount: result.deletedCount };
+  return { deletedCount, collections };
 }
 
 module.exports = {

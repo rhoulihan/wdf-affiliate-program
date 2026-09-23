@@ -43,10 +43,24 @@ async function registerFailure(key) {
   return totalHits;
 }
 
+/**
+ * The store's own collection name — the single source of truth.
+ *
+ * Hand-building `'ratelimit_' + STORE_NAME` here was a second source that
+ * ignored RATE_LIMIT_COLLECTION_PREFIX: the store's WRITES (increment /
+ * resetKey, which go through the store object) would move to the prefixed
+ * collection while isLockedOut kept READING the unprefixed one — a lockout
+ * that silently stopped locking out. Plan 3 task 25.
+ * @returns {string} e.g. 'ratelimit_bag_codes'
+ */
+function storeCollectionName() {
+  return getStore().collectionName;
+}
+
 /** True when the key has >= maxAttempts unexpired failures. */
 async function isLockedOut(key, maxAttempts) {
   const doc = await mongoose.connection
-    .collection(`ratelimit_${STORE_NAME}`)
+    .collection(storeCollectionName())
     .findOne({ _id: key });
   if (!doc) return false;
   if (doc._expiresAt && doc._expiresAt < new Date()) return false;
@@ -58,4 +72,7 @@ async function clearFailures(key) {
   return getStore().resetKey(key);
 }
 
-module.exports = { attemptKey, clientIp, registerFailure, isLockedOut, clearFailures, WINDOW_MS };
+module.exports = {
+  attemptKey, clientIp, registerFailure, isLockedOut, clearFailures,
+  storeCollectionName, WINDOW_MS
+};

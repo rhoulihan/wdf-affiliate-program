@@ -417,7 +417,13 @@ until they do, the only record was prose inside a 61-task plan document.
 - Corporate session cookie `__Host-crhsent.sid` + `sessions_corporate`; nobody logged out (0 `req.session` references, ruling R-10).
 - Still open: D-2 (Plan 4 PR B7). D-3 DONE 2026-09-11 (web-core `d2725e7`, affiliate `a37dc497`).
 
-### D-2. Affiliate PR B7 (rate-limit adoption) → Plan 4
+### D-2. Affiliate PR B7 (rate-limit adoption) → Plan 4 — ✅ CLOSED 2026-09-23 (Plan 3 task 25)
+
+**All six items below shipped in Plan 3 task 25.** Branch taken: `concierge=0, intake=0` (Branch C —
+tasks 16/17/18 had already deleted the marketing surface, the explorer and the intake routes), so
+the contact-form pair and `conciergeLimiter` are NOT re-exported by the affiliate policy module and
+core's copies are left in place for the corporate app — copy-before-delete discharged by not
+deleting. Collection prefix re-verified `ratelimit_` after the bind; no live counter moves.
 
 **This section IS the Plan 1 Task 42 hand-off of record** (Task 42 ran 2026-09-12 and found D-2
 already written, so it re-verified every anchor in place rather than appending a duplicate section).
@@ -434,7 +440,7 @@ until B7 — see the copy-before-delete item below.
 
 Three of these five are LIVE DEFECTS, not refactors.
 
-- [ ] **The admin "reset rate limits" control is a DOUBLE no-op — verified against the production
+- [x] **The admin "reset rate limits" control is a DOUBLE no-op — verified against the production
       database 2026-09-11, not inferred.** The store writes **17 `ratelimit_*` collections** keyed on
       `_id`; the admin targets a collection named `rate_limits` **which does not exist at all**. So
       `deleteMany` runs against nothing, returns `deletedCount: 0`, and reports SUCCESS. An admin
@@ -447,7 +453,7 @@ Three of these five are LIVE DEFECTS, not refactors.
       `systemHealthService.js:98` escapes the full metacharacter class. The unescaped-except-dots
       version lives only in the inline route handler that this work deletes, so carry the escaping
       forward rather than re-deriving it.
-- [ ] **A dead controller shadowed by an inline handler.** `administratorController.resetRateLimits`
+- [x] **A dead controller shadowed by an inline handler.** `administratorController.resetRateLimits`
       (`:692`) is referenced by NO route; `administratorRoutes.js:197-237` (⟳ was `:197-238`)
       carries an inline copy that shadows it. Delete the inline handler, route to the controller.
       Response message becomes `Reset N rate limit entries`;
@@ -455,10 +461,10 @@ Three of these five are LIVE DEFECTS, not refactors.
       (`:44`, `:57`) — verify `grep -c 'rate limit records'` → 0 after.
       `tests/unit/simpleRouteHandlers.test.js:49-87` (⟳ was `:49-84`) copies the deleted handler
       into a throwaway router and stays green untouched — leave it for the Plan-4 test cull.
-- [ ] **`server/services/codeAttemptLockout.js:49`** hand-builds `'ratelimit_' + STORE_NAME`, a second
+- [x] **`server/services/codeAttemptLockout.js:49`** hand-builds `'ratelimit_' + STORE_NAME`, a second
       source of the collection name that ignores `RATE_LIMIT_COLLECTION_PREFIX`. Read
       `getStore().collectionName` instead; register `STORE_NAME = 'bag_codes'` at module load.
-- [ ] Replace `server/middleware/rateLimitMongoStore.js` + `rateLimiting.js` with shims over
+- [x] Replace `server/middleware/rateLimitMongoStore.js` + `rateLimiting.js` with shims over
       `@crhs/web-core`, plus a local policy module. ⚠️ **COPY-BEFORE-DELETE (Global Constraint 13):**
       copy `windowMs`/`max`/keyGenerator verbatim from core's `contactFormBurstLimiter`
       (`src/middleware/rateLimiting.js:214-230`) and `contactFormLimiter` (`:237-254`) BEFORE core
@@ -467,12 +473,32 @@ Three of these five are LIVE DEFECTS, not refactors.
       **at require time**, i.e. the app does not boot.
       ⟳ Both ranges were `:190-206` / `:213-230` until Plan 1 Task 41 inserted the copy-before-delete
       comment block above them; re-verified at web-core `6dd1c31` on 2026-09-12.
-- [ ] Rewrite `scripts/admin/reset-rate-limits.js` onto the real buckets, add an `--expired` sweep
+- [x] Rewrite `scripts/admin/reset-rate-limits.js` onto the real buckets, add an `--expired` sweep
       mode, export `{ parseArgs, run }` so the behaviour is testable.
-- [ ] ⚠️ **`LIMITER_NAMES` IS A LIVE GETTER, NOT A SNAPSHOT.** Destructuring it at require time freezes
+- [x] ⚠️ **`LIMITER_NAMES` IS A LIVE GETTER, NOT A SNAPSHOT.** Destructuring it at require time freezes
       the value before `codeAttemptLockout` registers `bag_codes`, so the admin reset silently skips
       the lockout counters and `--type bag_codes` always throws "Unknown rate limiter". Hold the
       module and read `rateLimiting.LIMITER_NAMES` inside the function.
+
+**Task 25 record (2026-09-23).** Falsification first: the replacement assertion
+`/^Reset [1-9][0-9]* rate limit entries$/` was shown failing against the old zero-returning handler
+(`expect(received).toBeGreaterThan(expected) // Received: 0`) before any implementation, alongside
+`old_matches_zero=true / new_matches_zero=false`. Merely `require`ing the old script connected to
+Mongo and called `process.exit(1)`, killing the jest worker — that was its red.
+Deviations from the task as written, all deliberate:
+- `.env.example` (`RATE_LIMIT_WINDOW_MS`, `AUTH_RATE_LIMIT_MAX`) NOT touched — production-config
+  edits need Rick's confirmation and this ran unattended. The code-side `ALLOWED_ENV_VARS` trim
+  (both knobs plus the six dead `STRIPE_*`/`AWS_*` rows, X31) DID land.
+- `tests/unit/simpleRouteHandlers.test.js` was NOT deleted: only its
+  `Administrator Rate Limit Reset` describe was excised. The file's other two describes
+  (CSP-nonce doc serving, basic auth handlers) are unrelated coverage.
+- `tests/unit/administratorControllerRateLimits.test.js` mocked `mongoose`, not the service, and
+  pinned the defect (including `Reset 0 rate limit entries`); rewritten onto the service seam.
+- `administratorController.js` had to change too (it dropped `collections` on the floor), which the
+  task's Files list omitted.
+- `contact_burst` / `contact_hourly` / `concierge` still appear in `APP_LIMITER_NAMES`: core
+  constructs those limiters at its own require time, so the process-wide registry holds them
+  whatever this app mounts. Benign — the admin reset simply also clears those orphan buckets.
 
 ### D-3. Franchisor origins in the web-core iframe bridge — NOW ACTIONABLE
 

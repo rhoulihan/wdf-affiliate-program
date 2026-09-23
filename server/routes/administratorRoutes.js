@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const administratorController = require('../controllers/administratorController');
-const logger = require('../utils/logger');
 const { authenticate } = require('../middleware/auth');
 const { checkRole, checkAdminPermission } = require('../middleware/rbac');
 const { body } = require('express-validator');
@@ -196,45 +195,11 @@ router.post('/change-password', [
 
 /**
  * @route   POST /api/administrators/reset-rate-limits
- * @desc    Reset rate limiting counters
- * @access  Private - Administrator only
+ * @desc    Reset rate limiting counters across every registered bucket
+ * @access  Private - Administrator only (system.manage)
  */
-router.post('/reset-rate-limits', checkAdminPermission(['system.manage']), async (req, res) => {
-  try {
-    const { type, ip } = req.body;
-
-    // Get the rate_limits collection
-    const db = require('mongoose').connection.db;
-    const collection = db.collection('rate_limits');
-
-    // Build filter
-    let filter = {};
-
-    if (type) {
-      filter.key = new RegExp(type, 'i');
-    }
-
-    if (ip) {
-      filter.key = new RegExp(ip.replace(/\./g, '\\.'));
-    }
-
-    // Delete matching records
-    const result = await collection.deleteMany(filter);
-
-    res.json({
-      success: true,
-      message: `Reset ${result.deletedCount} rate limit records`,
-      deletedCount: result.deletedCount
-    });
-
-  } catch (error) {
-    logger.error('Error resetting rate limits:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error resetting rate limits'
-    });
-  }
-});
+router.post('/reset-rate-limits', checkAdminPermission(['system.manage']),
+  administratorController.resetRateLimits);
 
 // Administrator routes with :id parameter (MUST BE LAST)
 router.get('/:id', checkAdminPermission(['administrators.read']), administratorController.getAdministratorById);

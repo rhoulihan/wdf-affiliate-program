@@ -691,7 +691,7 @@ exports.getEnvironmentVariables = async (req, res) => {
  */
 exports.resetRateLimits = async (req, res) => {
   try {
-    const { deletedCount } = await systemHealthService.resetRateLimits({
+    const { deletedCount, collections } = await systemHealthService.resetRateLimits({
       type: req.body.type,
       ip: req.body.ip,
       user: req.user,
@@ -700,7 +700,10 @@ exports.resetRateLimits = async (req, res) => {
     res.json({
       success: true,
       message: `Reset ${deletedCount} rate limit entries`,
-      deletedCount
+      deletedCount,
+      // Per-bucket breakdown so an admin can see WHICH counters were cleared —
+      // the old endpoint reported a bare 0 and cleared nothing (Plan 3 task 25).
+      collections
     });
   } catch (err) {
     if (err.isSystemHealthError) {

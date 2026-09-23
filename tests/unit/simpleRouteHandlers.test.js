@@ -28,133 +28,14 @@ jest.mock('../../server/utils/cspHelper', () => ({
 }));
 
 describe('Simple Route Handlers', () => {
-  describe('Administrator Rate Limit Reset', () => {
-    let app;
-    let mockDeleteMany;
-    
-    beforeEach(() => {
-      jest.clearAllMocks();
-      
-      // Create Express app
-      app = express();
-      app.use(express.json());
-      
-      // Create the route directly without requiring the whole file
-      const router = require('express').Router();
-      const { checkAdminPermission } = require('../../server/middleware/rbac');
-      
-      // Mock the database collection
-      mockDeleteMany = jest.fn();
-      
-      router.post('/reset-rate-limits', checkAdminPermission(['system.manage']), async (req, res) => {
-        try {
-          const { type, ip } = req.body;
-          
-          // Mock getting the collection
-          const db = {
-            collection: jest.fn(() => ({
-              deleteMany: mockDeleteMany
-            }))
-          };
-          
-          // Build filter
-          let filter = {};
-          
-          if (type) {
-            filter.key = new RegExp(type, 'i');
-          }
-          
-          if (ip) {
-            filter.key = new RegExp(ip.replace(/\./g, '\\.'));
-          }
-          
-          // Delete matching records
-          const result = await mockDeleteMany(filter);
-          
-          res.json({
-            success: true,
-            message: `Reset ${result.deletedCount} rate limit records`,
-            deletedCount: result.deletedCount
-          });
-          
-        } catch (error) {
-          console.error('Error resetting rate limits:', error);
-          res.status(500).json({
-            success: false,
-            message: 'Error resetting rate limits'
-          });
-        }
-      });
-      
-      app.use('/api/administrators', router);
-    });
-    
-    it('should reset all rate limits when no filters provided', async () => {
-      mockDeleteMany.mockResolvedValue({ deletedCount: 10 });
-      
-      const response = await request(app)
-        .post('/api/administrators/reset-rate-limits')
-        .send({});
-      
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        success: true,
-        message: 'Reset 10 rate limit records',
-        deletedCount: 10
-      });
-      expect(mockDeleteMany).toHaveBeenCalledWith({});
-    });
-    
-    it('should reset rate limits by type filter', async () => {
-      mockDeleteMany.mockResolvedValue({ deletedCount: 5 });
-      
-      const response = await request(app)
-        .post('/api/administrators/reset-rate-limits')
-        .send({ type: 'admin' });
-      
-      expect(response.status).toBe(200);
-      expect(response.body.deletedCount).toBe(5);
-      expect(mockDeleteMany).toHaveBeenCalledWith({
-        key: expect.any(RegExp)
-      });
-      
-      const filter = mockDeleteMany.mock.calls[0][0];
-      expect(filter.key.source).toBe('admin');
-      expect(filter.key.flags).toBe('i');
-    });
-    
-    it('should reset rate limits by IP filter', async () => {
-      mockDeleteMany.mockResolvedValue({ deletedCount: 3 });
-      
-      const response = await request(app)
-        .post('/api/administrators/reset-rate-limits')
-        .send({ ip: '192.168.1.1' });
-      
-      expect(response.status).toBe(200);
-      expect(response.body.deletedCount).toBe(3);
-      expect(mockDeleteMany).toHaveBeenCalledWith({
-        key: expect.any(RegExp)
-      });
-      
-      const filter = mockDeleteMany.mock.calls[0][0];
-      expect(filter.key.source).toBe('192\\.168\\.1\\.1');
-    });
-    
-    it('should handle database errors', async () => {
-      mockDeleteMany.mockRejectedValue(new Error('Database error'));
-      
-      const response = await request(app)
-        .post('/api/administrators/reset-rate-limits')
-        .send({});
-      
-      expect(response.status).toBe(500);
-      expect(response.body).toEqual({
-        success: false,
-        message: 'Error resetting rate limits'
-      });
-    });
-  });
-  
+  // The 'Administrator Rate Limit Reset' describe that used to sit here copied
+  // the inline administratorRoutes handler into a throwaway router and asserted
+  // the DEFECT: deleteMany on a collection the store never writes, filtering a
+  // `key` field that does not exist, and the message whose \d+ matched zero.
+  // Plan 3 task 25 deleted that handler; the real endpoint is covered by
+  // tests/integration/resetRateLimits.test.js and
+  // tests/unit/administratorControllerRateLimits.test.js.
+
   describe('Documentation Serving with CSP Nonce', () => {
     let app;
     

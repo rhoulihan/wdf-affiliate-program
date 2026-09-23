@@ -1,191 +1,108 @@
+// Plan 3 task 25 (PR B7). This suite used to mock `mongoose.connection.db` and
+// assert `collection('rate_limits')` — it pinned the DEFECT in place, including
+// an explicit "should report zero deletions correctly" expecting
+// "Reset 0 rate limit entries". It now tests the real seam: the controller is a
+// thin adapter over systemHealthService.resetRateLimits, and the collection
+// fan-out is the service's business (tests/integration/resetRateLimits.test.js
+// proves that half against a real database).
+
+jest.mock('../../server/services/systemHealthService');
+
+const systemHealthService = require('../../server/services/systemHealthService');
 const { resetRateLimits } = require('../../server/controllers/administratorController');
-const mongoose = require('mongoose');
 const logger = require('../../server/utils/logger');
 
-describe('Administrator Controller - Reset Rate Limits', () => {
-  let req, res, mockDb, mockCollection;
-  let consoleErrorSpy;
+describe('administratorController.resetRateLimits', () => {
+  let req, res, loggerSpy;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    // Mock console.error
-    consoleErrorSpy = jest.spyOn(logger, 'error').mockImplementation();
-    
-    // Mock request and response
-    req = {
-      body: {},
-      user: { id: 'admin123', role: 'administrator' }
-    };
-    
-    res = {
-      json: jest.fn(),
-      status: jest.fn().mockReturnThis()
-    };
-    
-    // Mock MongoDB collection
-    mockCollection = {
-      deleteMany: jest.fn()
-    };
-    
-    mockDb = {
-      collection: jest.fn().mockReturnValue(mockCollection)
-    };
-    
-    // Mock mongoose connection
-    mongoose.connection.db = mockDb;
+    loggerSpy = jest.spyOn(logger, 'error').mockImplementation();
+    req = { body: {}, user: { id: 'admin123', role: 'administrator' } };
+    res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
   });
 
-  afterEach(() => {
-    consoleErrorSpy.mockRestore();
+  afterEach(() => loggerSpy.mockRestore());
+
+  it('is wired to a route — it is not a dead export', () => {
+    // The inline handler in administratorRoutes.js:197-237 shadowed this method
+    // and was the copy carrying the bug. Deleting it without wiring the route
+    // would 404 the endpoint, so assert the wiring, not just the function.
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', '..',
+      'server/routes/administratorRoutes.js'), 'utf8');
+    expect(src).toMatch(/router\.post\('\/reset-rate-limits'[\s\S]*administratorController\.resetRateLimits/);
+    expect(src).not.toMatch(/rate_limits/);
   });
 
-  describe('resetRateLimits', () => {
-    it('should reset all rate limits when no filters provided', async () => {
-      mockCollection.deleteMany.mockResolvedValue({ deletedCount: 10 });
-
-      await resetRateLimits(req, res);
-
-      expect(mockDb.collection).toHaveBeenCalledWith('rate_limits');
-      expect(mockCollection.deleteMany).toHaveBeenCalledWith({});
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Reset 10 rate limit entries',
-        deletedCount: 10
-      });
+  it('passes the request filters and the acting user to the service', async () => {
+    req.body = { type: 'auth', ip: '203.0.113.7' };
+    systemHealthService.resetRateLimits.mockResolvedValue({
+      deletedCount: 3, collections: [{ collection: 'ratelimit_auth', deletedCount: 3 }]
     });
 
-    it('should reset rate limits with type filter', async () => {
-      req.body = { type: 'login' };
-      mockCollection.deleteMany.mockResolvedValue({ deletedCount: 5 });
+    await resetRateLimits(req, res);
 
-      await resetRateLimits(req, res);
-
-      expect(mockCollection.deleteMany).toHaveBeenCalledWith({
-        key: expect.any(RegExp)
-      });
-      
-      const filter = mockCollection.deleteMany.mock.calls[0][0];
-      expect(filter.key.source).toBe('^login:');
-      expect(filter.key.flags).toBe('');
-      
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Reset 5 rate limit entries',
-        deletedCount: 5
-      });
+    expect(systemHealthService.resetRateLimits).toHaveBeenCalledWith({
+      type: 'auth', ip: '203.0.113.7', user: req.user, req
     });
+  });
 
-    it('should reset rate limits with IP filter', async () => {
-      req.body = { ip: '192.168.1.100' };
-      mockCollection.deleteMany.mockResolvedValue({ deletedCount: 3 });
+  it('returns the per-bucket breakdown, not just a bare count', async () => {
+    const collections = [
+      { collection: 'ratelimit_auth', deletedCount: 2 },
+      { collection: 'ratelimit_register', deletedCount: 1 }
+    ];
+    systemHealthService.resetRateLimits.mockResolvedValue({ deletedCount: 3, collections });
 
-      await resetRateLimits(req, res);
+    await resetRateLimits(req, res);
 
-      expect(mockCollection.deleteMany).toHaveBeenCalledWith({
-        key: expect.any(RegExp)
-      });
-      
-      const filter = mockCollection.deleteMany.mock.calls[0][0];
-      expect(filter.key.source).toBe('192\\.168\\.1\\.100');
-      
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Reset 3 rate limit entries',
-        deletedCount: 3
-      });
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: 'Reset 3 rate limit entries',
+      deletedCount: 3,
+      collections
     });
+  });
 
-    it('should handle IP filter overwriting type filter', async () => {
-      req.body = { type: 'api', ip: '10.0.0.1' };
-      mockCollection.deleteMany.mockResolvedValue({ deletedCount: 1 });
+  it('a 400 from the service (unknown limiter) is returned as a 400, not a 500', async () => {
+    const err = new Error('Unknown rate limiter: nope');
+    err.isSystemHealthError = true;
+    err.status = 400;
+    systemHealthService.resetRateLimits.mockRejectedValue(err);
 
-      await resetRateLimits(req, res);
+    await resetRateLimits(req, res);
 
-      const filter = mockCollection.deleteMany.mock.calls[0][0];
-      // IP filter should overwrite type filter
-      expect(filter.key.source).toBe('10\\.0\\.0\\.1');
-      
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Reset 1 rate limit entries',
-        deletedCount: 1
-      });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false, message: 'Unknown rate limiter: nope'
     });
+  });
 
-    it('should handle database errors gracefully', async () => {
-      mockCollection.deleteMany.mockRejectedValue(new Error('Database connection failed'));
+  it('a missing database connection is a 500 with the service message', async () => {
+    const err = new Error('Database connection not available');
+    err.isSystemHealthError = true;
+    err.status = 500;
+    systemHealthService.resetRateLimits.mockRejectedValue(err);
 
-      await resetRateLimits(req, res);
+    await resetRateLimits(req, res);
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Error resetting rate limits:', 
-        expect.any(Error)
-      );
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Failed to reset rate limits',
-        error: 'Database connection failed'
-      });
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false, message: 'Database connection not available'
     });
+  });
 
-    it('should handle missing database connection', async () => {
-      mongoose.connection.db = undefined;
+  it('an unexpected failure is logged and returned as a 500', async () => {
+    systemHealthService.resetRateLimits.mockRejectedValue(new Error('boom'));
 
-      await resetRateLimits(req, res);
+    await resetRateLimits(req, res);
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Database connection not available'
-      });
-    });
-
-    it('should handle collection not found error', async () => {
-      mockDb.collection.mockImplementation(() => {
-        throw new Error('Collection not found');
-      });
-
-      await resetRateLimits(req, res);
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Error resetting rate limits:', 
-        expect.objectContaining({ message: 'Collection not found' })
-      );
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Failed to reset rate limits',
-        error: 'Collection not found'
-      });
-    });
-
-    it('should report zero deletions correctly', async () => {
-      req.body = { type: 'nonexistent' };
-      mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
-
-      await resetRateLimits(req, res);
-
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Reset 0 rate limit entries',
-        deletedCount: 0
-      });
-    });
-
-    it('should handle special regex characters in IP', async () => {
-      req.body = { ip: '10.20.30.40' };
-      mockCollection.deleteMany.mockResolvedValue({ deletedCount: 2 });
-
-      await resetRateLimits(req, res);
-
-      const filter = mockCollection.deleteMany.mock.calls[0][0];
-      // All dots should be escaped
-      expect(filter.key.source).toBe('10\\.20\\.30\\.40');
-      // Check that the regex pattern has escaped dots (contains backslash)
-      expect(filter.key.source).toContain('\\.');
+    expect(loggerSpy).toHaveBeenCalledWith('Error resetting rate limits:', expect.any(Error));
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false, message: 'Failed to reset rate limits', error: 'boom'
     });
   });
 });
