@@ -45,7 +45,6 @@ OLD_JWT_SECRET="$JWT_SECRET"
 OLD_ENCRYPTION_KEY="$ENCRYPTION_KEY"
 OLD_SESSION_SECRET="$SESSION_SECRET"
 OLD_CSRF_SECRET="$CSRF_SECRET"
-OLD_DOCUSIGN_WEBHOOK_SECRET="$DOCUSIGN_WEBHOOK_SECRET"
 
 # Generate new credentials
 echo -e "\n${YELLOW}Generating new credentials...${NC}"
@@ -53,7 +52,6 @@ NEW_JWT_SECRET=$(generate_key)
 NEW_ENCRYPTION_KEY=$(generate_key)
 NEW_SESSION_SECRET=$(generate_key)
 NEW_CSRF_SECRET=$(generate_key)
-NEW_DOCUSIGN_WEBHOOK_SECRET=$(generate_key)
 
 # Function to update .env file
 update_env_value() {
@@ -75,7 +73,6 @@ update_env_value "JWT_SECRET" "$NEW_JWT_SECRET"
 update_env_value "ENCRYPTION_KEY" "$NEW_ENCRYPTION_KEY"
 update_env_value "SESSION_SECRET" "$NEW_SESSION_SECRET"
 update_env_value "CSRF_SECRET" "$NEW_CSRF_SECRET"
-update_env_value "DOCUSIGN_WEBHOOK_SECRET" "$NEW_DOCUSIGN_WEBHOOK_SECRET"
 
 # Remove .bak files created by sed
 rm -f "$ENV_FILE.bak"
