@@ -279,21 +279,21 @@ class AuthorizationHelpers {
 
     // Apply filters based on role
     switch (req.user.role) {
-      case 'customer':
-        req.query.customerId = req.user.customerId;
-        break;
+    case 'customer':
+      req.query.customerId = req.user.customerId;
+      break;
       
-      case 'affiliate':
-      case 'operator':
-        req.query.affiliateId = req.user.affiliateId;
-        break;
+    case 'affiliate':
+    case 'operator':
+      req.query.affiliateId = req.user.affiliateId;
+      break;
       
-      default:
-        // Unknown role - deny access
-        return res.status(403).json({
-          success: false,
-          message: 'Invalid user role'
-        });
+    default:
+      // Unknown role - deny access
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid user role'
+      });
     }
 
     next();

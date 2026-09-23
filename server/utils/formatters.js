@@ -160,25 +160,25 @@ class Formatters {
     if (customer.zipCode) cityStateZip.push(customer.zipCode);
 
     switch (format) {
-      case 'multi':
-        // Multi-line format
-        const lines = [...parts];
-        if (cityStateZip.length > 0) {
-          lines.push(cityStateZip.join(', '));
-        }
-        return lines.join('\n');
+    case 'multi':
+      // Multi-line format
+      const lines = [...parts];
+      if (cityStateZip.length > 0) {
+        lines.push(cityStateZip.join(', '));
+      }
+      return lines.join('\n');
 
-      case 'short':
-        // Short format (city, state only)
-        return [customer.city, customer.state].filter(Boolean).join(', ');
+    case 'short':
+      // Short format (city, state only)
+      return [customer.city, customer.state].filter(Boolean).join(', ');
 
-      case 'single':
-      default:
-        // Single line format
-        if (cityStateZip.length > 0) {
-          parts.push(cityStateZip.join(', '));
-        }
-        return parts.join(', ');
+    case 'single':
+    default:
+      // Single line format
+      if (cityStateZip.length > 0) {
+        parts.push(cityStateZip.join(', '));
+      }
+      return parts.join(', ');
     }
   }
 
@@ -200,27 +200,27 @@ class Formatters {
     }
 
     switch (format) {
-      case 'us':
-        if (cleaned.length === 10) {
-          return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
-        } else if (cleaned.length === 11 && cleaned[0] === '1') {
-          return cleaned.replace(/1(\d{3})(\d{3})(\d{4})/, '+1 ($1) $2-$3');
-        }
-        break;
+    case 'us':
+      if (cleaned.length === 10) {
+        return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+      } else if (cleaned.length === 11 && cleaned[0] === '1') {
+        return cleaned.replace(/1(\d{3})(\d{3})(\d{4})/, '+1 ($1) $2-$3');
+      }
+      break;
 
-      case 'dots':
-        if (cleaned.length === 10) {
-          return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1.$2.$3');
-        }
-        break;
+    case 'dots':
+      if (cleaned.length === 10) {
+        return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1.$2.$3');
+      }
+      break;
 
-      case 'international':
-        if (cleaned.length === 10) {
-          return '+1 ' + cleaned;
-        } else if (cleaned.length === 11 && cleaned[0] === '1') {
-          return '+' + cleaned;
-        }
-        break;
+    case 'international':
+      if (cleaned.length === 10) {
+        return '+1 ' + cleaned;
+      } else if (cleaned.length === 11 && cleaned[0] === '1') {
+        return '+' + cleaned;
+      }
+      break;
     }
 
     // Return original if no format matches

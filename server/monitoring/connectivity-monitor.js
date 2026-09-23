@@ -199,20 +199,20 @@ async function checkService(service) {
   let result;
 
   switch (service.type) {
-    case 'mongodb':
-      result = await checkMongoDB(service);
-      break;
-    case 'smtp':
-      result = await checkSMTP(service);
-      break;
-    case 'https':
-      result = await checkHTTPS(service);
-      break;
-    case 'dns':
-      result = await checkDNS(service);
-      break;
-    default:
-      result = { success: false, error: 'Unknown service type' };
+  case 'mongodb':
+    result = await checkMongoDB(service);
+    break;
+  case 'smtp':
+    result = await checkSMTP(service);
+    break;
+  case 'https':
+    result = await checkHTTPS(service);
+    break;
+  case 'dns':
+    result = await checkDNS(service);
+    break;
+  default:
+    result = { success: false, error: 'Unknown service type' };
   }
 
   // Update monitoring data
