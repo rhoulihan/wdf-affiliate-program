@@ -88,8 +88,10 @@ describe('CSP Helper Utilities', () => {
     it('should update meta tag with name="csp-nonce"', () => {
       const html = '<meta name="csp-nonce" content="">';
       const result = injectNonce(html, testNonce);
-      // The regex appends content attribute, it doesn't replace it
-      expect(result).toBe(`<meta name="csp-nonce" content="" content="${testNonce}">`);
+      // Plan 3 Task 20: web-core's injectNonce now fills the meta IN PLACE. This
+      // previously asserted `content="" content="…"`, which is what the portal actually
+      // served — HTML keeps the first attribute, so window.CSP_NONCE was ''.
+      expect(result).toBe(`<meta name="csp-nonce" content="${testNonce}">`);
     });
 
     it('should handle complex HTML with multiple elements', () => {
@@ -112,7 +114,7 @@ describe('CSP Helper Utilities', () => {
       
       const result = injectNonce(html, testNonce);
       
-      expect(result).toContain(`<meta name="csp-nonce" content="" content="${testNonce}">`);
+      expect(result).toContain(`<meta name="csp-nonce" content="${testNonce}">`);
       expect(result).toContain(`<link rel="stylesheet" href="styles.css" nonce="${testNonce}">`);
       expect(result).toContain('<link rel="icon" href="favicon.ico">'); // Should not change
       expect(result).toContain(`<style nonce="${testNonce}">body { margin: 0; }</style>`);
