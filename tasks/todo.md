@@ -332,7 +332,8 @@ logo path resolves 200 on the content app. Gaps:
 
 - [ ] **Legal pages — highest value.** `/privacy-policy(/|.html)`, `/terms-of-service(/)`, `/terms-and-conditions(.html)`.
       Served at affiliate `server.js:984/986/988`, `embedRoutes.js:17`, static `:673`; exempt at `partnerLanding.js:89-92`;
-      `quarantineConfig.js:45` marks them "required for payment processor + compliance". The content app has NO legal pages,
+      the (now-deleted, Task 36) `quarantineConfig.js` allowlist marked them "required for payment processor + compliance"
+      — that rationale is still the reason they matter, but the file is gone. The content app has NO legal pages,
       yet corporate `seoRoutes.js:34` already points security.txt's `Policy:` at `portal.atxwashdryfold.com/privacy-policy`.
       Needs B7 entries or content-app pages BEFORE Phase 0a.
 - [ ] **`/design-explorer` + `/design-explorer/*`** (`server.js:648`, `explorerGuard`, `?k=EXPLORER_TOKEN`). Live on
@@ -344,8 +345,9 @@ logo path resolves 200 on the content app. Gaps:
       flip it becomes a plain 404 on the very hosts the flyers name. Decide whether to carry the 410 into the content app.
 - [ ] **`/monitoring/`** — B7 redirects `/monitoring-dashboard.html`, which the portal 302s to `/monitoring/`; that landing
       URL (what a bookmark holds) is not covered. Admin-only, no email or QR path.
-- [ ] **`/refund-policy`** — in `quarantineConfig.js:49` but absent from `partnerLanding._isExempt`, so already shadowed
-      today. No regression, but inconsistent with the other legal pages; resolve alongside the first item.
+- [ ] **`/refund-policy`** — was in the `quarantineConfig.js` allowlist (deleted, Task 36) but absent from
+      `partnerLanding._isExempt`, so already shadowed today. No regression, but inconsistent with the other legal pages;
+      resolve alongside the first item.
 - [ ] **POST surfaces** `/api/concierge` (`server.js:713`) and the partner-inquiry POST now get Task 45's 404 JSON on
       marketing hosts. Out of B7 scope by design (GET/HEAD only); handle when the concierge and partner form move.
 
@@ -672,8 +674,10 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       marketing zones. No CF purge needed (page DYNAMIC, assets BYPASS).
 - [ ] **Still exposed: git history.** All 451 photos and the swirl OG card remain in the PUBLIC repo's history; a clone still costs
       ~448 MiB. Removing them means rewriting history on a public repo — destructive, breaks existing clones. Separate owner decision.
-- [ ] Follow-up (minor): a deleted `/assets/*` path now 302s to `/embed-app-v2.html` via the location quarantine rather than 404ing.
-      Nothing franchisor-owned is served, but a clean 404 would be tidier for crawlers holding old photo URLs.
+- [ ] Follow-up (minor): a deleted `/assets/*` path was reported as 302ing to `/embed-app-v2.html` rather than 404ing, and the
+      cause was attributed to the location quarantine. That attribution was wrong (`/^\/assets\//` was *allowlisted*, so the
+      quarantine passed it through), and the middleware is gone as of Task 36 — **re-measure before acting.** Nothing
+      franchisor-owned is served either way, but a clean 404 would be tidier for crawlers holding old photo URLs.
 - [ ] Follow-up (minor): the separation spec cites a guard `tests/unit/locationImages.test.js` that does not exist — nothing stops the
       location tree growing back.
 
