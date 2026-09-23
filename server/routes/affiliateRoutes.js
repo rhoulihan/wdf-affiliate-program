@@ -55,7 +55,7 @@ router.get('/:affiliateId', authenticate, affiliateController.getAffiliateProfil
  * @desc    Update affiliate profile
  * @access  Private (self or admin)
  */
-router.put('/:affiliateId', 
+router.put('/:affiliateId',
   authenticate,
   profileAddressValidation,
   handleValidationErrors,

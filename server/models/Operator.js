@@ -167,25 +167,25 @@ operatorSchema.pre('save', function(next) {
     const salt = cryptoWrapper.randomBytes(16);
     const hashedPassword = crypto.pbkdf2Sync(this.password, salt, 100000, 64, 'sha512')
       .toString('hex') + ':' + salt.toString('hex');
-    
+
     // Add current password to history before updating
     if (!this.isNew && this.password) {
       if (!this.passwordHistory) {
         this.passwordHistory = [];
       }
-      
+
       // Store the old password hash
       this.passwordHistory.push({
         hash: this.password,
         changedAt: new Date()
       });
-      
+
       // Keep only last 5 passwords
       if (this.passwordHistory.length > 5) {
         this.passwordHistory = this.passwordHistory.slice(-5);
       }
     }
-    
+
     this.password = hashedPassword;
   }
 

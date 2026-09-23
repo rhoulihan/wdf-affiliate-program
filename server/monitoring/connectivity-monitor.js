@@ -311,8 +311,8 @@ function getMonitoringStatus() {
 
   for (const [name, data] of Object.entries(monitoringData.services)) {
     const service = SERVICES.find(s => s.name === name);
-    const availability = data.totalChecks > 0 
-      ? (data.uptime / data.totalChecks * 100).toFixed(2) 
+    const availability = data.totalChecks > 0
+      ? (data.uptime / data.totalChecks * 100).toFixed(2)
       : 0;
 
     summary.services[name] = {
@@ -345,7 +345,7 @@ function getMonitoringStatus() {
  */
 function startMonitoring() {
   logger.info('Starting connectivity monitoring service');
-  
+
   // Run initial check
   runMonitoringCycle();
 

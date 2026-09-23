@@ -109,7 +109,7 @@ class AuthorizationHelpers {
   static async checkOrderAccess(req, res, next) {
     try {
       const orderId = req.params.orderId || req.params.id;
-      
+
       if (!orderId) {
         return res.status(400).json({
           success: false,
@@ -123,7 +123,7 @@ class AuthorizationHelpers {
       }
 
       const order = await Order.findOne({ orderId }).select('customerId affiliateId');
-      
+
       if (!order) {
         return res.status(404).json({
           success: false,
@@ -166,7 +166,7 @@ class AuthorizationHelpers {
   static async checkAffiliateAccess(req, res, next) {
     try {
       const affiliateId = req.params.affiliateId || req.body.affiliateId || req.params.id;
-      
+
       if (!affiliateId) {
         return res.status(400).json({
           success: false,
@@ -282,12 +282,12 @@ class AuthorizationHelpers {
     case 'customer':
       req.query.customerId = req.user.customerId;
       break;
-      
+
     case 'affiliate':
     case 'operator':
       req.query.affiliateId = req.user.affiliateId;
       break;
-      
+
     default:
       // Unknown role - deny access
       return res.status(403).json({

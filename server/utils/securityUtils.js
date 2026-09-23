@@ -22,10 +22,10 @@ function escapeRegex(string) {
  */
 function validateSortField(field, allowedFields) {
   if (!field || typeof field !== 'string') return null;
-  
+
   // Remove any potential injection attempts
   const cleanField = field.replace(/[^a-zA-Z0-9._-]/g, '');
-  
+
   // Check against whitelist
   return allowedFields.includes(cleanField) ? cleanField : null;
 }
@@ -37,7 +37,7 @@ function validateSortField(field, allowedFields) {
  */
 function sanitizeObjectId(id) {
   if (!id || typeof id !== 'string') return null;
-  
+
   // MongoDB ObjectIds are 24 character hex strings
   const objectIdRegex = /^[a-fA-F0-9]{24}$/;
   return objectIdRegex.test(id) ? id : null;

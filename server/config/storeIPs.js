@@ -52,29 +52,29 @@ const whitelistedRanges = process.env.STORE_IP_RANGES
 module.exports = {
   // Store IP whitelist - loaded from environment
   whitelistedIPs,
-  
+
   // IP ranges (CIDR notation) - for store networks
   whitelistedRanges,
-  
+
   // Session renewal settings
   sessionRenewal: {
     // How often to check if token needs renewal (in milliseconds)
     checkInterval: parseInt(process.env.STORE_SESSION_CHECK_INTERVAL || 300000), // Default: 5 minutes
-    
+
     // Renew token when it has less than this much time left (in milliseconds)
     renewThreshold: parseInt(process.env.STORE_SESSION_RENEW_THRESHOLD || 1800000), // Default: 30 minutes
-    
+
     // Maximum session duration for store IPs (in milliseconds)
     maxSessionDuration: parseInt(process.env.STORE_SESSION_MAX_DURATION || 86400000), // Default: 24 hours
   },
-  
+
   // Function to check if an IP is whitelisted
   isWhitelisted(ip) {
     // Direct IP match
     if (this.whitelistedIPs.includes(ip)) {
       return true;
     }
-    
+
     // Check IP ranges (requires ip-range-check package)
     // Simplified check for now - can be enhanced with proper CIDR matching
     for (const range of this.whitelistedRanges) {
@@ -82,10 +82,10 @@ module.exports = {
         return true;
       }
     }
-    
+
     return false;
   },
-  
+
   // IP range checker — supports both IPv4 and IPv6 CIDRs. The address family of
   // `ip` and `cidr` must match (no cross-family matches). (Throws on null inputs
   // are caught and logged below — intentional.)

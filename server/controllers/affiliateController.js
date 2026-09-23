@@ -434,7 +434,7 @@ exports.getAffiliateEarnings = async (req, res) => {
 exports.getAffiliateCustomers = ControllerHelpers.asyncWrapper(async (req, res) => {
   const { affiliateId } = req.params;
   const { search, sort, customerId } = req.query;
-  
+
   // Parse pagination parameters
   const pagination = ControllerHelpers.parsePagination(req.query);
 

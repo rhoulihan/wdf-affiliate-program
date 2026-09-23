@@ -42,7 +42,7 @@ class Formatters {
 
     try {
       const dateObj = date instanceof Date ? date : new Date(date);
-      
+
       if (isNaN(dateObj.getTime())) {
         return '';
       }
@@ -52,9 +52,9 @@ class Formatters {
         medium: { dateStyle: 'medium' },
         long: { dateStyle: 'long' },
         full: { dateStyle: 'full' },
-        datetime: { 
-          dateStyle: 'medium', 
-          timeStyle: 'short' 
+        datetime: {
+          dateStyle: 'medium',
+          timeStyle: 'short'
         },
         time: { timeStyle: 'short' },
         iso: null // Special case for ISO format
@@ -84,7 +84,7 @@ class Formatters {
 
     try {
       const dateObj = date instanceof Date ? date : new Date(date);
-      
+
       if (isNaN(dateObj.getTime())) {
         return '';
       }
@@ -150,10 +150,10 @@ class Formatters {
     }
 
     const parts = [];
-    
+
     if (customer.address) parts.push(customer.address);
     if (customer.address2) parts.push(customer.address2);
-    
+
     const cityStateZip = [];
     if (customer.city) cityStateZip.push(customer.city);
     if (customer.state) cityStateZip.push(customer.state);
@@ -284,7 +284,7 @@ class Formatters {
    */
   static fullName(firstName, lastName, lastFirst = false) {
     const parts = [];
-    
+
     if (firstName) parts.push(this.name(firstName));
     if (lastName) parts.push(this.name(lastName));
 
@@ -433,7 +433,7 @@ class Formatters {
     const secs = seconds % 60;
 
     const parts = [];
-    
+
     if (hours > 0) parts.push(`${hours}h`);
     if (minutes > 0) parts.push(`${minutes}m`);
     if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
@@ -451,11 +451,11 @@ class Formatters {
     if (count === 1) {
       return `${count} ${singular}`;
     }
-    
+
     if (plural) {
       return `${count} ${plural}`;
     }
-    
+
     // Simple pluralization
     return `${count} ${singular}s`;
   }
@@ -499,7 +499,7 @@ class Formatters {
 
     const allButLast = items.slice(0, -1);
     const last = items[items.length - 1];
-    
+
     return allButLast.join(separator) + lastSeparator + last;
   }
 }

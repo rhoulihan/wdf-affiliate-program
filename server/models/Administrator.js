@@ -135,26 +135,26 @@ administratorSchema.pre('save', async function(next) {
 // Method to set a new password (handles hashing)
 administratorSchema.methods.setPassword = function(password) {
   const { salt, hash } = encryptionUtil.hashPassword(password);
-  
+
   // Save current password to history before changing
   if (this.passwordHash && this.passwordSalt) {
     if (!this.passwordHistory) {
       this.passwordHistory = [];
     }
-    
+
     // Add current password to history
     this.passwordHistory.push({
       passwordHash: this.passwordHash,
       passwordSalt: this.passwordSalt,
       changedAt: new Date()
     });
-    
+
     // Keep only last 5 passwords
     if (this.passwordHistory.length > 5) {
       this.passwordHistory = this.passwordHistory.slice(-5);
     }
   }
-  
+
   this.passwordSalt = salt;
   this.passwordHash = hash;
 };

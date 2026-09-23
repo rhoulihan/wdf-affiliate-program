@@ -12,7 +12,7 @@ const isValidEmail = (email) => {
 const isValidPhone = (phone) => {
   // Remove all non-numeric characters for validation
   const cleaned = phone.replace(/\D/g, '');
-  
+
   // US phone numbers should be 10 digits (or 11 with country code)
   return cleaned.length === 10 || (cleaned.length === 11 && cleaned.startsWith('1'));
 };
@@ -135,13 +135,13 @@ module.exports = {
   isValidZipCode,
   isValidTimeFormat,
   isValidName,
-  
+
   // Mongoose validators
   mongooseValidators,
-  
+
   // Express-validator compatible
   expressValidators,
-  
+
   // Client-side validation functions
   validateEmail,
   validatePhone,
