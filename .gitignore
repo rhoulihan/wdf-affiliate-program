@@ -241,7 +241,6 @@ docs/security/
 docs/corporate-handoff/
 .playwright-mcp/
 about-hero-*.png
-public/design-explorer/render/
 
 # Claude Code runtime lock files
 .claude/scheduled_tasks.lock

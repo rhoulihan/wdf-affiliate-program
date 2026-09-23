@@ -431,7 +431,6 @@ describe('Rate Limiting Middleware', () => {
       ['apiLimiter', 'ip'],
       ['contactFormBurstLimiter', 'ip'],
       ['contactFormLimiter', 'ip'],
-      ['conciergeLimiter', 'ip'],
       ['adminOperationLimiter', 'ip'],
       ['sensitiveOperationLimiter', 'userOrIp'],
       ['fileUploadLimiter', 'userOrIp'],

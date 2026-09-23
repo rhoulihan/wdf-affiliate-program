@@ -314,28 +314,6 @@ exports.adminLoginLimiter = rateLimit({
   store: createMongoStore(15 * 60 * 1000, 'admin_login')
 });
 
-// Concierge — public Claude-backed FAQ endpoint (/api/concierge). Strict-ish:
-// the endpoint hits a paid LLM API, so cap usage per IP. Production: 20 / 15min,
-// relaxed (dev/staging): 200 / 15min. Disabled in test (skipInTest), same as
-// the other limiters. Keyed by IP since the concierge is unauthenticated.
-exports.conciergeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isRelaxed ? 200 : 20, // Relaxed: 200, Production: 20 questions per window
-  message: {
-    success: false,
-    message: 'Too many questions right now — please call us at (512) 553-1674, or try again shortly.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Don't throw ERR_ERL_DOUBLE_COUNT into the request (it surfaced on the
-  // Oracle-backed store and was escalating to unhandledRejection → worker
-  // crash-loop). The count may be off by one in rare cases; that's acceptable.
-  validate: { singleCount: false },
-  skip: skipInTest,
-  keyGenerator: keyGenerators.ip,
-  store: createMongoStore(15 * 60 * 1000, 'concierge')
-});
-
 // Create a custom rate limiter with specific settings
 exports.createCustomLimiter = (options) => {
   const defaults = {

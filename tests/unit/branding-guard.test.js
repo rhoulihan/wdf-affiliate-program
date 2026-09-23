@@ -13,8 +13,6 @@ const baseline = new Set(
 // Whole-file/tree exclusions (spec §7 + Phase-4 deferrals + generated + docs).
 const EXCLUDED_PREFIXES = [
   'dc_private/', 'docs/', 'node_modules/', '.git/',
-  'design-explorer/', 'tests/unit/design-explorer/',
-  'public/design-explorer/',
   // Stylesheets — CSS carries only class-name identifiers, franchisor CDN
   // URLs, and brand-name mentions inside header comments; no user-facing
   // display TEXT lives in CSS.
@@ -24,7 +22,6 @@ const EXCLUDED_FILES = new Set([
   'server/models/AccessGate.js', 'server/models/AccessWhitelist.js',
   'server/models/AccessClick.js', 'server/models/AccessRequest.js',
   'server/models/MediatorAccess.js',
-  'server/controllers/conciergeController.js', 'server/services/conciergeFaq.js',
   // (public/wavemax-affiliate.html was deleted on 2026-09-14 — page retired.)
   // Kept host-page sample that names the franchisor mark (products placeholder).
   'public/products-placeholder.html',

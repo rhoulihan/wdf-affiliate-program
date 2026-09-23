@@ -10,7 +10,6 @@ const baseline = new Set(
 );
 // Deferred/excluded trees (4b + non-runtime) — their refs are not this plan's job.
 const EXCLUDED_PREFIXES = [
-  'design-explorer/', 'public/design-explorer/',
   'docs/', 'node_modules/', '.git/', 'crhsent/',
   // test fixtures reference domains for testing (incl. retired-host behavior) — not production refs
   'tests/',

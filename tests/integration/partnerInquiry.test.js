@@ -21,7 +21,7 @@ const validBody = () => ({
 });
 
 // /api/v1/partner-inquiry is in CSRF_CONFIG.PUBLIC_ENDPOINTS — a credential-free
-// public marketing form (same rationale as /api/concierge), rate-limited only.
+// public marketing form, rate-limited only.
 // So the production frontend submits with a PLAIN fetch (no CSRF token), and this
 // test does the same: a bare POST must succeed. This also guards the public-
 // endpoint config — if the route is ever dropped from PUBLIC_ENDPOINTS, the

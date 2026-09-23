@@ -641,9 +641,6 @@ app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), {
   }
 }));
 
-// Guard /design-explorer/* behind ?k=EXPLORER_TOKEN before static files can serve them
-app.use(require('./server/middleware/explorerGuard'));
-
 // /scanbag-manifest.json — the scan-bag PWA manifest, brand-filled so the installed
 // app name matches the configured brand ({{BRAND_NAME}} resolves from
 // server/config/brand.js). Must precede express.static, which would otherwise serve
@@ -695,18 +692,6 @@ app.use(conditionalCsrf);
 
 // CSRF token endpoint
 app.get('/api/csrf-token', csrfTokenEndpoint);
-
-// Concierge — LIVE, FAQ-scoped Claude-backed assistant for the design explorer
-// (and any Austin marketing page). POST /api/concierge { message, history? }.
-// Registered here — AFTER conditionalCsrf (the path is on the CSRF public
-// allowlist) and express.json (applied globally above), but BEFORE the
-// apiVersioning middleware that rewrites /api/* → /api/v1/* (which would
-// otherwise steal this path before the route can match). A dedicated
-// conciergeLimiter caps per-IP usage of the paid LLM endpoint; the controller
-// fails gracefully and never leaks the API key or errors.
-const { conciergeLimiter } = require('./server/middleware/rateLimiting');
-const conciergeController = require('./server/controllers/conciergeController');
-app.post('/api/concierge', conciergeLimiter, express.json({ limit: '16kb' }), conciergeController.handle);
 
 // API Versioning middleware
 const API_VERSION = 'v1';

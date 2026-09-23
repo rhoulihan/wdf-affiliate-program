@@ -23,7 +23,6 @@
     "setup:database": "node scripts/setup/setup-database.js",
     "init:defaults": "node scripts/setup/init-defaults.js",
     "ensure-indexes": "node scripts/ensure-indexes.js",
-    "build:explorer": "node design-explorer/build.js",
     "check:i18n": "node scripts/check-i18n-parity.js",
     "clear:customer-data": "node scripts/admin/clear-customer-data.js",
     "clear:customer-data:confirm": "node scripts/admin/clear-customer-data.js --yes",
