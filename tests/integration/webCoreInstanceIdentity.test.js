@@ -3,13 +3,18 @@
 // it just forks mongoose's model registry, its connection pool and its driver,
 // so a document written through one instance is invisible to the other.
 //
-// PROOF TECHNIQUE — resolution paths ONLY for the CROSS-PACKAGE comparison.
-// We must not require web-core's SystemConfig to compare `.base`: this app
-// registers its own mongoose.model('SystemConfig') at
-// server/models/SystemConfig.js:449, and tests/setup.js:160 does it on every
-// run, so loading web-core's byte-identical twin throws OverwriteModelError.
-// Comparing require.resolve() strings loads no module at all. Requiring THIS
-// APP's own model (assertion c) is safe — tests/setup.js:157-164 already does.
+// PROOF TECHNIQUE — resolution paths for the CROSS-PACKAGE comparison, PLUS a
+// live `.base` identity check.
+//
+// Before B8 the `.base` comparison was ILLEGAL: this app registered its own
+// model under the name 'SystemConfig' at server/models/SystemConfig.js:449, so
+// requiring web-core's byte-identical twin to read its `.base` threw
+// OverwriteModelError before the assertion could run. B8 collapsed the two into
+// one registration owned by web-core (spec §7.1.3), and the `.base` assertions
+// below — the strongest form of the topology proof, since it compares live
+// objects rather than resolved paths — became legal for the first time.
+// The resolution-path tests are kept: they catch a dual install that has not
+// been loaded yet, which `.base` cannot see.
 const fs = require('fs');
 const path = require('path');
 
@@ -64,13 +69,79 @@ describe('@crhs/web-core instance identity (dependency topology)', () => {
   });
 
   // Assertion (c) from spec §7.1.2. This requires THIS APP's own model, which
-  // tests/setup.js:157-164 already loads on every run — it is NOT web-core's
-  // twin, so it cannot raise OverwriteModelError. Before the topology fix,
-  // seeding through a forked mongoose instance wrote into a connection the
-  // suite never reads, and tests/setup.js swallowed the error.
+  // tests/setup.js already loads on every run — post-B8 it IS web-core's model,
+  // so it cannot raise OverwriteModelError. Before the topology fix, seeding
+  // through a forked mongoose instance wrote into a connection the suite never
+  // reads, and tests/setup.js swallowed the error.
   test('initializeDefaults() resolves through THIS APP\'s model and seeds the collection', async () => {
     const SystemConfig = require('../../server/models/SystemConfig');
     await expect(SystemConfig.initializeDefaults()).resolves.not.toThrow();
     expect(await SystemConfig.countDocuments({})).toBeGreaterThanOrEqual(3);
+  });
+
+  // ---- The `.base` identity assertions, legal only since B8 --------------
+  //
+  // `Model.base` is the mongoose instance a model was compiled against. Two
+  // copies of mongoose produce two registries, two connection pools and two
+  // drivers, and nothing throws — a document written through one is invisible
+  // to the other. Comparing the live `.base` of the app's model, web-core's
+  // model and the app's own `require('mongoose')` is the only assertion that
+  // rules that out for objects that are actually in use.
+  describe('live model identity (legal only since B8 — spec §10.3 P3)', () => {
+    const mongoose = require('mongoose');
+    const wc = require('@crhs/web-core');
+    const appModel = require('../../server/models/SystemConfig');
+
+    test('the app\'s SystemConfig IS web-core\'s SystemConfig, not a twin', () => {
+      expect(appModel).toBe(wc.SystemConfig);
+    });
+
+    test('both models were compiled against the mongoose instance this app loads', () => {
+      expect(appModel.base).toBe(mongoose);
+      expect(wc.SystemConfig.base).toBe(mongoose);
+    });
+
+    test('web-core and this app share one mongodb driver object', () => {
+      expect(mongoose.mongo.Collection).toBe(require('mongodb').Collection);
+    });
+
+    test('SystemConfig is registered exactly once in the shared registry', () => {
+      expect(mongoose.modelNames().filter((n) => n === 'SystemConfig')).toHaveLength(1);
+    });
+
+    // A ref: resolves LAZILY — a model that stops being registered fails at
+    // QUERY time, not require time, and possibly on only one code path. So
+    // asserting the string is not enough, and asserting ambient registration is
+    // wrong (this suite's process only has what it required). What matters is
+    // that the lookup mongoose itself performs at populate time — on the
+    // connection THIS model is bound to — finds the app's Administrator model.
+    test('the updatedBy ref resolves through the connection this model is bound to', () => {
+      expect(appModel.schema.path('updatedBy').options.ref).toBe('Administrator');
+      const Administrator = require('../../server/models/Administrator');
+      // `model.db.model(name)` is exactly the resolution populate does.
+      expect(appModel.db.model('Administrator')).toBe(Administrator);
+      expect(Administrator.base).toBe(mongoose);
+    });
+
+    // And end-to-end: a real populate across the ref. This is the assertion that
+    // would go red if SystemConfig and Administrator ever ended up on different
+    // mongoose instances or connections — the failure mode that raises nothing
+    // at require time.
+    test('populate() across updatedBy actually returns the referenced document', async () => {
+      const Administrator = require('../../server/models/Administrator');
+      const admin = await Administrator.create({
+        adminId: 'ADM-REFPROBE',
+        firstName: 'Ref',
+        lastName: 'Probe',
+        email: 'ref.probe@laundromat.example',
+        passwordSalt: 'salt',
+        passwordHash: 'hash'
+      });
+      await appModel.initializeDefaults();
+      await appModel.updateOne({ key: 'maintenance_mode' }, { updatedBy: admin._id });
+      const doc = await appModel.findOne({ key: 'maintenance_mode' }).populate('updatedBy');
+      expect(doc.updatedBy).toBeTruthy();
+      expect(doc.updatedBy.adminId).toBe('ADM-REFPROBE');
+    });
   });
 });

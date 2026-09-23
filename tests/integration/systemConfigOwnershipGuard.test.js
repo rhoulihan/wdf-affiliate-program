@@ -1,14 +1,26 @@
-// Global Constraint 9 (Plan 1): this app owns an INLINE SystemConfig model
-// (server/models/SystemConfig.js:449 -> mongoose.model('SystemConfig', ...)),
-// and @crhs/web-core registers a model of the SAME name. Requiring web-core's
-// SystemConfig anywhere in this repo therefore throws
-//   OverwriteModelError: Cannot overwrite `SystemConfig` model once compiled.
-// at boot (server.js:138-141) and in every test run (tests/setup.js:160).
+// SystemConfig ownership, INVERTED at B8.
 //
-// This guard is source-level ON PURPOSE: it must not load either model.
-// Retire it in PLAN 4 (PR B8), which deletes the inline model, shims
-// server/models/SystemConfig.js over web-core's, and calls
-// SystemConfig.registerDefaults(APP_DEFAULTS) at boot.
+// Before B8 this app carried its own inline SystemConfig model whose last line
+// registered the name 'SystemConfig', and @crhs/web-core registers the same
+// name — so requiring web-core's SystemConfig anywhere threw
+//   OverwriteModelError: Cannot overwrite `SystemConfig` model once compiled.
+// at boot. This guard therefore banned that import outright, and its own header
+// said to retire it in PR B8 "which deletes the inline model … and calls
+// SystemConfig.registerDefaults(APP_DEFAULTS)". B8 has now done exactly that.
+//
+// Retiring the guard by deletion would throw away a constraint that still
+// matters, so it is inverted instead. web-core's SystemConfig is now the ONE
+// model, and server/models/SystemConfig.js is the ONE module allowed to reach
+// for it directly — because requiring that module is what registers the app's
+// 23 owned defaults (server/config/systemConfigDefaults.js). A controller or
+// service that grabs `wc.SystemConfig` straight from web-core would get a model
+// whose app defaults may never have been registered, and `getValue()` would
+// then fall through to its caller-supplied default with NOTHING raised
+// anywhere — a silent wrong business value, which is the failure mode the
+// project rule "always go through SystemConfig.getValue" exists to prevent.
+//
+// Source-level ON PURPOSE (the first test loads no model), so it stays valid
+// whatever the require order happens to be.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -16,13 +28,21 @@ const { execFileSync } = require('child_process');
 const repoRoot = path.join(__dirname, '../..');
 const SELF = 'tests/integration/systemConfigOwnershipGuard.test.js';
 
-// Scans server/, tests/, scripts/ AND every root-level .js. The root level matters:
+// The single module permitted to import web-core's SystemConfig: it is the
+// registration module, and requiring it is what contributes the app's defaults.
+const OWNER = 'server/models/SystemConfig.js';
+
+// Scans server/, scripts/ AND every root-level .js. The root level matters:
 // init-defaults.js is a boot-time module (server.js calls it right after the DB
-// connects) that already requires models, so it is exactly where an
-// OverwriteModelError would be most damaging -- and the original scope
-// ('server', 'tests', 'scripts', 'server.js') missed it.
+// connects) that already requires models, so it is exactly where a stray direct
+// import would be most damaging.
+//
+// tests/ is deliberately NOT scanned: a test asserting the app model IS
+// web-core's (which is the B8 invariant) must name both sides, so the ban is
+// meaningless there and the pre-B8 scope only worked because no such assertion
+// was legal yet.
 const trackedJs = () => {
-  const inDirs = execFileSync('git', ['ls-files', 'server', 'tests', 'scripts'], { cwd: repoRoot })
+  const inDirs = execFileSync('git', ['ls-files', 'server', 'scripts'], { cwd: repoRoot })
     .toString().split('\n');
   // ':(exclude)' keeps this to the repo ROOT only, not every .js in every subtree.
   const atRoot = execFileSync('git', ['ls-files', '*.js', ':(exclude)*/*'], { cwd: repoRoot })
@@ -57,18 +77,25 @@ const importsCoreSystemConfig = (src) => {
   return false;
 };
 
-describe('SystemConfig ownership (model double-registration)', () => {
-  it('no file imports web-core SystemConfig while the inline model exists', () => {
+describe('SystemConfig ownership (exactly one importer of web-core\'s model)', () => {
+  it('only the registration module imports web-core SystemConfig', () => {
     const offenders = trackedJs().filter((file) =>
-      importsCoreSystemConfig(fs.readFileSync(path.join(repoRoot, file), 'utf8'))
+      file !== OWNER && importsCoreSystemConfig(fs.readFileSync(path.join(repoRoot, file), 'utf8'))
     );
 
     expect(offenders).toEqual([]);
   });
 
-  it('still owns the inline model that makes the rule necessary', () => {
-    const src = fs.readFileSync(path.join(repoRoot, 'server/models/SystemConfig.js'), 'utf8');
-    expect(src).toMatch(/mongoose\.model\('SystemConfig'/);
+  it('the registration module does import it, and registers the app defaults', () => {
+    const src = fs.readFileSync(path.join(repoRoot, OWNER), 'utf8');
+    expect(importsCoreSystemConfig(src)).toBe(true);
+    expect(src).toMatch(/registerDefaults\(/);
+    expect(src).toMatch(/systemConfigDefaults/);
+  });
+
+  it('the inline model this guard used to protect is gone', () => {
+    const src = fs.readFileSync(path.join(repoRoot, OWNER), 'utf8');
+    expect(src).not.toMatch(/mongoose\.model\('SystemConfig'/);
   });
 
   it('is non-vacuous: each offending import shape is actually detected', () => {

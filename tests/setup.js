@@ -2,9 +2,11 @@
 // A dual-package install of @crhs/web-core is silent: the suite goes green
 // while the app and the library write through two different mongoose
 // instances. Fail here instead, with the offending paths named.
-// Resolution paths ONLY — loading web-core's SystemConfig to compare `.base`
-// would throw OverwriteModelError against this app's own model
-// (server/models/SystemConfig.js:449, re-registered at :160 below).
+// Resolution paths ONLY here, deliberately: this guard runs before anything has
+// required mongoose, so there are no live objects to compare. The `.base`
+// identity assertions — legal since B8 collapsed the app's and web-core's
+// SystemConfig into one registration — live in
+// tests/integration/webCoreInstanceIdentity.test.js.
 {
   const nodePath = require('path');
   const { assertSingleInstance } = require('./helpers/assertSingleMongoose');
