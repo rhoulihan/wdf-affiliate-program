@@ -30,16 +30,10 @@
 //      302 off-origin. Before the deletion this case returned
 //      `302 https://www.wavemaxlaundry.com/some-marketing-page`.
 //
-// DEFERRED, deliberately: `.env.example` still carries QUARANTINE_NON_AUSTIN,
-// CORPORATE_SITE_URL and their comment block. That file is HUMAN-CONFIRM in this
-// repo and was out of scope for the commit that deleted the code, so asserting on
-// it here would plant a permanently-red test. Both keys are unread as of this
-// commit. When the owner clears the .env.example edit, add:
-//   expect(envExample).not.toMatch(/QUARANTINE_NON_AUSTIN|CORPORATE_SITE_URL/);
-//   expect(/quarantine/i.test(envExample)).toBe(false);
-// (the second matters: a comment block that outlives its key is the same rot as
-// the key). The box `.env` files keep both keys until Task 29 — unread is not
-// harmful, and two inert values do not justify a production window.
+// `.env.example` is now clean too (owner-approved 2026-09-23, same call that
+// removed CORPORATE_SITE_URL from the portal). The second assertion below matters
+// as much as the first: a comment block that outlives its key is the same rot as
+// the key. Both keys are also gone from both boxes' live .env.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -148,5 +142,19 @@ describe('the location quarantine is retired', () => {
       expect(res.headers.location || '').not.toMatch(/wavemaxlaundry\.com/);
       expect(res.status).not.toBe(302);
     });
+  });
+});
+
+// Added once the owner cleared the .env.example edit (see the header note).
+describe('the quarantine keys are gone from .env.example too', () => {
+  const envExample = require('fs').readFileSync(
+    require('path').join(__dirname, '../../.env.example'), 'utf8');
+
+  it('names neither retired key', () => {
+    expect(envExample).not.toMatch(/QUARANTINE_NON_AUSTIN|CORPORATE_SITE_URL/);
+  });
+
+  it('carries no orphaned quarantine comment block', () => {
+    expect(/quarantine/i.test(envExample)).toBe(false);
   });
 });
