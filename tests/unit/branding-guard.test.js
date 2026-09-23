@@ -57,6 +57,14 @@ const EXCLUDED_FILES = new Set([
   // Security-control test: asserts 'wavemax' stays in the weak-password blocklist
   // (source passwordValidator.js is excluded for the same reason — a control, not copy).
   'tests/unit/passwordValidator.test.js',
+  // ---- Plan-2 cutover tooling (Plan 3 Task 38) ----
+  // Operational gate that curls the REAL hosts to assert the content app's output:
+  // the mediator /wavemax/ path, the logo-wavemax.png 410, the retired
+  // /wavemax-affiliate 301, and its own bare-mark count that greps for "wavemax"
+  // while excluding "WaveMAX Austin". It must name the hosts and the mark to assert
+  // them, and it ships to no browser — it is ops tooling, not application code.
+  // Its unit test drives the same script against a fake origin, so both go together.
+  'scripts/ops/cutover-gate.sh', 'tests/unit/ops/cutoverGateS1.test.js',
 ]);
 const EXCLUDED_SUFFIXES = ['.min.js', '.min.css', '.md'];
 
@@ -71,7 +79,13 @@ const INFRA_ALLOW = [
   // / "WaveMAX Laundry" (the franchisor's marks) are NOT allowed and still fail.
   /WaveMAX Austin/gi,
   /wavemax\.promo/gi, /@wavemax\.promo/gi,
-  /wavemaxlaundry\.com/gi, /wavemax-bag-registration/gi,
+  // The franchisor's domain, in both the plain form and the regex-ESCAPED form
+  // (`wavemaxlaundry\.com`, one or more backslashes). The escaped spelling only ever
+  // occurs inside a matcher, and every matcher in this repo asserts the domain is
+  // ABSENT — see quarantineRetired.test.js and embedNavigationOrigin.test.js. Bare
+  // "WaveMAX Laundry" and any other franchisor host still fail (falsified in the
+  // Plan 3 Task 38 PR body).
+  /wavemaxlaundry\\*\.com/gi, /wavemax-bag-registration/gi,
   /wavemax_affiliate/gi, /wavemax-affiliate-program/gi,
   // Trademark / proprietary legal notices kept VERBATIM (they name the real
   // franchisor mark + entity; mechanically tokenizing them is legally wrong).
@@ -81,6 +95,11 @@ const INFRA_ALLOW = [
   // host-page DOM id. Functional bindings, never display copy. (The bridge API
   // name row was removed with the bridges themselves; see bridgeRetired.test.js.)
   /wavemax-embed/gi, /wavemax-language/gi, /wavemax-iframe/gi,
+  // The RETIRED session-cookie name (the live cookie is portal.sid). Named only to
+  // assert its absence — webCoreConsumptionGolden.test.js pins that the response sets
+  // no wavemax.sid. Allowlisting the identifier keeps that golden file, which also
+  // pins the CSP, under the guard instead of excluding it wholesale.
+  /wavemax\.sid/gi,
   // ---- anchored infra/operational identifiers ----
   // MongoDB database name in local/docker connection strings + init.
   /localhost:27017\/wavemax/gi, /mongo:27017\/wavemax/gi,
@@ -143,5 +162,13 @@ describe('branding guard', () => {
 
   test('the migration baseline is fully drained', () => {
     expect([...baseline]).toEqual([]);
+  });
+
+  test('EXCLUDED_FILES has no entry naming a path that no longer exists', () => {
+    // An exclusion row that outlives the file it excused is a hole with no reason
+    // behind it: the next file to take that path is silently unguarded. Deleting a
+    // file must delete its row in the same commit.
+    const missing = [...EXCLUDED_FILES].filter((f) => !fs.existsSync(path.join(REPO, f)));
+    expect(missing).toEqual([]);
   });
 });
