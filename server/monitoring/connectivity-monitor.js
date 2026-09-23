@@ -7,7 +7,7 @@ const emailService = require('../utils/emailService');
 
 // Monitoring configuration
 const MONITORING_CONFIG = {
-  checkInterval: 60000, // 1 minute
+  checkInterval: 300000, // 5 minutes - this probe is critical:false and feeds only the /monitoring/status tile
   timeout: 10000, // 10 seconds per check
   retryAttempts: 3,
   retryDelay: 5000,
@@ -344,13 +344,26 @@ function getMonitoringStatus() {
  * Start monitoring
  */
 function startMonitoring() {
+  // pm2 sets NODE_APP_INSTANCE per worker. Without this gate every worker ran
+  // its own cycle, so the estate made workers x boxes probes per interval
+  // instead of one. undefined means we are not under pm2 (a bare
+  // `node server.js`), where monitoring should still run.
+  const instance = process.env.NODE_APP_INSTANCE;
+  if (instance !== undefined && instance !== '0') {
+    logger.info(`Connectivity monitoring skipped on pm2 worker ${instance}`);
+    return false;
+  }
+
   logger.info('Starting connectivity monitoring service');
 
   // Run initial check
   runMonitoringCycle();
 
-  // Schedule periodic checks
-  setInterval(runMonitoringCycle, MONITORING_CONFIG.checkInterval);
+  // Schedule periodic checks. Returned so callers and tests can unref/clear it;
+  // unref'd so the timer alone never holds the process open.
+  const timer = setInterval(runMonitoringCycle, MONITORING_CONFIG.checkInterval);
+  if (typeof timer.unref === 'function') timer.unref();
+  return timer;
 }
 
 /**
@@ -362,6 +375,7 @@ function getMonitoringDashboard(req, res) {
 
 module.exports = {
   startMonitoring,
+  MONITORING_CONFIG,
   getMonitoringStatus,
   getMonitoringDashboard,
   checkService,
