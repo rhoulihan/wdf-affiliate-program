@@ -505,7 +505,7 @@ chk() { if [ "$2" = "$3" ]; then echo "  OK   $1=$2"; else echo "  FAIL $1=[$2] 
 chk corp_oci1 "${CORP_DEPLOYED_oci1:-}" yes
 chk corp_oci2 "${CORP_DEPLOYED_oci2:-}" yes
 chk box_busy  "${BOX_BUSY:-}"           ""
-chk target_public "$(ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "curl -s -o /dev/null -m 20 -w '%{http_code}' 'https://atxwashdryfold.com/affiliate?p=\$(date +%s)'")" 200
+chk target_public "$(ssh -i ~/.ssh/oci_wavemax ubuntu@161.153.71.201 "curl -s -o /dev/null -m 20 -w '%{http_code}' "https://atxwashdryfold.com/affiliate?p=\$(date +%s)"")" 200
 [ "$FAIL" = 0 ] && echo "gate=PASS" || echo "gate=HALT"
 ```
   - Expected: four `OK` lines then `gate=PASS`.
@@ -573,7 +573,7 @@ ssh -i ~/.ssh/oci_wavemax ubuntu@$IP "set -e
 pm2 reload wavemax --update-env >/dev/null; sleep 10
 echo -n '  portal /health -> '; curl -s -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/health; echo
 echo -n '  served meta    -> '; curl -s -H 'Host: portal.atxwashdryfold.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:3000/embed-app-v2.html | grep -o '<meta name=\"interest-form-url\" content=\"[^\"]*\">'
-echo -n '  link target    -> '; curl -s -o /dev/null -m 20 -w '%{http_code}\n' 'https://atxwashdryfold.com/affiliate?p=\$(date +%s)'"
+echo -n '  link target    -> '; curl -s -o /dev/null -m 20 -w '%{http_code}\n' "https://atxwashdryfold.com/affiliate?p=\$(date +%s)""
 A4=$(ssh -i ~/.ssh/oci_wavemax ubuntu@$IP 'pm2 jlist' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const w=JSON.parse(s).filter(p=>p.name==="wavemax");console.log(w.map(p=>p.pm2_env.status+":"+p.pm2_env.restart_time).join(","))})')
 echo "after=$A4"; rec BOX_BUSY ""
 ```
@@ -1331,7 +1331,11 @@ rec "GATE_DELETED_$BOX" yes
     - `atxwashateria.com   / -> code=200  /health ct -> text/html; charset=utf-8         origin -> 200`
     - `rundberglaundry.com / -> code=200  /health ct -> text/html; charset=utf-8         origin -> 200`
     - `atxwashdryfold.com  / -> code=200  /health ct -> text/html; charset=utf-8         origin -> 200`
-    - `crhsent.com         / -> code=401  /health ct -> application/json; charset=utf-8  origin -> 404`
+    - `crhsent.com         / -> code=200  /health ct -> application/json; charset=utf-8  origin -> 401`
+      ⚠️ CORRECTED 2026-09-22 during execution. `/` is crhsent.com's **public landing page** and has
+      always returned 200 (Plan 2 Task 77 measured the same). The accessGate proof is `/services`
+      and `/README.md` → **401**, verified both on-box and from a spoofed non-whitelisted
+      `CF-Connecting-IP`. `/health/origin` is not a corporate route, so the gate answers 401, not 404.
     - `portal.atxwash…     / -> code=200  /health ct -> application/json; charset=utf-8  origin -> 200`
   - `crhsent.com code=401` is the content app's own `accessGate` and **must still be there** — it is
     the proof that deleting the nginx gate did not delete live access control.
