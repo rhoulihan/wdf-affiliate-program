@@ -86,7 +86,7 @@ async function renderLabelSheet(batchId) {
     : '';
 
   const qrSize = await SystemConfig.getValue('bag_label_qr_size_px', 300);
-  const baseUrl = process.env.BASE_URL || 'https://rundberglaundry.com';
+  const baseUrl = process.env.BASE_URL || 'https://portal.atxwashdryfold.com';
   const logo = getLogoDataUri();
   const safeName = escapeHtml(affiliateName);
   const safeAddress = escapeHtml(affiliateAddress);

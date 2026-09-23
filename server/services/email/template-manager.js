@@ -43,7 +43,7 @@ async function loadTemplate(templateName, language = 'en') {
  * Tolerates lower/UPPER/exact casing mismatches.
  */
 function fillTemplate(template, data) {
-  const baseUrl = process.env.BASE_URL || 'https://rundberglaundry.com';
+  const baseUrl = process.env.BASE_URL || 'https://portal.atxwashdryfold.com';
   data.BASE_URL = baseUrl;
   // Auto-inject the brand tokens so every template resolves them without each
   // caller having to pass them. Caller-supplied values still win.

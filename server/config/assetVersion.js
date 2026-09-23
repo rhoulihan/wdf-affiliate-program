@@ -23,6 +23,6 @@
 // ASSET_VERSION in the environment overrides it, so a deploy can force a bust
 // without a code change if one is ever needed.
 
-const ASSET_VERSION = process.env.ASSET_VERSION || '20260923a';
+const ASSET_VERSION = process.env.ASSET_VERSION || '20260923b';
 
 module.exports = { ASSET_VERSION };

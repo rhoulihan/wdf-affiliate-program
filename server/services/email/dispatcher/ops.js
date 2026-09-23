@@ -8,6 +8,12 @@ const brand = require('../../../config/brand');
  * Send service down alert email
  */
 exports.sendServiceDownAlert = async function({ serviceName, error, timestamp, serviceData }) {
+  // Hoisted so the HTML and plain-text halves below cannot drift. Until Plan 3
+  // Task 37 both halves HARD-CODED the monitoring-dashboard URL on the retired
+  // rundberglaundry marketing apex, with no BASE_URL and no override — so an
+  // outage alert told the operator to open a dashboard on a host this app does
+  // not serve; that URL now reaches crhs-corporate on :3001, which 404s it.
+  const dashboardUrl = `${process.env.BASE_URL || 'https://portal.atxwashdryfold.com'}/monitoring-dashboard.html`;
   const mailOptions = {
     from: `"${brand.displayName} Monitoring" <${process.env.EMAIL_FROM || 'no-reply@rundberglaundry.com'}>`,
     to: process.env.ALERT_EMAIL || process.env.DEFAULT_ADMIN_EMAIL || 'admin@rundberglaundry.com',
@@ -41,7 +47,7 @@ exports.sendServiceDownAlert = async function({ serviceName, error, timestamp, s
           </div>
           
           <p style="margin-top: 20px;">
-            <a href="https://rundberglaundry.com/monitoring-dashboard.html" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Monitoring Dashboard</a>
+            <a href="${dashboardUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Monitoring Dashboard</a>
           </p>
         </div>
       </div>
@@ -62,7 +68,7 @@ Service Statistics:
 
 ACTION REQUIRED: This critical service requires immediate attention.
 
-View monitoring dashboard: https://rundberglaundry.com/monitoring-dashboard.html
+View monitoring dashboard: ${dashboardUrl}
     `
   };
 

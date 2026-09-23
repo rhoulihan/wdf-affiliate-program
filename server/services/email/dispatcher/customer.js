@@ -105,7 +105,7 @@ exports.sendCustomerWelcomeEmail = async (customer, affiliate, bagInfo = {}) => 
     // The bag's claim URL drives the "Request a pickup" button — and is exactly
     // what the QR on the bag encodes, so tapping the button OR scanning the bag
     // both land the customer on the order-start (enter registered phone).
-    const baseUrl = process.env.BASE_URL || 'https://rundberglaundry.com';
+    const baseUrl = process.env.BASE_URL || 'https://portal.atxwashdryfold.com';
     const pickupUrl = bagInfo.bagToken
       ? `${baseUrl}/embed-app-v2.html?route=/claim&bag=${encodeURIComponent(bagInfo.bagToken)}`
       : `${baseUrl}/embed-app-v2.html?route=/claim`;
@@ -611,7 +611,7 @@ exports.sendCustomerEmailConfirmation = async (customer, { emailVerifyToken } = 
     }
     const language = customer.languagePreference || 'en';
     const template = await loadTemplate('customer-confirm-email', language);
-    const baseUrl = process.env.BASE_URL || 'https://rundberglaundry.com';
+    const baseUrl = process.env.BASE_URL || 'https://portal.atxwashdryfold.com';
     const verifyUrl = `${baseUrl}/api/v1/customers/verify-email/${encodeURIComponent(emailVerifyToken)}`;
 
     const T = {

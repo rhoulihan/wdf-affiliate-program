@@ -7,11 +7,15 @@
 const fs = require('fs');
 const path = require('path');
 
+// Plan 3 Task 37 narrowed the inline allowlist to the ONE host this app serves,
+// so the portal origin is now the whole set the B11 swap must not lose. The
+// per-location marketing origins are deliberately NOT here any more: they belong
+// to crhs-corporate on :3001 and no corporate page makes a credentialed
+// cross-origin call to this API (verified at the T37 gate). Re-adding one here
+// would make .env.example the executable record of a grant this app no longer
+// makes. tests/integration/portalHostSurface.test.js asserts the live refusal.
 const REQUIRED_ORIGINS = [
-  'https://portal.atxwashdryfold.com',
-  'https://atxwashateria.com',
-  'https://atxwashdryfold.com',
-  'https://rundberglaundry.com'
+  'https://portal.atxwashdryfold.com'
 ];
 
 const read = (rel) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');

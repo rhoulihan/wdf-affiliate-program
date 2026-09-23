@@ -171,8 +171,6 @@ if (process.env.NODE_ENV !== 'test') {
 if (process.env.NODE_ENV === 'production') {
   // Define allowed hosts
   const allowedHosts = [
-    'rundberglaundry.com',
-    'www.rundberglaundry.com',
     'portal.atxwashdryfold.com', // canonical portal host (migration target)
     'wavemax.promo',          // transition: still 301s during retirement
     'www.wavemax.promo',
@@ -188,8 +186,8 @@ if (process.env.NODE_ENV === 'production') {
       if (host && allowedHosts.includes(host.toLowerCase())) {
         res.redirect(`https://${host}${req.url}`);
       } else {
-        // Use default domain if host is invalid
-        res.redirect(`https://rundberglaundry.com${req.url}`);
+        // Use the canonical portal host if the host header is invalid.
+        res.redirect(`https://portal.atxwashdryfold.com${req.url}`);
       }
     } else {
       next();
@@ -237,17 +235,16 @@ app.use(webCore.securityHeadersMiddleware());
 // former inline `isDocumentationPage` / `isCleanUrlSlugPage` regexes verbatim.
 //
 // web-core v0.2.0 carries no app or host literals: this app supplies its own
-// origins. profile 'full' = the shared vendor allowlist. The five location
-// origins go in img/connect; frame-src carries the portal origin plus the
-// Firebase auth-helper iframe (dropping it CSP-blocks signInWithPhoneNumber on
-// the claim page). frame-ancestors is tightened to 'self' — this app is only
-// framed by its own pages.
+// origins. profile 'full' = the shared vendor allowlist. The portal serves
+// exactly ONE host, so that is the only app origin in img/connect: the four
+// per-location marketing origins that sat here until Plan 3 Task 37 were
+// grant-of-reach to hosts crhs-corporate owns on :3001, and no page the portal
+// still serves loads anything from them. frame-src carries the portal origin
+// plus the Firebase auth-helper iframe (dropping it CSP-blocks
+// signInWithPhoneNumber on the claim page). frame-ancestors is tightened to
+// 'self' — this app is only framed by its own pages.
 const APP_LOCATION_ORIGINS = [
-  'https://atxwashateria.com',
-  'https://atxwashdryfold.com',
-  'https://portal.atxwashdryfold.com',
-  'https://runberglaundry.com',
-  'https://rundberglaundry.com'
+  'https://portal.atxwashdryfold.com'
 ];
 const APP_FRAME_SRC_ORIGINS = [
   'https://portal.atxwashdryfold.com',
@@ -294,12 +291,14 @@ const corsOptions = {
       ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
       : ['http://localhost:3000'];
 
-    // Our own app + per-location domains allowed to call the API.
+    // The only browser origin allowed to make a credentialed call to this API.
+    // The per-location marketing origins were removed by Plan 3 Task 37: those
+    // hosts are crhs-corporate's on :3001 and no corporate page makes a
+    // credentialed cross-origin call to the portal API (verified at the T37
+    // gate). Kept as a one-entry array rather than folded into CORS_ORIGIN so
+    // that change (Task 44) stays independently revertable.
     const wavemaxDomains = [
-      'https://portal.atxwashdryfold.com', // canonical app domain
-      'https://atxwashateria.com',
-      'https://atxwashdryfold.com',
-      'https://rundberglaundry.com'
+      'https://portal.atxwashdryfold.com' // canonical app domain
     ];
 
     const allAllowedOrigins = [...allowedOrigins, ...wavemaxDomains];
@@ -862,12 +861,15 @@ app.get('/api/docs', (req, res) => {
   res.redirect('/api-docs.html');
 });
 
-// Per-hostname robots.txt and sitemap.xml. Each managed host serves its
-// own — required for self-canonical multi-domain SEO. Hosts that aren't
-// in the override map fall back to a generic robots that allows everything
-// and points to rundberglaundry.com's sitemap.
+// robots.txt and sitemap.xml. This app is served on exactly ONE host now, so
+// there is no per-hostname map to maintain: both documents name the canonical
+// portal origin unconditionally. Reflecting `req.hostname` back into the body
+// (which is what the retired multi-domain map did) would put an attacker-chosen
+// Host into a cached, crawler-read document; the marketing hosts that map
+// existed for belong to crhs-corporate on :3001, which serves its own.
+// Plan 3 Task 37.
+const PORTAL_ORIGIN = 'https://portal.atxwashdryfold.com';
 app.get('/robots.txt', (req, res) => {
-  const host = (req.hostname || 'rundberglaundry.com').toLowerCase().replace(/^www\./, '');
   res.type('text/plain');
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.send(
@@ -899,33 +901,18 @@ app.get('/robots.txt', (req, res) => {
     'Disallow: /admin/\n' +
     'Disallow: /monitoring/\n' +
     '\n' +
-    `Sitemap: https://${host}/sitemap.xml\n`
+    `Sitemap: ${PORTAL_ORIGIN}/sitemap.xml\n`
   );
 });
 
 app.get('/sitemap.xml', (req, res) => {
-  const host = (req.hostname || 'rundberglaundry.com').toLowerCase().replace(/^www\./, '');
   const now = new Date().toISOString().slice(0, 10);
 
-  // Phase 4b retired the franchise/Austin deep marketing pages, so every
-  // managed host is now apex-only — each ships a minimal, self-canonical
-  // sitemap listing just its own apex. rundberglaundry.com now serves only a
-  // placeholder page, so it is apex-only like the rest. A retired or unknown
-  // host (301s at the edge) falls back to the primary rundberglaundry.com apex.
-  const managedHosts = [
-    'rundberglaundry.com',
-    'atxwashdryfold.com',
-    'portal.atxwashdryfold.com',
-    'atxwashateria.com',
-    'runberglaundry.com'
-  ];
-  const urls = [];
-  if (managedHosts.includes(host)) {
-    urls.push({ loc: `https://${host}/`, priority: '1.0' });
-  } else {
-    // Retired or unknown host — falls back to the primary domain.
-    urls.push({ loc: 'https://rundberglaundry.com/', priority: '1.0' });
-  }
+  // Apex-only and single-host: Phase 4b retired the deep marketing pages and
+  // Plan 3 Task 16 moved the marketing hosts to crhs-corporate, so the only
+  // canonical URL this app has to advertise is the portal apex. The retired
+  // promo hosts 301 to it, so they need no entry of their own.
+  const urls = [{ loc: `${PORTAL_ORIGIN}/`, priority: '1.0' }];
 
   res.type('application/xml');
   res.setHeader('Cache-Control', 'public, max-age=3600');

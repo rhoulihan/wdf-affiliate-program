@@ -7,13 +7,9 @@ const app = require('../../server');
 
 const FIREBASE_AUTH_HELPER = 'https://wavemax-bag-registration.firebaseapp.com';
 const PORTAL = 'https://portal.atxwashdryfold.com';
-const LOCATION_ORIGINS = [
-  'https://atxwashateria.com',
-  'https://atxwashdryfold.com',
-  PORTAL,
-  'https://runberglaundry.com',
-  'https://rundberglaundry.com'
-];
+// Plan 3 Task 37 narrowed img-src/connect-src to the ONE host this app serves:
+// the per-location marketing origins belong to crhs-corporate on :3001 now.
+const LOCATION_ORIGINS = [PORTAL];
 const dir = (csp, name) => (csp.split(';').find((d) => d.trim().startsWith(name)) || '').trim();
 const cspOf = async (p) => (await request(app).get(p)).headers['content-security-policy'];
 
@@ -26,7 +22,7 @@ describe('portal CSP — app-supplied origins survive the web-core profile swap'
     expect(dir(await cspOf('/embed-app-v2.html'), 'frame-src')).toContain(PORTAL);
   });
 
-  it('img-src and connect-src keep all five location origins', async () => {
+  it('img-src and connect-src carry the portal origin and nothing else app-owned', async () => {
     const csp = await cspOf('/embed-app-v2.html');
     for (const origin of LOCATION_ORIGINS) {
       expect(dir(csp, 'img-src')).toContain(origin);

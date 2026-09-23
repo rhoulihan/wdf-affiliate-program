@@ -21,6 +21,16 @@
 // was gained or lost in any directive. The set-equality guard below enforces
 // that permanently. This exception does not repeat: any future diff here is
 // drift, and the fix is the parameterisation, never the expectation.
+//
+// RE-CAPTURED A SECOND TIME, 2026-09-23, under Plan 3 Task 37: the app's own
+// APP_LOCATION_ORIGINS input shrank from five origins to one (the four
+// per-location MARKETING origins moved to crhs-corporate on :3001, so granting
+// them img-src/connect-src reach was grant-of-reach to hosts this app has no
+// relationship with). Only the APP-SUPPLIED origins changed — the web-core
+// builder, the vendor allowlist and every other directive are byte-identical,
+// and the set-equality guard below still holds. As above: this is an input
+// change deliberately re-captured, not permission to edit the expectation when
+// a swap drifts.
 
 const request = require('supertest');
 const app = require('../../server');
@@ -33,8 +43,8 @@ const EXPECTED_STRICT_CSP =
   "default-src 'self'; " +
   "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://www.local-marketing-reports.com https://static.cloudflareinsights.com https://maps.googleapis.com https://connect.facebook.net https://challenges.cloudflare.com https://www.gstatic.com https://www.google.com https://apis.google.com 'nonce-NONCE'; " +
   "style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://stackpath.bootstrapcdn.com 'unsafe-inline'; " +
-  "img-src 'self' data: https://atxwashateria.com https://atxwashdryfold.com https://portal.atxwashdryfold.com https://runberglaundry.com https://rundberglaundry.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://cdnjs.cloudflare.com https://flagcdn.com https://secure.walibu.com https://upload.wikimedia.org https://*.googleusercontent.com https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com https://www.facebook.com; " +
-  "connect-src 'self' https://atxwashateria.com https://atxwashdryfold.com https://portal.atxwashdryfold.com https://runberglaundry.com https://rundberglaundry.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://stackpath.bootstrapcdn.com https://router.project-osrm.org https://graphhopper.com https://api.openrouteservice.org https://valhalla1.openstreetmap.de https://nominatim.openstreetmap.org https://www.local-marketing-reports.com https://places.googleapis.com https://maps.googleapis.com https://maps.gstatic.com https://connect.facebook.net https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+  "img-src 'self' data: https://portal.atxwashdryfold.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://cdnjs.cloudflare.com https://flagcdn.com https://secure.walibu.com https://upload.wikimedia.org https://*.googleusercontent.com https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.gstatic.com https://www.facebook.com; " +
+  "connect-src 'self' https://portal.atxwashdryfold.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://stackpath.bootstrapcdn.com https://router.project-osrm.org https://graphhopper.com https://api.openrouteservice.org https://valhalla1.openstreetmap.de https://nominatim.openstreetmap.org https://www.local-marketing-reports.com https://places.googleapis.com https://maps.googleapis.com https://maps.gstatic.com https://connect.facebook.net https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
   "font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://fonts.gstatic.com; " +
   "object-src 'none'; " +
   "media-src 'self'; " +

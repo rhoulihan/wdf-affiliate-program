@@ -11,7 +11,7 @@ const brand = require('../../../config/brand');
 // admin/customer/operator dispatchers. These were previously hardcoded to the
 // franchisor's marketing host, which sent affiliates -- and the customers they
 // shared their landing link with -- to a site we do not control.
-const appUrl = (query) => `${process.env.BASE_URL || 'https://rundberglaundry.com'}/embed-app-v2.html?${query}`;
+const appUrl = (query) => `${process.env.BASE_URL || 'https://portal.atxwashdryfold.com'}/embed-app-v2.html?${query}`;
 // =============================================================================
 // Affiliate Emails
 // =============================================================================

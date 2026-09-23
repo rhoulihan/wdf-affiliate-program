@@ -12,9 +12,12 @@
       defaultLanguage: 'en',
       supportedLanguages: ['en', 'es', 'pt', 'de'],
       fallbackLanguage: 'en',
-      translationsPath: window.location.hostname === 'localhost' || window.location.hostname.includes('rundberglaundry.com')
-        ? '/locales'
-        : window.location.origin + '/locales',
+      // Always same-origin. The old form branched on hostname (localhost or a
+      // marketing apex → '/locales', everything else → origin + '/locales'),
+      // but with no <base href> anywhere in public/ both branches resolve to
+      // exactly the same URL — so the branch only served to keep a retired
+      // marketing host named in the portal's client host surface. Plan 3 T37.
+      translationsPath: '/locales',
       storageKey: 'wavemax-language',
       debugMode: false
     },

@@ -717,3 +717,44 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
 - [ ] **Corporate cron output (GATE Task 81 install):** if web-core itself fails to load, alert.js can only write to stderr, which
       cron discards — consider redirecting the cron command's output to a box log file when installing it.
 
+
+## ESCALATIONS — Plan 3 Task 37 (host surface), raised 2026-09-23
+
+Task 37 narrowed every in-code host list in the portal to `portal.atxwashdryfold.com`. The rows below
+were **deliberately not changed** and are handed up rather than silently skipped. `docs/superpowers/
+ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into it.
+
+- [ ] **E-37-1 — published legal contact points on a live mailbox (owner / counsel).**
+      `public/privacy-policy.html:35-39` and `public/terms-and-conditions.html:34` list the marketing
+      hosts in `<code>` inside legal body copy ("these Terms cover all sites we operate, including …"),
+      and six `mailto:` addresses publish `privacy@` / `legal@` / `support@` on the retired apex:
+      `privacy-policy.html:119,129,150,183`, `terms-and-conditions.html:139,164`,
+      `refund-policy.html:58,114,128,158`, `embed-landing.html:278` (`affiliates@`).
+      Those mailboxes are live (aliases of `admin@crhsent.com`). Changing a published legal contact
+      point or the enumerated list of covered sites is an owner/counsel decision, not a host-surface
+      cleanup. **Blocks:** nothing; **Decision needed from:** Rick + counsel.
+
+- [ ] **E-37-2 — `wavemax.promo` leaves `allowedHosts` when the retirement 301s are switched off.**
+      `server.js` `allowedHosts` deliberately keeps `wavemax.promo`, `www.wavemax.promo` and
+      `affiliate.wavemax.promo`: they are the documented retirement 301 sources (`RETIRED_HOSTS`).
+      When those 301s are retired, both lists shrink together.
+      `tests/integration/portalHostSurface.test.js` pins the current five-entry list, so it fails
+      loudly if one is removed without the other. **Decision needed from:** Rick (timing).
+
+- [ ] **E-37-3 — stale email-infrastructure defaults on the retired apex (not host surface).**
+      Out of Task 37's scope but found by its audit; all are `process.env.X || '<literal>'` fallbacks
+      that production never takes, on a domain we no longer use for mail
+      (`EMAIL_FROM`/`EMAIL_USER` are `@crhsent.com` — see the 2026-08-24 sender-ownership rule):
+      `server/monitoring/connectivity-monitor.js:28` `EMAIL_HOST || 'mail.rundberglaundry.com'`
+      (production mail host is `mail.crhsent.com`);
+      `server/services/email/dispatcher/ops.js:18,19` (`no-reply@` / `admin@`);
+      `server/services/email/transport.js:69` (`noreply@`);
+      `server/services/email/dispatcher/customer.js:218` (`support@` affiliate-email fallback);
+      and hardcoded `support@rundberglaundry.com` in three email templates
+      (`server/templates/emails/affiliate-new-customer.html:166`,
+      `…/affiliate-welcome.html:178`, `…/en/affiliate-welcome.html:178`).
+      Same class as E-37-1 (an address, not a host), so it waits on the same decision.
+
+- [ ] **E-37-4 — franchisor UTM tag in client JS.** `public/assets/js/embed-navigation.js:187` sets
+      `data-utm-source="wavemaxlaundry.com"` on outbound links — an attribution literal naming the
+      franchisor, not a host allowlist, so Task 37 left it. Worth a look alongside the DMCA work.

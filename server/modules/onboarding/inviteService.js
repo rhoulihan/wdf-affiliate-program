@@ -24,7 +24,7 @@ class InviteError extends Error {
 }
 
 function buildInviteUrl(rawToken) {
-  const baseUrl = process.env.BASE_URL || 'https://rundberglaundry.com';
+  const baseUrl = process.env.BASE_URL || 'https://portal.atxwashdryfold.com';
   return `${baseUrl}/embed-app-v2.html?route=/affiliate-register&invite=${rawToken}`;
 }
 
