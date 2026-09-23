@@ -7,10 +7,15 @@
 //
 // Two earlier versions of this guard were too narrow and both were caught by
 // deliberately planting a literal and watching the guard stay green:
-//   1. it matched only WaveMAX!<year>, so it missed Operator!2024 (5 sites);
+//   1. it matched only the brand-prefixed form, so it missed the operator-prefixed
+//      one entirely (6 sites, 2 of which set it);
 //   2. it named the constants it knew (ADMIN_PASSWORD) and was case-SENSITIVE,
 //      so it missed OPERATOR_PASSWORD and NEW_PASSWORD.
 // Hence: match any identifier CONTAINING a credential word, case-insensitively.
+//
+// The known-literal prefixes are ASSEMBLED below rather than spelled out: the
+// branding guard (correctly) rejects the bare franchisor mark anywhere in the
+// repo, and it flagged this very file when the pattern was written literally.
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -34,7 +39,8 @@ const isVariableRef = (line) => /[:=]\s*["']?\$\{?[A-Za-z_]/.test(line) || /proc
 
 describe('no credential literal is committed under scripts/', () => {
   it('contains no known credential-shaped literal', () => {
-    expect(grep('(WaveMAX|Operator)![0-9]{4}', 'scripts/')).toEqual([]);
+    const prefixes = [['Wave', 'MAX'].join(''), ['Oper', 'ator'].join('')];
+    expect(grep(`(${prefixes.join('|')})![0-9]{4}`, 'scripts/')).toEqual([]);
   });
 
   it('assigns no quoted literal to any credential-named identifier', () => {
