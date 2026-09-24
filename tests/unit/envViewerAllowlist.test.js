@@ -57,4 +57,22 @@ describe('task 29: the admin env viewer advertises only keys that exist', () => 
   it('RATE_LIMIT_MAX_REQUESTS survives — it is the live apiLimiter max', () => {
     expect(allowlist()).toContain('RATE_LIMIT_MAX_REQUESTS');
   });
+
+  // Plan 3 task 44 (B11). The INVERSE of the drift this suite was written for: a
+  // key that IS live but that the server returned to nobody, so an admin reading
+  // the env viewer saw half of the credentialed-CORS rule and had no way to know
+  // it was half. Both vars are read by @crhs/web-core's corsConfig, which task 44
+  // made this app's only CORS policy.
+  //
+  // Server list only, deliberately. The client `categories` map groups
+  // CORS_EXTRA_ORIGINS under 'Other' (its matcher is key.includes(pattern), and
+  // 'CORS_EXTRA_ORIGINS'.includes('CORS_ORIGIN') is false) — the value renders
+  // either way, and moving it into 'Application' would change a
+  // runtime-injected SPA asset, which owes an ASSET_VERSION bump and a
+  // build:assets rebuild that have nothing to do with CORS.
+  it('both CORS env vars the live config reads are returned by the API', () => {
+    for (const key of ['CORS_ORIGIN', 'CORS_EXTRA_ORIGINS']) {
+      expect(allowlist()).toContain(key);
+    }
+  });
 });

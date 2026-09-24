@@ -18,7 +18,11 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ALLOWED_ENV_VARS = [
   // Application
   'NODE_ENV', 'PORT', 'BASE_URL', 'BACKEND_URL',
-  'CORS_ORIGIN', 'TRUST_PROXY', 'COOKIE_SECURE',
+  // CORS_EXTRA_ORIGINS became live on this app in Plan 3 task 44 (B11): the
+  // shared web-core config reads it alongside CORS_ORIGIN, so the two together
+  // ARE the credentialed allowlist. Showing only one of them told an admin
+  // debugging a refused origin that they were looking at the whole rule.
+  'CORS_ORIGIN', 'CORS_EXTRA_ORIGINS', 'TRUST_PROXY', 'COOKIE_SECURE',
   // Database
   'MONGODB_URI',
   // Security & Authentication
