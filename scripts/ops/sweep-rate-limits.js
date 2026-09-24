@@ -35,7 +35,7 @@
  *   node scripts/ops/sweep-rate-limits.js --report   # report only, write nothing
  *   node scripts/ops/sweep-rate-limits.js --help
  *
- * Installed as an hourly cron (deploy/cron/wavemax-sweep-rate-limits).
+ * Installed as an hourly cron (deploy/cron/crhs-portal-sweep-rate-limits).
  */
 
 const rateLimiting = require('../../server/middleware/rateLimiting');

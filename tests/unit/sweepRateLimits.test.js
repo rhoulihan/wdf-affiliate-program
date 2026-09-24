@@ -218,7 +218,7 @@ describe('scripts/ops/sweep-rate-limits', () => {
 
     it('an hourly cron ships with it, pointing at this script', () => {
       const cron = fs.readFileSync(
-        path.join(__dirname, '..', '..', 'deploy', 'cron', 'wavemax-sweep-rate-limits'), 'utf8');
+        path.join(__dirname, '..', '..', 'deploy', 'cron', 'crhs-portal-sweep-rate-limits'), 'utf8');
       expect(cron).toContain('scripts/ops/sweep-rate-limits.js');
       expect(cron).toMatch(/^\S+ \* \* \* \* \w+ /m);           // hourly, at a fixed minute
       expect(cron).not.toMatch(/--report/);                     // the cron does the real work
