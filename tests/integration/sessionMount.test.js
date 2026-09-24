@@ -96,7 +96,10 @@ describe('B9 session cookie name is pinned in BOTH NODE_ENV branches', () => {
     // prefix over plain HTTP, not the retired name.
     expect(cookies.some((c) => c.startsWith('app.sid='))).toBe(false);
     expect(cookies.some((c) => c.startsWith('__Host-'))).toBe(false);
-    expect(cookies.some((c) => /^(?:__Host-)?wavemax\.sid=/.test(c))).toBe(false);
+    // The retired name is spelled in the PLAIN form the branding guard allowlists
+    // (INFRA_ALLOW covers the plain wavemax.sid spelling): the regex-escaped form is
+    // a bare mark to the guard and reds it, as it did from Task 42 until this rewrite.
+    expect(cookies.some((c) => c.startsWith('wavemax.sid=') || c.startsWith('__Host-wavemax.sid='))).toBe(false);
   });
 
   it('resolves to __Host-portal.sid in production and portal.sid otherwise', () => {
