@@ -1,0 +1,11 @@
+# /etc/cron.d/wavemax-sweep-rate-limits - hourly reclamation sweep (Plan 3 task 45, PR B13).
+# The Oracle ADB Mongo API runs no TTL jobs, so every expireAfterSeconds index in
+# this app is inert: expired ratelimit_* counters, TokenBlacklist rows and
+# RefreshToken rows accumulated forever. This deletes EXPIRED rows only; it never
+# drops or empties a collection (orphan ratelimit_* collections are reported in the
+# log, for an operator to clear by hand with deleteMany({}) - never drop()).
+# Idempotent, so both boxes may run it. Install with:
+#   sudo install -m 644 deploy/cron/wavemax-sweep-rate-limits /etc/cron.d/wavemax-sweep-rate-limits
+SHELL=/bin/sh
+PATH=/usr/bin:/bin
+5 * * * * ubuntu cd /var/www/wavemax/wavemax-affiliate-program && /usr/bin/node scripts/ops/sweep-rate-limits.js >> /var/log/wavemax-sweep.log 2>&1

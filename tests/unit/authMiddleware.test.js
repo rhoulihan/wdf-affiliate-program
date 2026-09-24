@@ -12,14 +12,6 @@ jest.mock('../../server/models/TokenBlacklist', () => ({
   isBlacklisted: jest.fn()
 }));
 
-// Mock storeIPConfig
-jest.mock('../../server/config/storeIPs', () => ({
-  isWhitelisted: jest.fn().mockReturnValue(false),
-  sessionRenewal: {
-    renewThreshold: 600000 // 10 minutes
-  }
-}));
-
 describe('Auth Middleware', () => {
   let req, res, next;
 
@@ -417,10 +409,11 @@ describe('Auth Middleware', () => {
     });
 
     it('should NOT renew operator tokens from store IP (security fix)', async () => {
-      // This test verifies that the store IP token renewal bypass has been removed
-      const storeIPConfig = require('../../server/config/storeIPs');
-      storeIPConfig.isWhitelisted.mockReturnValue(true);
-      
+      // This test verifies that the store IP token renewal bypass has been removed.
+      // The store-IP config it used to mock was DELETED in Plan 3 task 45 (its last
+      // consumer went with locationQuarantine in task 36), so there is nothing left
+      // to stub — the assertions below are what pin the security fix: no renewal
+      // happens for an operator token whatever the caller's IP.
       req.headers.authorization = 'Bearer validtoken';
       const now = Date.now() / 1000;
       const decodedToken = {

@@ -19,6 +19,7 @@
     "migrate:delivery-fee:confirm": "node scripts/migrate/backfill-delivery-fee.js --yes",
     "setup:database": "node scripts/setup/setup-database.js",
     "start": "node server.js",
+    "sweep:rate-limits": "node scripts/ops/sweep-rate-limits.js",
     "test": "TZ=America/Chicago jest --runInBand --forceExit",
     "test:all": "./tests/runAllTests.sh",
     "test:coverage": "TZ=America/Chicago jest --coverage --runInBand --forceExit",

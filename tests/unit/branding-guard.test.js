@@ -19,9 +19,8 @@ const EXCLUDED_PREFIXES = [
   'public/assets/css/',
 ];
 const EXCLUDED_FILES = new Set([
-  'server/models/AccessGate.js', 'server/models/AccessWhitelist.js',
-  'server/models/AccessClick.js', 'server/models/AccessRequest.js',
-  'server/models/MediatorAccess.js',
+  // (the five Access*/MediatorAccess models were deleted in Plan 3 task 45 —
+  // crhs-corporate owns them, and their rows went with them.)
   // (public/wavemax-affiliate.html was deleted on 2026-09-14 — page retired.)
   // Kept host-page sample that names the franchisor mark (products placeholder).
   'public/products-placeholder.html',

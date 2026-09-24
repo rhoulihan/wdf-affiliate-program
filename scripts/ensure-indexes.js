@@ -12,7 +12,6 @@
 //   - AffiliateInvite (inviteId unique, tokenHash/email/status/expiresAt)
 //   - Customer       (customerId unique, email unique SPARSE — email is optional)
 //   - AddOn          (addOnId unique, key unique — order add-on catalog)
-//   - MediatorAccess (passwordHash unique — crhsent.com/wavemax gate IP-binding)
 //
 // Note: "at most one open order per bag" is enforced at the application layer
 // (orderTransitionService read-guard), not by a partial unique index — the
@@ -20,7 +19,7 @@
 // does not warrant a DB-level concurrency backstop.
 //
 // Exits 0 on success, 1 on connection/creation failure.
-// (console.* is the established convention in scripts/ — see seed-access-gate.js.)
+// (console.* is the established convention in scripts/ — see scripts/admin/.)
 
 require('dotenv').config();
 const mongoose = require('mongoose');
@@ -31,9 +30,8 @@ const Operator = require('../server/models/Operator');
 const AffiliateInvite = require('../server/modules/onboarding/AffiliateInvite');
 const Customer = require('../server/models/Customer');
 const AddOn = require('../server/models/AddOn');
-const MediatorAccess = require('../server/models/MediatorAccess');
 
-const MODELS = [Bag, Order, Operator, AffiliateInvite, Customer, AddOn, MediatorAccess];
+const MODELS = [Bag, Order, Operator, AffiliateInvite, Customer, AddOn];
 
 (async () => {
   let failed = false;
