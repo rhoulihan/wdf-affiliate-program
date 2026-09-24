@@ -21,21 +21,32 @@ describe('Email Service - Uncovered Functions', () => {
     jest.resetModules();
     jest.clearAllMocks();
     jest.doMock('../../server/utils/logger', () => mockLogger);
+    // The shared email primitives log through WEB-CORE's logger module (the app's
+    // server/utils/logger.js is a shim re-exporting that same instance), and jest
+    // keys mocks by resolved module id — so stubbing only the app path leaves
+    // core's own require('../utils/logger') pointing at the real logger and these
+    // assertions see zero calls.
+    jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
 
     consoleLogSpy = jest.spyOn(mockLogger, 'info').mockImplementation();
     consoleErrorSpy = jest.spyOn(mockLogger, 'error').mockImplementation();
-    
+
     // Mock nodemailer
     mockTransporter = {
       sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' })
     };
-    
+
     jest.doMock('nodemailer', () => ({
       createTransport: jest.fn(() => mockTransporter)
     }));
 
     // Mock fs for template loading
     jest.doMock('fs', () => ({
+      // Spread the REAL fs. template-manager.js now requires @crhs/web-core (PR
+      // B10), whose winston logger builds File transports and calls fs.existsSync /
+      // fs.mkdirSync at require time; a bare { readFile } mock killed every test in
+      // this file with "fs.existsSync is not a function". readFile below still wins.
+      ...jest.requireActual('fs'),
       readFile: jest.fn((path, encoding, callback) => {
         if (typeof encoding === 'function') {
           callback = encoding;
@@ -68,7 +79,7 @@ describe('Email Service - Uncovered Functions', () => {
     process.env.ADMIN_EMAILS = 'admin1@test.com,admin2@test.com';
     process.env.ALERT_EMAIL = 'admin1@test.com,admin2@test.com';
     process.env.DEFAULT_ADMIN_EMAIL = 'admin1@test.com,admin2@test.com';
-    
+
     // Now require the actual email service
     emailService = require('../../server/utils/emailService');
   });
@@ -101,14 +112,14 @@ describe('Email Service - Uncovered Functions', () => {
 
     it('should handle email sending error', async () => {
       mockTransporter.sendMail.mockRejectedValueOnce(new Error('SMTP error'));
-      
+
       const operator = {
         email: 'operator@test.com',
         firstName: 'John'
       };
 
       await emailService.sendOperatorShiftReminderEmail(operator);
-      
+
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('Error sending operator shift reminder'),
         expect.any(Error)
@@ -180,10 +191,16 @@ describe('Email Service - Uncovered Functions', () => {
       process.env.ADMIN_EMAILS = '';
       process.env.ALERT_EMAIL = '';
       process.env.DEFAULT_ADMIN_EMAIL = '';
-      
+
       // Re-require to pick up new env
       jest.resetModules();
       jest.doMock('../../server/utils/logger', () => mockLogger);
+      // The shared email primitives log through WEB-CORE's logger module (the app's
+      // server/utils/logger.js is a shim re-exporting that same instance), and jest
+      // keys mocks by resolved module id — so stubbing only the app path leaves
+      // core's own require('../utils/logger') pointing at the real logger and these
+      // assertions see zero calls.
+      jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
       emailService = require('../../server/utils/emailService');
 
       const alertData = {
@@ -214,24 +231,30 @@ describe('Email Service - Uncovered Functions', () => {
       // Create a fresh mock that rejects
       jest.resetModules();
       jest.doMock('../../server/utils/logger', () => mockLogger);
+      // The shared email primitives log through WEB-CORE's logger module (the app's
+      // server/utils/logger.js is a shim re-exporting that same instance), and jest
+      // keys mocks by resolved module id — so stubbing only the app path leaves
+      // core's own require('../utils/logger') pointing at the real logger and these
+      // assertions see zero calls.
+      jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
       const failingTransporter = {
         sendMail: jest.fn(() => Promise.reject(new Error('SMTP error')))
       };
-      
+
       jest.doMock('nodemailer', () => ({
         createTransport: jest.fn(() => failingTransporter)
       }));
-      
+
       // Set up environment for the error test
       process.env.EMAIL_PROVIDER = 'smtp';
       process.env.EMAIL_FROM = 'noreply@test.com';
       process.env.ALERT_EMAIL = 'admin@test.com';
-      
+
       // Re-require email service with failing transporter
       const emailServiceWithError = require('../../server/utils/emailService');
-const { expectSuccessResponse, expectErrorResponse } = require('../helpers/responseHelpers');
-const { createFindOneMock, createFindMock, createMockDocument, createAggregateMock } = require('../helpers/mockHelpers');
-      
+      const { expectSuccessResponse, expectErrorResponse } = require('../helpers/responseHelpers');
+      const { createFindOneMock, createFindMock, createMockDocument, createAggregateMock } = require('../helpers/mockHelpers');
+
       const alertData = {
         serviceName: 'Database',
         error: 'Connection lost',
@@ -257,10 +280,21 @@ const { createFindOneMock, createFindMock, createMockDocument, createAggregateMo
     beforeEach(() => {
       jest.resetModules();
       jest.doMock('../../server/utils/logger', () => mockLogger);
+      // The shared email primitives log through WEB-CORE's logger module (the app's
+      // server/utils/logger.js is a shim re-exporting that same instance), and jest
+      // keys mocks by resolved module id — so stubbing only the app path leaves
+      // core's own require('../utils/logger') pointing at the real logger and these
+      // assertions see zero calls.
+      jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
       process.env.EMAIL_PROVIDER = 'console';
-      
+
       // Re-mock fs
       jest.doMock('fs', () => ({
+      // Spread the REAL fs. template-manager.js now requires @crhs/web-core (PR
+      // B10), whose winston logger builds File transports and calls fs.existsSync /
+      // fs.mkdirSync at require time; a bare { readFile } mock killed every test in
+      // this file with "fs.existsSync is not a function". readFile below still wins.
+        ...jest.requireActual('fs'),
         readFile: jest.fn((path, encoding, callback) => {
           if (typeof encoding === 'function') {
             callback = encoding;
@@ -268,7 +302,7 @@ const { createFindOneMock, createFindMock, createMockDocument, createAggregateMo
           callback(null, '<html>Test email: [content]</html>');
         })
       }));
-      
+
       emailService = require('../../server/utils/emailService');
     });
 
@@ -310,7 +344,7 @@ const { createFindOneMock, createFindMock, createMockDocument, createAggregateMo
 
       await emailService.sendServiceDownAlert(alertData);
 
-      // sendServiceDownAlert doesn't load templates from files, 
+      // sendServiceDownAlert doesn't load templates from files,
       // so it should still send successfully
       expect(mockTransporter.sendMail).toHaveBeenCalled();
     });

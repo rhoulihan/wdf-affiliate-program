@@ -1,82 +1,72 @@
-// Email transport
+// Email transport — a WRAPPER over @crhs/web-core's shared transport (PR B10).
 //
-// Mailcow SMTP adapter, with a console transport for development/testing.
-// Extracted from utils/emailService.js in Phase 2.
+// web-core owns the Mailcow/nodemailer adapter, the console adapter, the by-IP TLS
+// servername default, the From-resolution chain and validateMailConfig (spec §7.2.4).
+// This module exists for one reason: to bind THIS app's brand and THIS app's template
+// root, so every dispatcher keeps calling sendEmail(to, subject, html) unchanged.
+//
+// Follows the server/utils/cspHelper.js pattern — nothing is read from the
+// environment at module scope. `brand` is read through its getters and NEVER
+// destructured: server/config/brand.js used to snapshot process.env at import, and
+// any script that loaded before dotenv then sent mail as "Laundromat"
+// (memory brand_config_lazy_resolve_2026-08-24).
 
-const nodemailer = require('nodemailer');
-const logger = require('../../utils/logger');
+const core = require('@crhs/web-core').email.transport;
 const brand = require('../../config/brand');
 
 /**
- * Create the underlying mailer. Returns either a console-logging stub
- * (EMAIL_PROVIDER=console) or a configured nodemailer transport.
+ * Create the underlying mailer (console stub when EMAIL_PROVIDER=console).
+ * Delegates wholesale — the SMTP timeouts and the by-IP TLS servername default
+ * (mail.crhsent.com) live in web-core.
  */
 function createTransport() {
-  if (process.env.EMAIL_PROVIDER === 'console') {
-    return {
-      sendMail: async (mailOptions) => {
-        logger.info('=== EMAIL CONSOLE LOG ===');
-        logger.info('From:', mailOptions.from);
-        logger.info('To:', mailOptions.to);
-        logger.info('Subject:', mailOptions.subject);
-        logger.info('HTML:', mailOptions.html);
-        logger.info('=========================');
-        return { messageId: 'console-message-id' };
-      }
-    };
-  }
+  return core.createTransport();
+}
 
-  const transportConfig = {
-    host: process.env.EMAIL_HOST || 'localhost',
-    port: parseInt(process.env.EMAIL_PORT, 10) || 587,
-    secure: process.env.EMAIL_PORT === '465',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    },
-    tls: {
-      rejectUnauthorized: process.env.NODE_ENV === 'production'
-    }
-  };
-
-  // When connecting by IP, TLS verification has no hostname to validate the
-  // cert against, so set the servername explicitly to match the mail server's
-  // certificate. The Ultahost mail box presents a cert for mail.crhsent.com
-  // (SAN: crhsent.com, mail.crhsent.com, www.crhsent.com) — override via
-  // EMAIL_TLS_SERVERNAME if the mail host's cert ever changes.
-  if (process.env.EMAIL_HOST && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(process.env.EMAIL_HOST)) {
-    transportConfig.tls.servername = process.env.EMAIL_TLS_SERVERNAME || 'mail.crhsent.com';
-  }
-
-  return nodemailer.createTransport(transportConfig);
+/**
+ * The boot-time mail-configuration hard check (R-24 + R-25), bound to this app's
+ * own template root so the check can never validate web-core's (empty) tree.
+ * Throws when EMAIL_FROM's domain differs from EMAIL_USER's — the HARD RULE behind
+ * the 2026-08-23 outage, where EMAIL_FROM was @crhsent.com while EMAIL_USER was
+ * still @wavemax.promo and every send came back 553 for a day.
+ * @param {{templateRoot?: string}} [opts]
+ */
+function validateMailConfig(opts = {}) {
+  // Required lazily: keeps the two wrappers independent at load time and keeps the
+  // template root defined in exactly one place.
+  const { TEMPLATE_ROOT } = require('./template-manager');
+  return core.validateMailConfig({ templateRoot: TEMPLATE_ROOT, ...opts });
 }
 
 /**
  * Send an HTML email to `to`.
- * Attachments are not supported — upstream mail policy blocks them; images
- * must be referenced by URL.
- * @param {string} [fromOverride] - full From header (e.g. '"Brand Name" <admin@x>').
- *   Requires the SMTP login to be permitted to send as that address.
+ * Attachments are not supported — upstream mail policy blocks them; images must be
+ * referenced by URL.
+ * @param {string} to
+ * @param {string} subject
+ * @param {string} html
+ * @param {string|object} [from] a complete From header used verbatim (the SMTP login
+ *   must be permitted to send as that address), OR an options bag — spec §7.2.4.
+ *   A non-string value is options, never a From header: dispatcher/admin.js:205 passes
+ *   its priority-headers object here, and treating that object as the From made
+ *   nodemailer emit a message with NO From header at all.
+ * @param {{replyTo?: string, fromName?: string}} [options] wins over an options bag
+ *   passed as `from`.
  */
-async function sendEmail(to, subject, html, fromOverride) {
-  if (!to) {
-    throw new Error('No recipient email address provided');
-  }
-
-  logger.info('[sendEmail] Sending email to:', to);
-  const transporter = createTransport();
-
-  const from = fromOverride || `"${brand.displayName}" <${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@rundberglaundry.com'}>`;
-  const mailOptions = { from, to, subject, html };
-
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(`Email sent: ${info.messageId}`);
-    return info;
-  } catch (error) {
-    logger.error('Error sending email:', error);
-    throw error;
-  }
+async function sendEmail(to, subject, html, from, options) {
+  // NOT the place for the EMAIL_USER-owns-EMAIL_FROM check. Every dispatcher wraps its
+  // send in try/catch and logs, so a throw here would be swallowed by exactly the
+  // pattern that hid the 2026-08-23 outage for a day — and it would take a box whose
+  // pair merely drifted from "mail with a wrong From" to "no mail at all", at 3am.
+  // validateMailConfig() is the gate, and it belongs in boot (spec §7.2.4),
+  // where a mismatch refuses to start the process while a human is watching.
+  const fromIsHeader = typeof from === 'string';
+  return core.sendEmail(to, subject, html, fromIsHeader ? from : undefined, {
+    // This app's brand is the default display name; a caller may override it.
+    fromName: brand.displayName,
+    ...(fromIsHeader ? null : from),
+    ...options
+  });
 }
 
-module.exports = { createTransport, sendEmail };
+module.exports = { createTransport, sendEmail, validateMailConfig };

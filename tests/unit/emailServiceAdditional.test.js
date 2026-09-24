@@ -20,6 +20,12 @@ describe('Email Service - Additional Coverage', () => {
     jest.clearAllMocks();
     jest.resetModules();
     jest.doMock('../../server/utils/logger', () => mockLogger);
+    // The shared email primitives log through WEB-CORE's logger module (the app's
+    // server/utils/logger.js is a shim re-exporting that same instance), and jest
+    // keys mocks by resolved module id — so stubbing only the app path leaves
+    // core's own require('../utils/logger') pointing at the real logger and these
+    // assertions see zero calls.
+    jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
 
     consoleLogSpy = jest.spyOn(mockLogger, 'info').mockImplementation();
     consoleErrorSpy = jest.spyOn(mockLogger, 'error').mockImplementation();
@@ -29,7 +35,7 @@ describe('Email Service - Additional Coverage', () => {
     mockTransporter = {
       sendMail: jest.fn().mockResolvedValue({ messageId: 'test-id' })
     };
-    
+
     // Mock nodemailer
     jest.doMock('nodemailer', () => ({
       createTransport: jest.fn(() => mockTransporter)
@@ -46,6 +52,11 @@ describe('Email Service - Additional Coverage', () => {
 
     // Mock fs for template loading
     jest.doMock('fs', () => ({
+      // Spread the REAL fs. template-manager.js now requires @crhs/web-core (PR
+      // B10), whose winston logger builds File transports and calls fs.existsSync /
+      // fs.mkdirSync at require time; a bare { readFile } mock killed every test in
+      // this file with "fs.existsSync is not a function". readFile below still wins.
+      ...jest.requireActual('fs'),
       readFile: jest.fn((path, encoding, callback) => {
         if (typeof encoding === 'function') {
           callback = encoding;
@@ -55,26 +66,26 @@ describe('Email Service - Additional Coverage', () => {
         if (path.includes('affiliate-commission')) {
           callback(null, '<html>Commission: [commission] for order [order_id]</html>');
         } else if (path.includes('customer-password-reset')) {
-        callback(null, '<html>Reset your password [first_name]: [reset_url]</html>');
-      } else if (path.includes('administrator-welcome')) {
-        callback(null, '<html>Welcome Admin [first_name] ID: [admin_id]</html>');
-      } else if (path.includes('administrator-password-reset')) {
-        callback(null, '<html>Admin Reset [first_name]: [reset_url]</html>');
-      } else if (path.includes('operator-pin-reset')) {
-        callback(null, '<html>Operator [first_name] new PIN: [new_pin]</html>');
-      } else if (path.includes('operator-shift-reminder')) {
-        callback(null, '<html>Shift reminder [first_name]: [shift_date] [shift_time]</html>');
-      } else if (path.includes('service-down-alert')) {
-        callback(null, '<html>Service [service_name] is down: [error_message]</html>');
-      } else if (path.includes('order-ready')) {
-        callback(null, '<html>Order [order_id] ready, code: [pickup_code]</html>');
-      } else if (path.includes('order-picked-up')) {
-        callback(null, '<html>Order [order_id] picked up, total: [total_amount]</html>');
-      } else {
-        callback(null, '<html>Default template [placeholder]</html>');
-      }
-    })
-  }));
+          callback(null, '<html>Reset your password [first_name]: [reset_url]</html>');
+        } else if (path.includes('administrator-welcome')) {
+          callback(null, '<html>Welcome Admin [first_name] ID: [admin_id]</html>');
+        } else if (path.includes('administrator-password-reset')) {
+          callback(null, '<html>Admin Reset [first_name]: [reset_url]</html>');
+        } else if (path.includes('operator-pin-reset')) {
+          callback(null, '<html>Operator [first_name] new PIN: [new_pin]</html>');
+        } else if (path.includes('operator-shift-reminder')) {
+          callback(null, '<html>Shift reminder [first_name]: [shift_date] [shift_time]</html>');
+        } else if (path.includes('service-down-alert')) {
+          callback(null, '<html>Service [service_name] is down: [error_message]</html>');
+        } else if (path.includes('order-ready')) {
+          callback(null, '<html>Order [order_id] ready, code: [pickup_code]</html>');
+        } else if (path.includes('order-picked-up')) {
+          callback(null, '<html>Order [order_id] picked up, total: [total_amount]</html>');
+        } else {
+          callback(null, '<html>Default template [placeholder]</html>');
+        }
+      })
+    }));
 
     // Require the actual email service
     emailService = require('../../server/utils/emailService');
@@ -100,7 +111,7 @@ describe('Email Service - Additional Coverage', () => {
       };
 
       await emailService.sendAdministratorWelcomeEmail(admin);
-      
+
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'admin@example.com',
@@ -120,7 +131,7 @@ describe('Email Service - Additional Coverage', () => {
       const resetUrl = 'https://example.com/admin/reset/token456';
 
       await emailService.sendAdministratorPasswordResetEmail(admin, resetUrl);
-      
+
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'admin@example.com',
@@ -142,7 +153,7 @@ describe('Email Service - Additional Coverage', () => {
       const newPin = '1234';
 
       await emailService.sendOperatorPinResetEmail(operator, newPin);
-      
+
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'operator@example.com',
@@ -167,7 +178,7 @@ describe('Email Service - Additional Coverage', () => {
       };
 
       await emailService.sendOperatorShiftReminderEmail(operator, shift);
-      
+
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'operator@example.com',
@@ -192,7 +203,7 @@ describe('Email Service - Additional Coverage', () => {
       };
 
       await emailService.sendServiceDownAlert(alertData);
-      
+
       // Should send one email to admin emails configured in env
       expect(mockTransporter.sendMail).toHaveBeenCalledTimes(1);
       expect(mockTransporter.sendMail).toHaveBeenCalledWith(
@@ -210,7 +221,7 @@ describe('Email Service - Additional Coverage', () => {
         timestamp: new Date(),
         serviceData: {}
       });
-      
+
       expect(mockTransporter.sendMail).toHaveBeenCalled();
     });
   });
@@ -221,7 +232,18 @@ describe('Email Service - Additional Coverage', () => {
       // Reset modules and re-mock fs with error
       jest.resetModules();
       jest.doMock('../../server/utils/logger', () => mockLogger);
+      // The shared email primitives log through WEB-CORE's logger module (the app's
+      // server/utils/logger.js is a shim re-exporting that same instance), and jest
+      // keys mocks by resolved module id — so stubbing only the app path leaves
+      // core's own require('../utils/logger') pointing at the real logger and these
+      // assertions see zero calls.
+      jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
       jest.doMock('fs', () => ({
+      // Spread the REAL fs. template-manager.js now requires @crhs/web-core (PR
+      // B10), whose winston logger builds File transports and calls fs.existsSync /
+      // fs.mkdirSync at require time; a bare { readFile } mock killed every test in
+      // this file with "fs.existsSync is not a function". readFile below still wins.
+        ...jest.requireActual('fs'),
         readFile: jest.fn((path, encoding, callback) => {
           if (typeof encoding === 'function') {
             callback = encoding;
@@ -229,7 +251,7 @@ describe('Email Service - Additional Coverage', () => {
           callback(new Error('ENOENT: File not found'));
         })
       }));
-      
+
       const emailServiceWithError = require('../../server/utils/emailService');
 
       await emailServiceWithError.sendOrderCancellationEmail(
@@ -254,10 +276,21 @@ describe('Email Service - Additional Coverage', () => {
     it.skip('should log emails to console when using console provider', async () => {
       jest.resetModules();
       jest.doMock('../../server/utils/logger', () => mockLogger);
+      // The shared email primitives log through WEB-CORE's logger module (the app's
+      // server/utils/logger.js is a shim re-exporting that same instance), and jest
+      // keys mocks by resolved module id — so stubbing only the app path leaves
+      // core's own require('../utils/logger') pointing at the real logger and these
+      // assertions see zero calls.
+      jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger);
       process.env.EMAIL_PROVIDER = 'console';
-      
+
       // Re-mock fs for the new module instance
       jest.doMock('fs', () => ({
+      // Spread the REAL fs. template-manager.js now requires @crhs/web-core (PR
+      // B10), whose winston logger builds File transports and calls fs.existsSync /
+      // fs.mkdirSync at require time; a bare { readFile } mock killed every test in
+      // this file with "fs.existsSync is not a function". readFile below still wins.
+        ...jest.requireActual('fs'),
         readFile: jest.fn((path, encoding, callback) => {
           if (typeof encoding === 'function') {
             callback = encoding;
@@ -266,15 +299,15 @@ describe('Email Service - Additional Coverage', () => {
           callback(null, '<html>Order [order_id] Total: [actual_total]</html>');
         })
       }));
-      
+
       // Also need to mock path module
       jest.doMock('path', () => ({
         join: jest.fn((...args) => args.join('/'))
       }));
-      
+
       // No need to mock nodemailer when using console provider
       const consoleEmailService = require('../../server/utils/emailService');
-      
+
       try {
         await consoleEmailService.sendOrderStatusUpdateEmail(
           {
@@ -291,7 +324,7 @@ describe('Email Service - Additional Coverage', () => {
         console.error('Email sending failed:', error.message);
         console.error('Stack:', error.stack);
       }
-      
+
       expect(consoleLogSpy).toHaveBeenCalledWith('=== EMAIL CONSOLE LOG ===');
       expect(consoleLogSpy).toHaveBeenCalledWith('To:', 'customer@example.com');
     });
