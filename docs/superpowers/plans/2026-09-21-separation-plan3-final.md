@@ -11527,8 +11527,12 @@ cd "$AFF"
 node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK')" 2>&1 | tail -2
 npx madge --circular server/ 2>&1 | tail -2
 printf 'shims_after=%s\n' "$(grep -rl '@crhs/web-core' server/ | wc -l)"
-npx eslint server/ server.js 2>&1 | grep -E 'problems?' | tail -1
-TZ=America/Chicago npx jest --runInBand 2>&1 | tail -8
+# AMENDED (task 43 findings D8/D9): `grep -E 'problems?'` prints NOTHING at 0 errors, which IS the
+# recorded value — so the check silently passes on any output. Use the guarded scripts instead, and note
+# the repo baseline may DROP after `eslint --fix` on touched test files (record the lower number).
+npm run lint:server && npm run lint:baseline
+# The FULL suite is the controller's gate, never a subagent's (slice C global constraint 6): ~63 min.
+# A subagent runs targeted suites — the five in Step 4 plus the role/dispatcher and guard suites.
 git add -A server tests && git commit -m "refactor(webcore): B6 -- shim auditLogger; audit events land in the repo LOG_DIR
 
 server/utils/auditLogger.js becomes a 1-statement re-export of @crhs/web-core
@@ -12185,6 +12189,29 @@ node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK
 > same class as B6's audit-log destination, and it is asserted the same way — with a per-run marker, not a
 > "directory exists" check.
 
+> ---
+> **EXECUTED 2026-09-23** (`e0381d7d` + `d021b65c`, pushed to `main`; repo-only, no box touched,
+> web-core UNCHANGED at 0.3.2 so no forced re-copy). Acceptance met: `DISPATCHER_FILES_IN_DIFF=0`,
+> dispatcher call sites 17 `loadTemplate` / 19 `sendEmail` unchanged. Findings recorded below; the steps
+> above carry the corrections inline.
+>
+> | # | finding |
+> |:--|:--|
+> | D1 | **Branding guard was RED at HEAD** — Task 42 left `sessionMount.test.js:99` spelling the retired cookie as a regex-escaped `wavemax\.sid`, which `INFRA_ALLOW` (plain form only) does not strip. Caught by the shared Step 0's S0-b. Fixed in its own commit (`e0381d7d`) by using the plain spelling the allowlist already covers — the guard was not widened. |
+> | D2 | `chk dispatcher_hosts_clean … 0` is **not a test of Task 37**: Task 37's scope was the `BASE_URL ||` host defaults, not mailbox addresses. [MEASURED] 3 files at HEAD (`customer.js:218` support alias — kept by spec; `ops.js:18,19`; `transport.js:69`), all recorded as E-37-3. Substituted `t37_baseurl_defaults_portal=0` + `t37_ops_dashboard_hoisted=1`. This task removes `transport.js:69` (cross-link 17b). |
+> | D3 | Expected `sendEmail arity = 5`; **MEASURED 4.** `Function.length` stops at the first defaulted parameter, and core's 5th is `options = {}`. The stated expectation is unreachable for the shipped signature. |
+> | D4 | Expected `total=19` `loadTemplate` call sites; **MEASURED 17** in the dispatchers (the plan's own enumerated list sums to 17) and 18 for its glob, whose 18th hit is `loadTemplate`'s own *definition*. **19 is the `sendEmail(` count.** The glob is also perturbed by the fix (the wrapper names `loadTemplate` three times → 20), so the acceptance uses the dispatcher-only counts. |
+> | D5 | Step 1's probe calls `validateMailConfig()` with **no `templateRoot`**, so condition (c) fires first and all three cases print `THREW:` — the expectation ("matched and same domain both `ok:`") cannot be met. With `templateRoot` supplied: matched `ok`, same-domain `ok`, MISMATCHED `THREW` naming both domains, bad root `THREW`. C43-4 confirmed. |
+> | D6 | Step 2's "`validateMailConfig()` is **still** called on the send path" is false in both directions (the app has zero callers; core's `sendEmail` does not call it) and enforcing it there is **worse than not**: the dispatchers all `try/catch` the send, so the throw is swallowed by the very pattern that hid the 2026-08-23 outage, and a drifted pair would silently stop all mail. [MEASURED] a per-send guard reds **11** existing tests, because the repo `.env` leaks `EMAIL_USER=…@wavemax.promo` into jest. Implemented as the wrapper's bound boot gate (spec §7.2.4) with a test pinning the choice. |
+> | D7 | Step 4's own suite list contains **two suites the change breaks by design**: `emailServiceUncovered`/`emailServiceAdditional` replace `fs` wholesale (core's winston logger needs `fs.existsSync` at require) and stub only the app logger path (core requires its own module id). 15 tests then 11 tests failed; both mocks repaired (test-only). The plan should have flagged them as dependents. |
+> | D8 | Step 5's `npx eslint … \| grep -E 'problems?'` prints **nothing** when there are 0 errors — which is the recorded value — so the assertion passes vacuously. Used `npm run lint:server` + `npm run lint:baseline`. |
+> | D9 | Step 5 runs the **full suite inside the task**, which slice C global constraint 6 forbids for a subagent (~63 min). Ran 37 targeted suites instead: all email/dispatcher suites, every role's integration suite, the four live guards, and the web-core identity/golden suites. |
+> | D10 | The Rollback's discriminating `wrapper markers = 0` greps **only `transport.js`**; `template-manager.js` is the other wrapper and a partial revert there would pass. Amended to count both. |
+> | D11 | Step 5's commit message omits the `Claude-Session:` trailer this session requires. |
+> | D12 | **LIVE DEFECT found and fixed from the wrapper (zero dispatcher edits):** `dispatcher/admin.js:205` passes its `headers` object as the 4th argument, and `{}` is truthy — so the pre-wrapper transport used it **as the From header** and nodemailer emitted a message with **no `From` at all** (measured with a `streamTransport`: only `To:` and `Message-ID:` survived) for **every** `sendAdminNotification`, masked by the dispatcher's `catch`+`logger.error`. Spec §7.2.4's `typeof from === 'string'` split fixes it; pinned by a regression test. The `X-Priority`/`Importance` headers remain dropped (they were before too) → new escalation **E-43-1** in `tasks/todo.md`. |
+> | D13 | `dispatcher/ops.js:18` builds `mailOptions.from` (`"<brand> Monitoring" <… \|\| no-reply@rundberglaundry.com>`) and `:76` never passes it, so service-down alerts send with the default From and the literal is dead code — one of the two remaining `rundberglaundry` hits in the mail path. A one-line dispatcher fix, forbidden by this task's acceptance → escalation **E-43-2**. |
+> | D14 | The `NODE_ENV=production` boot probe added by Task 42 **hangs in this environment** (no local mongod; 20 s timeout, no output). Verified **pre-existing** with a control run at HEAD with the change stashed — not caused by B10. The `NODE_ENV=test` probe is `BOOT_OK`. |
+
 **Files:**
 - Modify: `server/services/email/transport.js` (82 → wrapper), `server/services/email/template-manager.js`
   (129 → wrapper), following the `server/utils/cspHelper.js:1-31` pattern ([MEASURED] 30 statements, **no env
@@ -12222,37 +12249,57 @@ node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK
 ```bash
 anc T42_SHA
 chk session_adopted "$(grep -c 'buildSessionMiddleware' server.js)" 1
-chk dispatcher_hosts_clean "$(git grep -c 'rundberglaundry' -- server/services/email | wc -l)" 0
+# AMENDED (task 43 finding D2): Task 37's scope was the `BASE_URL ||` HOST defaults, never the
+# mailbox-address fallbacks, so `git grep rundberglaundry -- server/services/email` is 3 at HEAD by
+# design (E-37-3 in tasks/todo.md). Assert the premise that actually matters instead — every
+# BASE_URL default in the mail path names the portal:
+chk t37_baseurl_defaults_portal \
+  "$(git grep -h 'BASE_URL ||' -- server/services/email server/modules | grep -cv 'portal\.atxwashdryfold\.com')" 0
+chk t37_ops_dashboard_hoisted "$(grep -c 'const dashboardUrl' server/services/email/dispatcher/ops.js)" 1
 node -e '
 const wc = require("@crhs/web-core");
 const t  = wc.email.transport, tm = wc.email.templateManager || wc.email["template-manager"];
 console.log("  sendEmail arity =", t.sendEmail.length, "| loadTemplate =", typeof (tm && tm.loadTemplate),
             "| fillTemplate =", typeof (tm && tm.fillTemplate),
             "| validateMailConfig =", typeof (t.validateMailConfig || wc.email.validateMailConfig));'
-printf '  loadTemplate call sites:\n'
-grep -c 'loadTemplate(' server/services/email/dispatcher/*.js server/services/email/*.js | grep -v ':0' | sed 's/^/    /'
-printf '  total=%s\n' "$(grep -o 'loadTemplate(' server/services/email/dispatcher/*.js server/services/email/*.js | wc -l)"
+printf '  loadTemplate call sites (DISPATCHERS ONLY — see D4):\n'
+grep -c 'loadTemplate(' server/services/email/dispatcher/*.js | grep -v ':0' | sed 's/^/    /'
+printf '  loadTemplate total=%s  sendEmail total=%s\n' \
+  "$(grep -o 'loadTemplate(' server/services/email/dispatcher/*.js | wc -l)" \
+  "$(grep -o 'sendEmail(' server/services/email/dispatcher/*.js | wc -l)"
 [ "$FAIL" = 0 ] && echo "gate=PASS" || echo "gate=HALT"
 ```
-  - Expected: `OK T42_SHA ancestor`, `OK session_adopted=1`, `OK dispatcher_hosts_clean=0`;
-    `sendEmail arity = 5 | loadTemplate = function | fillTemplate = function | validateMailConfig = function`;
-    a per-file list summing to `total=19`; `gate=PASS`.
-  - `dispatcher_hosts_clean` ≠ 0 → Task 37 did not land: **STOP**, otherwise this task's "zero dispatcher
-    edits" acceptance cannot distinguish its own diff from Task 37's leftover work.
-  - `total` ≠ 19 → record the real number and use it; the acceptance is *"the count is unchanged"*, not *"19"*.
+  - Expected: `OK T42_SHA ancestor`, `OK session_adopted=1`, `OK t37_baseurl_defaults_portal=0`,
+    `OK t37_ops_dashboard_hoisted=1`;
+    `sendEmail arity = 4 | loadTemplate = function | fillTemplate = function | validateMailConfig = function`
+    (**4, not 5** — finding D3: `Function.length` stops at the first defaulted parameter and core's
+    5th is `options = {}`);
+    a per-file list summing to `loadTemplate total=17` and `sendEmail total=19`; `gate=PASS`.
+  - `t37_baseurl_defaults_portal` ≠ 0 → Task 37 did not land: **STOP**, otherwise this task's "zero
+    dispatcher edits" acceptance cannot distinguish its own diff from Task 37's leftover work.
+  - **D4 — the count to hold is the DISPATCHER-ONLY one.** The prose's "19 two-arg `loadTemplate` call
+    sites" is wrong twice: [MEASURED] there are **17** (the plan's own enumerated list sums to 17), and
+    **19** is the `sendEmail(` count. The original glob also swept `server/services/email/*.js`, which
+    catches `loadTemplate`'s own *definition* — and the wrapper legitimately contains the name three
+    times (definition, delegation, comment), so that metric moves 18 → 20 on a correct change. Hold the
+    dispatcher-only counts: 17 and 19, unchanged.
 
 - [ ] **Step 1: falsify the mail-config rule before relying on it (R-9 / C-11).**
 
 ```bash
 cd "$AFF"
 node -e '
+const path = require("path");
 const wc = require("@crhs/web-core");
 const v  = wc.email.transport.validateMailConfig || wc.email.validateMailConfig;
 const probe = (user, from) => {
   const save = { u: process.env.EMAIL_USER, f: process.env.EMAIL_FROM };
   process.env.EMAIL_USER = user; process.env.EMAIL_FROM = from;
   let out;
-  try { const r = v(); out = "ok:" + JSON.stringify(r === undefined ? true : r); }
+  // AMENDED (task 43 finding D5): templateRoot is REQUIRED. Without it condition (c) fires
+  // first and ALL THREE cases print THREW, so the plan's own expectation cannot be met.
+  try { const r = v({ templateRoot: path.join(process.cwd(), "server", "templates", "emails") });
+        out = "ok:" + JSON.stringify(r === undefined ? true : r); }
   catch (e) { out = "THREW:" + e.message.slice(0, 80); }
   process.env.EMAIL_USER = save.u; process.env.EMAIL_FROM = save.f;
   return out;
@@ -12275,8 +12322,19 @@ console.log("MISMATCHED ", probe("no-reply@wavemax.promo", "no-reply@crhsent.com
       exists **only** in the app tree and asserting its content, not by `fs.existsSync` on a directory;
       `brand` is accessed through its getters, never destructured — asserted by requiring `config/brand`,
       mutating `process.env` **after** the require, and observing the new value (a snapshot fails this);
-      and `validateMailConfig()` is still called on the send path, proved by the mismatched pair from Step 1
-      making a send **fail**.
+      and the `EMAIL_USER`-owns-`EMAIL_FROM` rule, asserted through the wrapper's own bound
+      `validateMailConfig()` — a mismatched pair throws naming both domains, a matched pair returns the
+      **app's** template root, and a root without `base-template.html` throws.
+      ⛔ **AMENDED (task 43 finding D6): do NOT enforce the pair on the send path.** The draft says
+      "still called on the send path"; it never was — the app has **zero** callers of
+      `validateMailConfig` (the boot call is A-0b.4, unlanded) and core's `sendEmail` does not call it.
+      Enforcing per send is also *weaker and riskier*: every dispatcher wraps its send in `try/catch` and
+      logs, so the throw is swallowed by exactly the pattern that hid the 2026-08-23 outage, and on a box
+      whose pair merely drifted it converts mail-with-a-wrong-`From` into **no mail at all**, unattended.
+      [MEASURED] a per-send guard also reds **11** existing tests, because the repo's own `.env` leaks
+      `EMAIL_USER=…@wavemax.promo` into the jest environment while the suites set `EMAIL_FROM` freely.
+      Boot is the enforcement point (spec §7.2.4); the wrapper's job is to bind the app's template root
+      to it. Pin the choice with a test so nobody "fixes" it by moving the check into the send.
 
 ```bash
 cd "$AFF" && npx jest tests/unit/email-brand.test.js 2>&1 | tail -20
@@ -12308,13 +12366,25 @@ git rm -q tests/unit/emailTransport.test.js
 DISP=$( { git diff --name-only; git diff --cached --name-only; } | sort -u | grep -c 'server/services/email/dispatcher/'; true )
 echo "DISPATCHER_FILES_IN_DIFF=$DISP"
 { git diff --name-only; git diff --cached --name-only; } | sort -u | grep 'server/services/email/dispatcher/' || echo '  (none — correct)'
-printf 'loadTemplate total = %s\n' "$(grep -o 'loadTemplate(' server/services/email/dispatcher/*.js server/services/email/*.js | wc -l)"
+printf 'loadTemplate total = %s  sendEmail total = %s\n' \
+  "$(grep -o 'loadTemplate(' server/services/email/dispatcher/*.js | wc -l)" \
+  "$(grep -o 'sendEmail(' server/services/email/dispatcher/*.js | wc -l)"
 npx jest tests/unit/email-brand.test.js tests/integration/emailService.integration.test.js \
          tests/unit/emailServiceUncovered.test.js tests/unit/emailServiceAdditional.test.js \
          tests/unit/affiliateEmailUrls.test.js 2>&1 | grep -E '^(Tests:|Test Suites:)|✕'
 ```
-  - Expected: `DISPATCHER_FILES_IN_DIFF=0` followed by `  (none — correct)`; `loadTemplate total = 19`
-    (unchanged from Step 0); then a `Tests:` line with no `✕` across the five suites.
+  - Expected: `DISPATCHER_FILES_IN_DIFF=0` followed by `  (none — correct)`;
+    `loadTemplate total = 17  sendEmail total = 19` (unchanged from Step 0, per finding D4);
+    then a `Tests:` line with no `✕` across the five suites.
+  - ⚠️ **AMENDED (task 43 finding D7): two of those five suites need repair, and it is not optional.**
+    `emailServiceUncovered.test.js` and `emailServiceAdditional.test.js` `jest.doMock('fs', …)` with a
+    bare `{ readFile }`, and they stub only `../../server/utils/logger`. Once the wrappers pull in
+    `@crhs/web-core`, (a) core's winston logger calls `fs.existsSync`/`mkdirSync` at require time → **15
+    tests die with `fs.existsSync is not a function`**, and (b) the console-transport and template-error
+    log assertions see zero calls, because jest keys mocks by resolved module id and core requires its
+    *own* `../utils/logger` (the app's file is a shim re-exporting the same instance). Fix the mocks —
+    spread `jest.requireActual('fs')` and add
+    `jest.doMock('@crhs/web-core/src/utils/logger', () => mockLogger)` — never the wrappers.
   - **`DISPATCHER_FILES_IN_DIFF=0` is the acceptance criterion in one number**, and it is a count, not an exit
     status, so it rises the moment a dispatcher is edited. Any non-zero value means the wrapper is not
     signature-compatible: **STOP** and fix the wrapper, not the dispatcher.
@@ -12353,6 +12423,7 @@ Three hazards pinned by the new tests rather than trusted:
 
 No env is read at module scope (the cspHelper.js pattern).
 tests/unit/emailTransport.test.js (63 lines, duplicate) is deleted.
+(Add the Claude-Session trailer this session requires alongside Co-Authored-By.)
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 git push origin main
@@ -12368,7 +12439,9 @@ WS_REC=/var/www/wavemax/cutover-logs/plan3-record.env
 S=$(sed -n 's/^T43_SHA=//p' "$WS_REC" | tail -1); test -n "$S" || { echo 'STOP: no T43_SHA'; exit 1; }
 git revert --no-edit "$S"
 wc -l server/services/email/transport.js server/services/email/template-manager.js
-printf 'wrapper markers = %s\n' "$(grep -c '@crhs/web-core' server/services/email/transport.js || true)"
+# AMENDED (task 43 finding D10): BOTH wrappers must lose the require, not just transport.js.
+printf 'wrapper markers = %s\n' \
+  "$(grep -ch '@crhs/web-core' server/services/email/transport.js server/services/email/template-manager.js | paste -sd+ | bc)"
 npx jest tests/integration/emailService.integration.test.js 2>&1 | grep -E '^Tests:'
 node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK')" | tail -1
 ```

@@ -748,12 +748,31 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       `server/monitoring/connectivity-monitor.js:28` `EMAIL_HOST || 'mail.rundberglaundry.com'`
       (production mail host is `mail.crhsent.com`);
       `server/services/email/dispatcher/ops.js:18,19` (`no-reply@` / `admin@`);
-      `server/services/email/transport.js:69` (`noreply@`);
+      ~~`server/services/email/transport.js:69` (`noreply@`)~~ — **removed by PR B10** (2026-09-23): the
+      wrapper delegates to web-core, which throws when neither `EMAIL_FROM` nor `EMAIL_USER` is set
+      instead of addressing a mailbox that does not exist on Mailcow (spec cross-link 17b);
       `server/services/email/dispatcher/customer.js:218` (`support@` affiliate-email fallback);
       and hardcoded `support@rundberglaundry.com` in three email templates
       (`server/templates/emails/affiliate-new-customer.html:166`,
       `…/affiliate-welcome.html:178`, `…/en/affiliate-welcome.html:178`).
       Same class as E-37-1 (an address, not a host), so it waits on the same decision.
+
+- [ ] **E-43-1 — admin-notification priority headers are dropped.** `sendAdminNotification`
+      (`server/services/email/dispatcher/admin.js:180-205`) builds `{ 'X-Priority': '1', Importance:
+      'high' }` for high-priority alerts and passes it as `sendEmail`'s 4th argument. Until PR B10 that
+      object was used AS the `From` header, so the message went out with **no From header at all**
+      (measured); B10's wrapper now reads a non-string 4th argument as the options bag, which fixes the
+      From but still drops the headers — web-core's `sendEmail` has no `headers` option. Fixing it needs
+      either a `headers` passthrough in web-core + the wrapper, or a dispatcher change (B10's acceptance
+      forbade touching a dispatcher). Low severity: priority headers are advisory.
+
+- [ ] **E-43-2 — `ops.js` computes a `From` it never sends.** `server/services/email/dispatcher/ops.js:18`
+      builds `"<brand> Monitoring" <${EMAIL_FROM || 'no-reply@rundberglaundry.com'}>` into
+      `mailOptions.from`, and `:76` calls `sendEmail(to, subject, html)` — three arguments, so the `from`
+      is discarded and service-down alerts send with the default sender. Dead code that also holds one of
+      the two remaining `rundberglaundry` literals in the mail path (see E-37-3). One-line fix: pass it as
+      the 4th argument, or delete the field. Out of PR B10's scope (zero dispatcher edits was its
+      acceptance).
 
 - [ ] **E-37-4 — franchisor UTM tag in client JS.** `public/assets/js/embed-navigation.js:187` sets
       `data-utm-source="wavemaxlaundry.com"` on outbound links — an attribution literal naming the
