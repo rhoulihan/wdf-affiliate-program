@@ -11,7 +11,6 @@
 // lands in proxy logs, browser devtools, HAR exports and anything that records
 // responses. No other model declares select on these fields — Administrator was
 // the outlier.
-const mongoose = require('mongoose');
 
 const Administrator = require('../../server/models/Administrator');
 const Operator = require('../../server/models/Operator');
