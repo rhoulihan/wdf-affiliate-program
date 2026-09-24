@@ -29,15 +29,22 @@ const administratorSchema = new mongoose.Schema({
     trim: true,
     validate: mongooseValidators.email
   },
+  // No `select` here, deliberately. An explicit `select: true` is mongoose's own
+  // default for a path and so looks inert, but it makes mongoose ADD the field to
+  // an INCLUSIVE projection — so `.populate('createdBy', 'firstName lastName')` in
+  // operatorAdminService returned the PBKDF2 salt and hash too, and they reached
+  // the body of GET /api/v1/administrators/operators[/:id]. Every other model
+  // (Operator, Affiliate, Customer) declares no select on these paths; this one
+  // was the outlier. The auth lookups read the credential through an unprojected
+  // findOne/findById, which is unaffected. Guarded by
+  // tests/integration/adminCredentialLeak.test.js.
   passwordSalt: {
     type: String,
-    required: true,
-    select: true
+    required: true
   },
   passwordHash: {
     type: String,
-    required: true,
-    select: true
+    required: true
   },
   role: {
     type: String,
