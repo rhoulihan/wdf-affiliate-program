@@ -12479,11 +12479,55 @@ node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK
 > union, not to either half alone"*. That advice was written **before** Task 37 removed the union's other half;
 > Step 4 rewrites the comment to match reality rather than leaving a note that contradicts the code.
 
+> ---
+> **EXECUTED 2026-09-23** (`4d3f6543` + `1bd127dd`, pushed to `main`; repo-only, **no box touched, not
+> deployed**, web-core UNCHANGED at 0.3.2 so **no forced re-copy**). The allowlist is unchanged and the
+> `|| ['http://localhost:3000']` fallback is gone, both proved by test. `.env.example` NOT edited — it is
+> HUMAN-CONFIRM and now carries a **security-relevant** owner decision (D13). Findings below; the steps above
+> carry the corrections inline.
+>
+> | # | finding |
+> |:--|:--|
+> | D1 | 🚨 **This task's own Step-0 addition prints a FALSE `gate=HALT`.** It asserts `grep -c '@crhs/web-core' server/services/email/transport.js` = **1**; Task 43 landed **2** hits — the wrapper-marker *comment* on `:1` (which Task 43's own rollback greps for) plus the `require` on `:14`. The intent-equivalent assertion is `grep -c "require('@crhs/web-core')"` = 1, which passes. Same class as Task 42's D1: a `grep -c` that counts prose. |
+> | D2 | Step 1 expects `len=37` for the per-box `CORS_ORIGIN`. [MEASURED] **33** on both boxes — `https://portal.atxwashdryfold.com` is 33 characters. The plan's arithmetic is wrong; as written the length check halts the task. |
+> | D3 | The Files list says *Extend* `tests/integration/cors.test.js` — **that file did not exist.** The real pre-state was `tests/unit/corsOriginPolicy.test.js`, which asserted the inline block **still stood** (`expect(src).toContain('app.use(cors(corsOptions));')`) and therefore had to be **inverted** — a required edit the plan never mentions — plus the live preflight block in `tests/integration/portalHostSurface.test.js`. `cors.test.js` was created. |
+> | D4 | 🚨 **Step 2's red-first prediction is wrong, and it omits the trap.** It expects the franchisor and `localhost` cases to fail against the inline block; they **pass** — with `CORS_ORIGIN` pinned to the portal the union is `{portal}` and every refusal already held. The only discriminating cases are the **empty/unset `CORS_ORIGIN`** ones, which Step 2 does not list at all: the task is *named* for that trap and then leaves it out of the step that is supposed to prove it. [MEASURED] 4 such cases RED before the swap, green after. |
+> | D5 | The plan misses that `portalHostSurface.test.js:231` asserts `const wavemaxDomains = [` is **present** in `server.js` and equals `[PORTAL]`. Deleting the array breaks that suite, and the plan lists no test edit outside `cors.test.js`. Replaced with an env-driven structural assertion. |
+> | D6 | The plan misses that the suite had **no pinned `CORS_ORIGIN`**. `tests/setup.js` runs `dotenv`, and this workstation's `.env:24` holds `CORS_ORIGIN=http://localhost:4000`, so once the allowlist is env-only the portal positive control passes or fails on a developer's private file. Pinned in `tests/setup.js` beside `BASE_URL`/`LOG_SERVICE_NAME`. |
+> | D7 | Line numbers drifted: the inline block is `server.js:286-334` and the fallback `:288-290` (plan says `:291-337`, `:291-336`, `:293-295`). Located by content as instructed, so not blocking. |
+> | D8 | **`CORS_EXTRA_ORIGINS` becomes a live knob on this app with the swap** — web-core's config reads it — while `systemHealthService.js:20`'s `ALLOWED_ENV_VARS` advertised only `CORS_ORIGIN`, so the admin env viewer showed **half** the credentialed-CORS rule with no way to know it was half. Fixed in `1bd127dd` (server list only; the client `categories` map groups it under `Other`, and moving it would owe an `ASSET_VERSION` bump + `build:assets` rebuild unrelated to CORS). |
+> | D9 | Step 5 runs the **full suite inside the task**, which slice C global constraint 6 forbids for a subagent. Ran **33 targeted suites**, 0 failures. |
+> | D10 | Step 5's `npx eslint … \| grep -E 'problems?'` prints **nothing** at 0 errors — vacuous, identical to Task 43's D8. Used `npm run lint:server` (0) + `npm run lint:baseline` (9357, unchanged). |
+> | D11 | Step 5's commit message omits the `Claude-Session:` trailer this session requires. |
+> | D12 | Step 4 tells the executor to change `.env.example:87` from `http://localhost:3000` to the portal. That line is labelled **"Local dev default"** and `localhost:3000` is the correct *dev* value; the genuinely wrong content is the 15-line comment block above it. Not applied — surfaced to the owner with replacement text. |
+> | D13 | 🚨 **The `.env.example` escalation is security-relevant now, not cosmetic.** `:78` instructs the operator to set `CORS_ORIGIN` to a **four-origin union** including the three marketing apexes Task 37 removed, and `:79-86` claims production also carries `localhost:3000`, `127.0.0.1:3000` and the retired host — [MEASURED] production carries **one** origin. While the inline block stood, that advice was merely stale; now that the env **is** the whole policy, an operator who follows `.env.example` re-grants credentialed CORS to crhs-corporate's hosts. → **E-44-1**. |
+> | D14 | `recput`'s remote half **silently fails** across this whole series: the mirror is `printf … >> $WS_REC` as `ubuntu`, and `/var/www/wavemax/cutover-logs/plan3-record.env` on oci1 is `root:root 0644` (339 bytes vs 48 KB locally). Mirrored the Task 44 keys with `sudo tee -a`. The local record is the authoritative copy; `recget` prefers it, which is why nothing has broken. |
+>
+> 🚨 **DEPLOY PRECONDITION for Task 30, recorded as `T44_DEPLOY_PRECONDITION` in the record (local **and**
+> mirrored to oci1):** `CORS_ORIGIN` must be **non-empty on BOTH boxes before the reload**. [MEASURED
+> 2026-09-23, read-only] both carry `https://portal.atxwashdryfold.com` (len 33) and neither sets
+> `CORS_EXTRA_ORIGINS`, so the precondition holds today — but an empty value after this commit refuses
+> **every** origin including the portal's own pages, and the failure is silent until a page makes a
+> credentialed call. Re-assert it in Task 30's Step 0, and never "fix" a CORS regression by editing a box
+> `.env` during a rollback (restore the line from a post-purge `env-backups/` baseline only, R-11).
+>
+> **Dropped origins, accounted for:** `http://localhost:3000` — the whole list. `127.0.0.1:3000` was never in
+> the inline block (only in the stale `.env.example` comment), and every other origin had already gone with
+> Task 37. **No marketing origin and not the franchisor regains credentialed access**; each is pinned refused
+> by name in `tests/integration/cors.test.js`.
+
 **Files:**
 - Modify: `server.js` — delete the inline `corsOptions` block (`:291-336`) and `app.use(cors(corsOptions))`
   (`:337`) becomes `app.use(cors(webCore.corsConfig))`. **Located by content.**
 - Modify (**HUMAN-CONFIRM**): `.env.example:72-91` — the value and the now-stale comment block.
-- Extend: `tests/integration/cors.test.js`.
+- **Create** `tests/integration/cors.test.js` (⚠️ AMENDED — the plan said *extend*; the file did **not**
+  exist. Finding D3).
+- **Invert** `tests/unit/corsOriginPolicy.test.js` — it asserts the inline block **still stands**
+  (`expect(src).toContain('app.use(cors(corsOptions));')`), so it goes red on the swap unless flipped.
+- **Amend** `tests/integration/portalHostSurface.test.js:231` — it asserts `const wavemaxDomains = [` is
+  **present** in `server.js`, and its live preflight block reads `CORS_ORIGIN` from the ambient env.
+- **Amend** `tests/setup.js` — pin `CORS_ORIGIN`; `dotenv` otherwise hands the suite a developer's value
+  (finding D6).
 
 **Interfaces:**
 
@@ -12509,7 +12553,10 @@ node -e "process.env.NODE_ENV='test';require('./server.js');console.log('BOOT_OK
 
 ```bash
 anc T43_SHA
-chk email_wrapped "$(grep -c '@crhs/web-core' server/services/email/transport.js)" 1
+# ⚠️ AMENDED 2026-09-23 (Task 44 finding D1). `grep -c '@crhs/web-core'` returns **2**:
+# Task 43's wrapper-marker COMMENT on :1 plus the require on :14, so the original
+# `= 1` printed a FALSE gate=HALT. Count the require, not the prose.
+chk email_wrapped "$(grep -c "require('@crhs/web-core')" server/services/email/transport.js)" 1
 [ "$FAIL" = 0 ] && echo "gate=PASS" || echo "gate=HALT"
 ```
 
@@ -12551,7 +12598,9 @@ const ask = (origin) => new Promise((res) => cfg.origin(origin, (e, ok) => res(e
 ```
   - Expected: `wavemaxDomains  = https://portal.atxwashdryfold.com`, `marketing_left  = 0`,
     `T37_ORDERING_EXIT=0`;
-    two `CORS_ORIGIN=[https://portal.atxwashdryfold.com] len=37` lines;
+    two `CORS_ORIGIN=[https://portal.atxwashdryfold.com] len=33` lines
+    (⚠️ AMENDED — the plan said `len=37`; the string is **33** characters, and the wrong
+    value halts the task. Finding D2);
     then `credentials = true`, `portal = ALLOW`, `marketing = DENY|ERR`, `franchisor = DENY|ERR`,
     `localhost = DENY|ERR`, `null origin = DENY|ERR`, and
     `empty CORS_ORIGIN -> portal = DENY|ERR`.
@@ -12576,11 +12625,18 @@ const ask = (origin) => new Promise((res) => cfg.origin(origin, (e, ok) => res(e
 ```bash
 cd "$AFF" && CORS_ORIGIN=https://portal.atxwashdryfold.com npx jest tests/integration/cors.test.js 2>&1 | tail -20
 ```
-  - Expected: the franchisor and `localhost` cases **fail** while the inline block still runs (it unions
-    `CORS_ORIGIN` with `wavemaxDomains` and, more importantly, `localhost:3000` is only excluded once the
-    fallback is gone); the portal case passes.
-  - If **nothing** fails, the inline block is already equivalent to `corsConfig`: record that, keep the tests
-    as a regression net, and drop the defect language from the commit body.
+  - ⚠️ **AMENDED 2026-09-23 (finding D4). The stated expectation is wrong and it omits the trap.** With
+    `CORS_ORIGIN` pinned to the portal the inline union is `{portal}`, so the franchisor, the marketing
+    apexes **and** `localhost:3000` are **already refused** — every one of those cases passes before the
+    swap. The cases that are genuinely RED, and the only ones that measure what this task is named for, are
+    the **empty and unset `CORS_ORIGIN`** cases, which the original step never listed:
+    - `CORS_ORIGIN=''` / unset → `http://localhost:3000` **admitted** before (the fallback), refused after;
+    - `CORS_ORIGIN=''` / unset → **the portal itself** admitted before (via `wavemaxDomains`), refused after;
+    - `CORS_EXTRA_ORIGINS` is not read at all before the swap.
+    [MEASURED] 5 failures / 11 passes before, 16/16 after. **Add those cases or the red-first step proves
+    nothing.**
+  - Expected, after the swap: every case green, with the portal admitted under `CORS_ORIGIN=<portal>` as the
+    control that the layer still works.
 
 - [ ] **Step 3: swap, and account for every dropped origin.**
 

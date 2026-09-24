@@ -774,6 +774,49 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       the 4th argument, or delete the field. Out of PR B10's scope (zero dispatcher edits was its
       acceptance).
 
+- [ ] **E-44-1 — `.env.example` tells the operator to re-grant the origins Task 37 removed.**
+      ⚠️ **HUMAN-CONFIRM, and security-relevant since PR B11** (`4d3f6543`). `.env.example:78` reads
+      `#   CORS_ORIGIN=https://portal.atxwashdryfold.com,https://atxwashateria.com,https://atxwashdryfold.com,https://rundberglaundry.com`
+      and `:79-86` claims production also carries `localhost:3000`, `127.0.0.1:3000` and the retired
+      301-source host — a seven-origin "union" it instructs B11 to set. [MEASURED 2026-09-23, read-only on
+      both boxes] production carries **one** origin, `https://portal.atxwashdryfold.com` (len 33), and
+      `CORS_EXTRA_ORIGINS` is unset. While server.js ran its own inline block that advice was merely stale;
+      B11 made the env the **whole** credentialed-CORS policy, so an operator who follows `.env.example`
+      re-grants credentialed CORS to crhs-corporate's marketing hosts. It also still cites
+      `server.js:282-328`, which no longer exists.
+      **Decision needed:** replace `:72-91` with the block below. The active `CORS_ORIGIN=` line is labelled
+      *"Local dev default"* and `http://localhost:3000` is the correct **dev** value, so the recommendation
+      is to keep it and name the production value in the comment — the plan's Step 4 said to change the line
+      itself (Task 44 finding D12).
+      ```
+      # CORS Configuration
+      # CORS_ORIGIN **is** the credentialed-CORS allowlist — the whole of it. Plan 3
+      # task 44 replaced server.js's inline block with @crhs/web-core's shared config,
+      # which has NO built-in origins and NO fallback: an origin not named here (or in
+      # CORS_EXTRA_ORIGINS) is refused, and an EMPTY or UNSET value refuses EVERYTHING
+      # — including the portal's own pages, silently, until a page makes a credentialed
+      # call. NEVER empty it on a box. (It used to fall back to http://localhost:3000,
+      # which on a production box was a credentialed grant to whatever a browser could
+      # be made to serve from localhost.)
+      #
+      # Production carries exactly one origin, on both boxes:
+      #   CORS_ORIGIN=https://portal.atxwashdryfold.com
+      # The per-location marketing origins are crhs-corporate's on :3001 and were
+      # removed by task 37 — do NOT add them back; no corporate page makes a
+      # credentialed cross-origin call to this API.
+      CORS_ORIGIN=http://localhost:3000
+      # CORS_EXTRA_ORIGINS — additive extension read by the same config, for a one-off
+      # origin without rewriting CORS_ORIGIN. Unset on both boxes.
+      #CORS_EXTRA_ORIGINS=
+      ```
+
+- [ ] **E-44-2 — `INFRA_ALLOW` row `/wavemaxDomains/g` no longer shields any app identifier.** PR B11
+      deleted the `wavemaxDomains` array from `server.js`; the name now survives only inside two
+      **absence** matchers (`tests/unit/corsOriginPolicy.test.js`, `tests/integration/portalHostSurface.test.js`)
+      and one comment. The allowlist row in `tests/unit/branding-guard.test.js` is still load-bearing for
+      those matchers, so it cannot simply be dropped — but it should be re-scoped or retired in the next
+      guard pass, alongside a check that no `INFRA_ALLOW` row is dead.
+
 - [ ] **E-37-4 — franchisor UTM tag in client JS.** `public/assets/js/embed-navigation.js:187` sets
       `data-utm-source="wavemaxlaundry.com"` on outbound links — an attribution literal naming the
       franchisor, not a host allowlist, so Task 37 left it. Worth a look alongside the DMCA work.
