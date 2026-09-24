@@ -43,6 +43,15 @@ process.env.BASE_URL = 'https://wavemax.promo';
 // field from LOG_SERVICE_NAME (a generic default when unset). Pin it to this
 // app's historical tag so the test process matches production.
 process.env.LOG_SERVICE_NAME = 'crhs-portal';
+// Plan 3 Task 44 (PR B11): CORS is now ENV-ONLY — @crhs/web-core's corsConfig
+// carries no built-in origins, and the `|| ['http://localhost:3000']` fallback
+// that server.js used to apply is deliberately gone. dotenv above loads a
+// developer's local .env, so without this line the allowlist every CORS-touching
+// test measures would be whatever that file happens to hold. Pin it to the one
+// production origin so the test process matches a box; individual tests still
+// override it per case (the callback reads the env at request time).
+process.env.CORS_ORIGIN = 'https://portal.atxwashdryfold.com';
+delete process.env.CORS_EXTRA_ORIGINS;
 
 // Get MongoDB URI and append test database name
 const baseUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wavemax_affiliate';

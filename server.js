@@ -282,56 +282,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS setup
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-      : ['http://localhost:3000'];
-
-    // The only browser origin allowed to make a credentialed call to this API.
-    // The per-location marketing origins were removed by Plan 3 Task 37: those
-    // hosts are crhs-corporate's on :3001 and no corporate page makes a
-    // credentialed cross-origin call to the portal API (verified at the T37
-    // gate). Kept as a one-entry array rather than folded into CORS_ORIGIN so
-    // that change (Task 44) stays independently revertable.
-    const wavemaxDomains = [
-      'https://portal.atxwashdryfold.com' // canonical app domain
-    ];
-
-    const allAllowedOrigins = [...allowedOrigins, ...wavemaxDomains];
-
-    // H-7 / prod-lockdown-2026-05-20: previously this branch returned
-    // callback(null, true), admitting any null-origin request (curl,
-    // Postman, server-to-server) with credentials:true cookie clearance.
-    // The only legitimate consumers of /api are browsers (allowlisted via
-    // wavemaxDomains) and authenticated bots that present a JWT — neither
-    // depends on permissive null-origin CORS. Reject by default; explicit
-    // server-to-server callers can identify themselves by other means
-    // (mTLS, signed webhook, allowlisted IP).
-    if (!origin) return callback(null, false);
-
-    if (allAllowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      // CORS rejection should be CLEAN — callback(null, false) makes the
-      // cors middleware respond 204/200 without CORS headers, leaving the
-      // browser to reject the cross-origin request itself. Throwing here
-      // surfaces as a 500 with a server stack trace in the JSON body,
-      // which (a) is the wrong HTTP semantic for a CORS rejection, and
-      // (b) leaks server-side paths + impl details via the error handler.
-      // The actual CORS protection is identical either way (no
-      // Access-Control-Allow-Origin returned), but the cleaner response
-      // is 204 with no body.
-      callback(null, false);
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token', 'csrf-token', 'xsrf-token', 'x-xsrf-token'],
-  maxAge: 86400 // 24 hours
-};
-app.use(cors(corsOptions));
+// CORS setup — ONE env-driven policy, shared with crhs-corporate via
+// @crhs/web-core (PR B11). The 47-line inline block this replaces computed
+// `(CORS_ORIGIN split on commas) OR ['http://localhost:3000']` unioned with a
+// hard-coded `wavemaxDomains` array; Plan 3 Task 37 had already reduced that
+// array to the portal alone, and CORS_ORIGIN is the portal on both boxes, so
+// the effective allowlist is unchanged by the swap.
+//
+// ONE behaviour DOES change, deliberately: the `|| ['http://localhost:3000']`
+// fallback is gone. An unset or empty CORS_ORIGIN used to grant CREDENTIALED
+// cross-origin access to localhost:3000 on a production box; web-core's config
+// has no default origins, so an empty value now admits NOTHING — including the
+// portal's own pages, silently, until something makes a credentialed call.
+// CORS_ORIGIN must therefore be non-empty on every box before a reload.
+// Pinned by tests/integration/cors.test.js; the H-7 null-origin refusal and
+// credentials:true live in web-core's config unchanged.
+app.use(cors(webCore.corsConfig));
 
 // Request logging. Redact query-string tokens (?t= labels, ?k= display tokens)
 // from the logged URL so they never land in access logs ('dev' + 'combined'

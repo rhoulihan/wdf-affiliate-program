@@ -88,6 +88,17 @@ describe('T37 — credentialed CORS admits only the portal', () => {
     .set('Origin', origin)
     .set('Access-Control-Request-Method', 'GET');
 
+  // Task 44 made the allowlist env-only, so state the env this block measures
+  // rather than inheriting it: what Task 37 narrowed is now a value, not a
+  // literal in server.js, and a test that reads it from the ambient environment
+  // would pass or fail on a developer's .env.
+  const ORIGINAL_CORS_ORIGIN = process.env.CORS_ORIGIN;
+  beforeEach(() => { process.env.CORS_ORIGIN = PORTAL; });
+  afterEach(() => {
+    if (ORIGINAL_CORS_ORIGIN === undefined) delete process.env.CORS_ORIGIN;
+    else process.env.CORS_ORIGIN = ORIGINAL_CORS_ORIGIN;
+  });
+
   it('the portal origin is admitted (positive control — proves the CORS layer works)', async () => {
     const res = await preflight(PORTAL);
     expect(res.headers['access-control-allow-origin']).toBe(PORTAL);
@@ -228,10 +239,15 @@ describe('T37 — server.js host lists name only the portal', () => {
     expect([...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual([PORTAL]);
   });
 
-  it('the CORS app-origin allowlist is the portal alone', () => {
-    const block = src.match(/const wavemaxDomains = \[([\s\S]*?)\];/);
-    expect(block).toBeTruthy();
-    expect([...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual([PORTAL]);
+  // Plan 3 Task 44 folded the one-entry `wavemaxDomains` array into the shared
+  // env-driven config, so there is no in-source origin list left to assert on.
+  // What Task 37 bought is now held by the ENV: the live refusals above are the
+  // behavioural proof, and this is the structural one — no literal origin may
+  // reappear anywhere in the CORS wiring.
+  it('the CORS policy is env-driven, with no in-source origin list', () => {
+    expect(src).toContain('app.use(cors(webCore.corsConfig));');
+    expect(src).not.toMatch(/const wavemaxDomains = \[/);
+    expect(src).not.toMatch(/const corsOptions = \{/);
   });
 });
 
