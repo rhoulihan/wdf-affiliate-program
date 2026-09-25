@@ -6,14 +6,13 @@
 // stored, and compared against the stored hash on reset. 1-hour TTL.
 //
 // Operators don't have passwords (PIN-based) — resetPassword rejects them.
-// Administrators use the model's pre-save bcrypt hook; affiliates/customers
-// get PBKDF2 via encryptionUtil.
+// Every other type sets its new password through the model's own
+// setPassword(), so this service holds no per-type hashing knowledge.
 
 const crypto = require('crypto');
 const Affiliate = require('../models/Affiliate');
 const Administrator = require('../models/Administrator');
 const Operator = require('../models/Operator');
-const encryptionUtil = require('../utils/encryption');
 const emailService = require('../utils/emailService');
 
 // PR 7: customers are registration-only (no password/login), so there's no
@@ -120,15 +119,23 @@ async function resetPassword({ token, userType, password }) {
     );
   }
 
-  if (userType === 'administrator') {
-    // Administrator model's pre-save hook bcrypts the plain password.
-    user.password = password;
-  } else {
-    // Affiliates + customers use PBKDF2 via encryptionUtil.
-    const { salt, hash } = encryptionUtil.hashPassword(password);
-    user.passwordSalt = salt;
-    user.passwordHash = hash;
+  // ONE path for every user type. The previous per-type branch assigned
+  // `user.password` for administrators on the belief that a pre-save hook
+  // bcrypted it. That hook never existed: Administrator does not declare a
+  // `password` path at all, and its pre('save') only touches updatedAt/adminId/
+  // permissions. Under strict:true the assignment was silently dropped, so the
+  // reset reported success, consumed the token, and left the old password live.
+  //
+  // Every model that reaches this line owns its hashing via setPassword(), so
+  // the service no longer needs to know how any of them store credentials
+  // (Administrator additionally records password history there).
+  if (typeof user.setPassword !== 'function') {
+    throw new PasswordResetError(
+      'unsupported_user_type',
+      `${userType} model does not implement setPassword()`, 500
+    );
   }
+  user.setPassword(password);
 
   user.resetToken = undefined;
   user.resetTokenExpiry = undefined;

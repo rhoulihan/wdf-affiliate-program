@@ -171,6 +171,24 @@ affiliateSchema.methods.canReceivePayments = function() {
   return this.isActive;
 };
 
+/**
+ * Set a new password, writing the PBKDF2 salt/hash this model actually stores.
+ *
+ * Callers MUST use this instead of assigning the `password` virtual: the
+ * pre('validate') hook above hashes only while `passwordHash` is still empty
+ * (i.e. at creation), so assigning `password` on an existing account is a
+ * silent no-op. Administrator exposes the same method, which is what lets
+ * passwordResetService drive every user type through one shared path instead
+ * of branching per type — the branch is what silently broke admin resets.
+ *
+ * @param {string} password Plaintext password to hash and store.
+ */
+affiliateSchema.methods.setPassword = function(password) {
+  const { salt, hash } = encryptionUtil.hashPassword(password);
+  this.passwordSalt = salt;
+  this.passwordHash = hash;
+};
+
 // ── H-5 account lockout (mirrors Administrator) ────────────────────────
 affiliateSchema.virtual('isLocked').get(function() {
   return !!(this.lockUntil && this.lockUntil > Date.now());
