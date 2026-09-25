@@ -99,6 +99,21 @@ const operatorSchema = new mongoose.Schema({
   // sparse: legacy/test operators without a code don't collide on null.
   scanCodeHmac: { type: String, unique: true, sparse: true },
   scanCodeSetAt: Date,
+  // Password-reset state used by server/services/passwordResetService.js, which is
+  // the ONLY live reset path and writes exactly these two names (as Affiliate
+  // already declares). They MUST be declared here: this schema is strict:true, so
+  // an undeclared path is SILENTLY DISCARDED on save() — no error, no warning. The
+  // token therefore never persisted, every emailed link failed verification with
+  // 400 "invalid or expired token", and the mint and the email both reported
+  // success. Administrator and operator password reset had never worked.
+  // Found by Plan 3 task 34's administrator pass on production, 2026-09-25.
+  //
+  // NOTE the legacy pair below (passwordResetToken / passwordResetExpires) plus
+  // generatePasswordResetToken(): dead. No production caller, zero live rows, and
+  // the method is exercised only by unit tests. Left in place here; flagged for
+  // removal rather than mixed into a fix for a live outage.
+  resetToken: String,
+  resetTokenExpiry: Date,
   passwordResetToken: String,
   passwordResetExpires: Date,
   passwordHistory: [{

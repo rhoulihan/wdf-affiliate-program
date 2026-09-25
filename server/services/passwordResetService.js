@@ -136,6 +136,9 @@ async function resetPassword({ token, userType, password }) {
 }
 
 module.exports = {
+  // Exported so tests can assert every declared type is actually supported
+  // end to end, rather than hardcoding a list that drifts from this one.
+  USER_TYPES,
   forgotPassword,
   resetPassword,
   PasswordResetError,
