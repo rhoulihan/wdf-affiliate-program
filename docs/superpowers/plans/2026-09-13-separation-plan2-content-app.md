@@ -1,5 +1,9 @@
 # Plan 2 — `crhs-corporate` becomes the multi-host content app (dark launch on `:3001`)
 
+> **Plan 3 closed this line of work (2026-09-25).** Anything this plan handed to the owner or to
+> counsel now lives in **`docs/superpowers/ESCALATIONS.md`** — the single register, one row per item,
+> every row owned. `npm run check:backlog` fails if `tasks/todo.md` regains an open item.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **Agentic-worker note (mandatory, applies to every task in this plan).** Each task is executed by a fresh worker with **no memory of this conversation and no knowledge of sibling tasks**. Everything a worker needs is inside its own task block. Before writing production code invoke `superpowers:test-driven-development`; before claiming a task complete invoke `superpowers:verification-before-completion`. Never mark a step done on an unrun command. If a file does not match the line numbers quoted in a task, STOP, re-read the file and locate the target BY CONTENT — Plan 1 shifted line numbers repeatedly. Line numbers here were read from the working trees on **2026-09-13**: affiliate `main` @ `70a60bc4`, web-core `main` @ `2dcd6ff` (tag `v0.2.0`), corporate `main` @ `8133667`.

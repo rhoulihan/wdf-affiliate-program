@@ -30,7 +30,8 @@
     "test:memory": "TZ=America/Chicago NODE_OPTIONS='--max-old-space-size=512' jest --runInBand --forceExit",
     "test:memory:batch": "./tests/runMemoryOptimizedTests.sh",
     "test:unit": "TZ=America/Chicago jest tests/unit --runInBand --forceExit",
-    "test:watch": "TZ=America/Chicago jest --watch"
+    "test:watch": "TZ=America/Chicago jest --watch",
+    "check:backlog": "bash scripts/check-backlog-empty.sh"
   },
   "repository": {
     "type": "git",

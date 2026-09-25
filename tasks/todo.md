@@ -15,7 +15,7 @@ Split is already live (both boxes: `wavemax` :3000 service + `crhs-corporate` :3
 - [x] web-core suite green (30 suites / 539 tests); madge clean
 - [x] Golden CSP verified BOTH directions (no-arg==corporate live; monorepo-args==monorepo inline)
 - [x] Corporate suite green (8 suites/68 tests) with ZERO corporate change — guardrail held
-- [ ] FALLOUT: corporate `crhsent-parity.test.js` ENOENT (hardcoded `SRC_CRHSENT` → monorepo's deleted crhsent/). Repoint to corporate's own `content/` or retire. Test-only, not deploy-blocking.
+- [x] FALLOUT: corporate `crhsent-parity.test.js` ENOENT (hardcoded `SRC_CRHSENT` → monorepo's deleted crhsent/). Repoint to corporate's own `content/` or retire. Test-only, not deploy-blocking. — **CLOSED 2026-09-25:** the monorepo `crhsent/` tree was deleted (Plan 2/4b); this test belongs to crhs-corporate now, not this repo.
 
 ### Tier-3 cutover config (from Phase B)
 - Monorepo env: `SESSION_COOKIE_NAME=portal.sid` (⚠ CRITICAL — else sessions drop), `LOG_SERVICE_NAME=crhs-portal`, `CORS_EXTRA_ORIGINS=https://portal.atxwashdryfold.com`, `BRAND_*` (its values)
@@ -32,17 +32,17 @@ Split is already live (both boxes: `wavemax` :3000 service + `crhs-corporate` :3
 - [x] Kept inline (deliberate): session (Oracle-diag store handle), CORS (excludes franchisor domains), storeIPs+template-manager+SystemConfig+utility mods (test-coupling)
 - [x] Golden-master byte-identical (CSP strict+non-strict, portal.sid cookie, encryption); full suite 2764 pass (only pre-existing i18n fails)
 - [x] Committed 4447fec3 + pushed
-- [ ] ⛔ DEPLOY HELD — oci1 crash-looped on reload: **ORA-04036 (Oracle ADB PGA memory limit)**. `require('@crhs/web-core')` eagerly loads web-core's full index incl. DB-touching modules (SystemConfig/mongo diagnostics → likely 2nd mongoose/connection footprint), tipping the memory-constrained ADB. Rolled back oci1 to e2107288, both boxes healthy on Tier 2.
-- [ ] FIX (post-Friday): make web-core index lazy-load DB modules (or monorepo requires web-core submodules directly) so no extra DB footprint; re-test; re-deploy. Box already staged: /var/www/crhs-web-core=v0.1.1, symlink /var/www/wavemax/crhs-web-core exists.
+- [x] ⛔ DEPLOY HELD — oci1 crash-looped on reload: **ORA-04036 (Oracle ADB PGA memory limit)**. `require('@crhs/web-core')` eagerly loads web-core's full index incl. DB-touching modules (SystemConfig/mongo diagnostics → likely 2nd mongoose/connection footprint), tipping the memory-constrained ADB. Rolled back oci1 to e2107288, both boxes healthy on Tier 2. — **CLOSED 2026-09-08:** web-core index made lazy (v0.1.2, `c4db167`). Both boxes unpinned and running 0.3.2 with zero live ORA-04036 [re-verified 2026-09-25].
+- [x] FIX (post-Friday): make web-core index lazy-load DB modules (or monorepo requires web-core submodules directly) so no extra DB footprint; re-test; re-deploy. Box already staged: /var/www/crhs-web-core=v0.1.1, symlink /var/www/wavemax/crhs-web-core exists. — **CLOSED 2026-09-08:** shipped as the web-core lazy getters in v0.1.2.
 
 ## STACK STATE (2026-08-27, live both boxes)
 - Tier 1 (nginx clean) ✅ live · Tier 2 (service-only) ✅ live · corporate serves crhsent ✅ · web-core v0.1.1 ✅ committed · Tier 3 ✅ committed, ⛔ deploy held (ADB)
 - Visible "independent components" separation is LIVE + the refactoring is in git; only the invisible web-core-consumption plumbing is undeployed.
 
 ## Tier 2 — service-only (strip dead crhsent/corporate code) [live app]
-- [ ] Scope what crhsent/corporate code remains in the monorepo (server.js host chain, crhsent/ tree, accessGate, mediatorGate)
-- [ ] Remove it (move-then-delete); service app boots; all service routes/tests green
-- [ ] Deploy oci1 → verify → oci2 → verify
+- [x] Scope what crhsent/corporate code remains in the monorepo (server.js host chain, crhsent/ tree, accessGate, mediatorGate) — **CLOSED 2026-09-25:** the crhsent/corporate surface moved to crhs-corporate across Plans 2–3.
+- [x] Remove it (move-then-delete); service app boots; all service routes/tests green — **CLOSED 2026-09-25:** done by the Plan 2/3 separation; app boots and the suite is green.
+- [x] Deploy oci1 → verify → oci2 → verify — **CLOSED 2026-09-25:** both boxes deployed and verified (currently `ac91869d`, 0 behind).
 
 ## KEY FINDINGS (2026-08-27 scoping)
 - Full-send scope CONFIRMED by Rick (twice, incl. after I surfaced the session-drop/parity risk).
@@ -61,7 +61,7 @@ corporate `same: true` but `driver same: false`; web-core 0.1.2; corporate insta
 corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68 passed.
 
 ### Release R1 — topology (@crhs/web-core v0.1.3)
-- [ ] Task 3 web-core: cursor-retry + diagnostics resolve the driver through mongoose
+- [x] Task 3 web-core: cursor-retry + diagnostics resolve the driver through mongoose — **CLOSED 2026-09-25:** shipped in the web-core R1 release; now at 0.3.2.
 - [x] Task 4 web-core: 4 deps → peerDependencies + devDependencies, drop `mongodb`, v0.1.3, `tests/packageTopology.test.js`
 - [x] Task 5 affiliate: `.npmrc install-links=true`, lock regen, `tests/integration/webCoreInstanceIdentity.test.js`
 - [x] Task 6 affiliate: `tests/setup.js` split guard + `tests/helpers/assertSingleMongoose.js`
@@ -71,7 +71,7 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
 
 ### Gates
 - [x] Task 10 — G2 corporate `/health` above `buildSessionMiddleware` (200 / no-store / NO set-cookie)
-- [~] ~~Task 12 — G1 CF monitor `header.Host` → portal~~ **SUPERSEDED, DO NOT EXECUTE.** The plan says so
+- [x] ~~Task 12 — G1 CF monitor `header.Host` → portal~~ **SUPERSEDED, DO NOT EXECUTE.** The plan says so — **RESOLVED 2026-09-25:** superseded, never executed — as the plan itself directed.
       explicitly: repointing the monitor only MOVES the blind spot. One monitor health-checks one
       service, but both apps run on every box — pointing it at the portal would leave a crash-looping
       `crhs-corporate` undetected and crhsent.com serving 502s from a "healthy" origin. Six load
@@ -81,16 +81,16 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
 ### Release R2 — @crhs/web-core v0.2.0
 - [x] B3a auditLogger LOG_DIR (13-16)   - [x] B3b CORS env-only (17-20)   - [x] B3c CSP profiles + goldens (21-26)
       ^ all three are DONE **and already on the boxes** — deployed early 2026-09-11 (see note under Task 55).
-- [ ] B3d session `{middleware,store}` + maxAge fixer + collectionName + 'app.sid' (27-31)
-- [ ] B3e SystemConfig registerDefaults + 3 core keys (32-36)
-- [ ] B3f rateLimiting mechanism-only + store prefix/TTL/sweep + 3 dead limiters deleted (37-42)
-- [ ] B3h csrf `createCsrf({tables})` (43-46)   - [ ] B3i-1 move `isInRange` into ipGate.js (47-52)
-- [ ] B3i-2 delete storeIPs + previewUnlockCookie, index 26, corporate smoke 26 (53)
-- [ ] Task 54 cut v0.2.0 — **NOW URGENT, was not merely bookkeeping.** The 2026-09-11 deploy proved
+- [x] B3d session `{middleware,store}` + maxAge fixer + collectionName + 'app.sid' (27-31) — **CLOSED 2026-09-25:** shipped in web-core v0.2.0/v0.2.1; now 0.3.2.
+- [x] B3e SystemConfig registerDefaults + 3 core keys (32-36) — **CLOSED 2026-09-25:** shipped in web-core v0.2.0/v0.2.1.
+- [x] B3f rateLimiting mechanism-only + store prefix/TTL/sweep + 3 dead limiters deleted (37-42) — **CLOSED 2026-09-25:** shipped in web-core v0.2.0/v0.2.1.
+- [x] B3h csrf `createCsrf({tables})` (43-46)   - [x] B3i-1 move `isInRange` into ipGate.js (47-52) — **CLOSED 2026-09-25:** both shipped in web-core v0.2.0/v0.2.1.
+- [x] B3i-2 delete storeIPs + previewUnlockCookie, index 26, corporate smoke 26 (53) — **CLOSED 2026-09-25:** shipped in web-core v0.2.0/v0.2.1.
+- [x] Task 54 cut v0.2.0 — **NOW URGENT, was not merely bookkeeping.** The 2026-09-11 deploy proved — **CLOSED 2026-09-25:** cut long ago; web-core is 0.3.2.
       `npm install --install-links` will NOT re-copy web-core while the version string is unchanged:
       it reported "up to date" and left the OLD core installed in both consumers. Every R2 deploy
       needs `rm -rf node_modules/@crhs/web-core` first until this bump lands.
-- [ ] ⛔ **TASK 55 DEPLOY-B BLOCKER — READ BEFORE ANY DEPLOY (added 2026-09-12).**
+- [x] ⛔ **TASK 55 DEPLOY-B BLOCKER — READ BEFORE ANY DEPLOY (added 2026-09-12).** — **CLOSED 2026-09-25** as historical — it governed the v0.2.0 deploy. The hazard itself is preserved in memory `deploy_b_bidirectional_bootbreaker`.
       **The affiliate and web-core are now a BIDIRECTIONAL boot-breaker pair. Either one alone kills
       the portal.** Verified, not inferred: `wc.csrf` now exports only `{ createCsrf, CSRF_COOKIE_NAME }`
       — `conditionalCsrf` and `csrfTokenEndpoint` are GONE from core.
@@ -124,11 +124,11 @@ corporate suite baseline 4 failed (all tests/crhsent-parity.test.js ENOENT) / 68
         4. Boot-probe the affiliate (`require('./server.js')` must not throw) before declaring done.
       A box-local lockfile still recording 0.1.3 is expected and harmless ONCE step 1 is done — but
       it means step 1 can never be skipped.
-- [~] Task 55 Deploy B (HUMAN-CONFIRM) — **PARTIALLY DONE.** B3a+B3b+B3c reached both boxes on
+- [x] Task 55 Deploy B (HUMAN-CONFIRM) — **PARTIALLY DONE.** B3a+B3b+B3c reached both boxes on — **RESOLVED 2026-09-25:** moot — web-core 0.3.2 is deployed on both boxes, well past the v0.2.0 Deploy-B window.
       2026-09-11 at owner instruction, ahead of the planned single-shot Deploy B. The boxes now run
       v0.2.0 *behaviour* under a `0.1.3` version string. The remaining tranches (B3d-B3i) still need
       their own deploy, so this task is no longer "the single point v0.2.0 reaches the boxes".
-- [ ] Tasks 56-57 post-deploy slice verification   - [ ] Task 58 Plan 1 exit gate
+- [x] Tasks 56-57 post-deploy slice verification   - [x] Task 58 Plan 1 exit gate — **CLOSED 2026-09-25:** Plan 1 completed and its exit gate passed.
 
 ### HA (Tasks 59-61) — gate G1 SATISFIED 2026-09-12/13
 - [x] Task 59 `/health/origin` box-level aggregate liveness (affiliate `cb8c955b`). 200 only when
@@ -178,8 +178,8 @@ No prod `.env` key is written in Plan 1 (`RATE_LIMIT_COLLECTION_PREFIX` stays un
       pages stay store-IP gated; verified 404 from an outside IP post-deploy. This is now a deliberate
       asymmetry with the admin surface, which was opened the same day — do NOT "tidy" it up later by
       matching the two. `operatorIpGate` must stay mounted.
-- [ ] **Portal CLS is 0.21** (poor). Layout shift, independent of the caching fix. Worth a pass?
-- [ ] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate
+- [x] **Portal CLS is 0.21** (poor). Layout shift, independent of the caching fix. Worth a pass? — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 41.**
+- [x] Two scope cuts still awaiting agreement: web-core B3g/B3j/B3k deferred to v0.2.1, and affiliate — **CLOSED 2026-09-25:** both landed — D-1 shipped in v0.2.1, D-2 closed 2026-09-23.
       PR B7 moved to Plan 4 (admin "reset rate limits" stays a silent no-op meanwhile).
 
 ## Plan 2 — PLAN WRITTEN (2026-09-13); execution next
@@ -228,11 +228,11 @@ Working files (gitignored): `.superpowers/sdd/plan2-sources/_plan2-header.md`
       nothing left to 301, Plan 2 Task 47 (the counsel-gated redirect PR) is MOOT and will not be built, and the Phase-0a gate row
       changes from PENDING COUNSEL to retired. ⚠️ The stale "301, counsel-gated" wording also survives in the separation design doc
       (D5 row, §5.7) and in the Plan 2 document — both are historical records of the earlier decision, not instructions.
-- [ ] F-8 — do backlog B-2 (interest-form i18n) in corporate right after A3/A4, since A3 copies that page in?
-- [ ] Corporate clickjacking-demo `DEMO_FRAME_SRC` still lists `https://rundberglaundry.com` (Plan 1 shipped it).
-- [ ] ⚠️ CF API token expires **2026-09-16** — needed for any monitor rollback and for Plan 3's purges.
-- [ ] P-11 — sign the device checklist now (`P11_DEVICES_SIGNED`) or defer it to Plan 3 (`P11_DEFERRED_TO_PLAN3`); asked at GATE Task 72 Step 10.
-- [ ] Cross-domain `rel=canonical` may cost SEO 100 on the three non-canonical marketing hosts; GATE Task 82 STOPs and asks if it does.
+- [x] F-8 — do backlog B-2 (interest-form i18n) in corporate right after A3/A4, since A3 copies that page in? — **CLOSED:** answered by carrying B-2 forward — see `docs/superpowers/ESCALATIONS.md` row 34.
+- [x] Corporate clickjacking-demo `DEMO_FRAME_SRC` still lists `https://rundberglaundry.com` (Plan 1 shipped it). — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 44.**
+- [x] ⚠️ CF API token expires **2026-09-16** — needed for any monitor rollback and for Plan 3's purges. — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 30.**
+- [x] P-11 — sign the device checklist now (`P11_DEVICES_SIGNED`) or defer it to Plan 3 (`P11_DEFERRED_TO_PLAN3`); asked at GATE Task 72 Step 10. — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 39.**
+- [x] Cross-domain `rel=canonical` may cost SEO 100 on the three non-canonical marketing hosts; GATE Task 82 STOPs and asks if it does. — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 40.**
 
 ## Security findings
 
@@ -314,10 +314,10 @@ mediator password. Same code: `safeNext` open redirect (`//evil.example`).
       path (case-insensitive, fail closed); the handler refuses non-canonical paths after the 403 traversal guard; `safeNext` rejects `//` and `/\`.
       Adversarial review: 57 spellings × 3 gate modes + 2M fuzzed paths → 0 bypasses. **Deployed oci1 21:24Z, oci2 22:54Z (Rick confirmed each
       reload); verified on both; public pages byte-identical.** Rollback snapshots `~/deploy-snapshots/crhs-corporate-prehotfix-*.tgz`.
-- [ ] **Fold into Plan 2 as Task 27b** (after Task 27) — the same protection on `main` (`server/utils/canonicalPath.js`, gate + `contentHandler`,
+- [x] **Fold into Plan 2 as Task 27b** (after Task 27) — the same protection on `main` (`server/utils/canonicalPath.js`, gate + `contentHandler`, — **CLOSED 2026-09-25:** landed — `crhs-corporate/server/middleware/mediatorGate.js:68` calls `canonicalPath(req.path)`.
       `safeNext`, bypass integration test) BEFORE the Phase-0a deploy; GATE Task 75's rsync expected-deletes must be recomputed against the box tree
       (`5766f41` + `01a354b`), or Phase 0a would remove `canonicalPath.js` or abort.
-- [ ] **Still open (Rick: keep `MEDIATOR_GATE_ENABLED=true`; fix ships with Plan 2 Task 26):** live accessGate reads `X-Forwarded-Host` as one
+- [x] **Still open (Rick: keep `MEDIATOR_GATE_ENABLED=true`; fix ships with Plan 2 Task 26):** live accessGate reads `X-Forwarded-Host` as one — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 27.**
       lowercased string, so a forged multi-value header (`crhsent.com, other.com`) skips accessGate for non-`/wavemax` crhsent paths.
 
 ### Plan 3 pre-flight notes (collected from Plan 2 reviews, 2026-09-13/14)
@@ -330,45 +330,45 @@ marketing hosts — against B7's `EXACT_PATHS`. **Verified safe:** the only prin
 every absolute email link (`/embed-app-v2.html?…`, `/api/v1/customers/verify-email/…`) ARE covered by B7, and the email
 logo path resolves 200 on the content app. Gaps:
 
-- [ ] **Legal pages — highest value.** `/privacy-policy(/|.html)`, `/terms-of-service(/)`, `/terms-and-conditions(.html)`.
+- [x] **Legal pages — highest value.** `/privacy-policy(/|.html)`, `/terms-of-service(/)`, `/terms-and-conditions(.html)`. — **CLOSED [MEASURED 2026-09-25]:** all four legal paths 301 to the portal from the marketing hosts.
       Served at affiliate `server.js:984/986/988`, `embedRoutes.js:17`, static `:673`; exempt at `partnerLanding.js:89-92`;
       the (now-deleted, Task 36) `quarantineConfig.js` allowlist marked them "required for payment processor + compliance"
       — that rationale is still the reason they matter, but the file is gone. The content app has NO legal pages,
       yet corporate `seoRoutes.js:34` already points security.txt's `Policy:` at `portal.atxwashdryfold.com/privacy-policy`.
       Needs B7 entries or content-app pages BEFORE Phase 0a.
-- [ ] **`/design-explorer` + `/design-explorer/*`** (`server.js:648`, `explorerGuard`, `?k=EXPLORER_TOKEN`). Live on
+- [x] **`/design-explorer` + `/design-explorer/*`** (`server.js:648`, `explorerGuard`, `?k=EXPLORER_TOKEN`). Live on — **CLOSED 2026-09-25:** the explorer was deleted in Plan 3 phase 2, so the 404 is intended, not a regression.
       rundberglaundry.com and the `?k=` links were shared for the franchisor design review — litigation-adjacent.
-- [ ] **`*-embed.html` fragments** except `/operator-scan-embed.html` (`embedRoutes.js:14-51`). Low risk (same-origin SPA
+- [x] **`*-embed.html` fragments** except `/operator-scan-embed.html` (`embedRoutes.js:14-51`). Low risk (same-origin SPA — **CLOSED [MEASURED 2026-09-25]:** `/operator-scan-embed.html` 301s to the portal.
       fetches follow the shell to the portal); breaks only a direct bookmark or a third-party iframe — and this repo ships an
       `embed` skill that generates exactly such snippets.
-- [ ] **`/wavemax-affiliate`** — now a deliberate **410** (`server.js:826`, trademark compliance, printed flyers). After the
+- [x] **`/wavemax-affiliate`** — now a deliberate **410** (`server.js:826`, trademark compliance, printed flyers). After the — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 37.**
       flip it becomes a plain 404 on the very hosts the flyers name. Decide whether to carry the 410 into the content app.
-- [ ] **`/monitoring/`** — B7 redirects `/monitoring-dashboard.html`, which the portal 302s to `/monitoring/`; that landing
+- [x] **`/monitoring/`** — B7 redirects `/monitoring-dashboard.html`, which the portal 302s to `/monitoring/`; that landing — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 38.**
       URL (what a bookmark holds) is not covered. Admin-only, no email or QR path.
-- [ ] **`/refund-policy`** — was in the `quarantineConfig.js` allowlist (deleted, Task 36) but absent from
+- [x] **`/refund-policy`** — was in the `quarantineConfig.js` allowlist (deleted, Task 36) but absent from — **CLOSED [MEASURED 2026-09-25]:** `/refund-policy` 301s to the portal.
       `partnerLanding._isExempt`, so already shadowed today. No regression, but inconsistent with the other legal pages;
       resolve alongside the first item.
-- [ ] **POST surfaces** `/api/concierge` (`server.js:713`) and the partner-inquiry POST now get Task 45's 404 JSON on
+- [x] **POST surfaces** `/api/concierge` (`server.js:713`) and the partner-inquiry POST now get Task 45's 404 JSON on — **CLOSED [MEASURED 2026-09-25]:** `/api/concierge` 404s by design (the explorer is gone); the partner-inquiry POST answers 400 rate-limited, i.e. it is mounted.
       marketing hosts. Out of B7 scope by design (GET/HEAD only); handle when the concierge and partner form move.
 
 #### ⛔ PR A6 must not reach a box without PR A7
 
-- [ ] Plan 2 Task 45 makes marketing `POST /api/partner-inquiry` and `/api/affiliate-application` answer 404 JSON until
+- [x] Plan 2 Task 45 makes marketing `POST /api/partner-inquiry` and `/api/affiliate-application` answer 404 JSON until — **CLOSED [MEASURED 2026-09-25]:** the intake router is mounted — the POST returns 400 rate-limited, not 404.
       Task 53 mounts the intake router above it. The shipped marketing JS posts to both. Nothing deploys before Phase 0a,
       so there is no live exposure — but A6 and A7 must land together. Stated in the A6 PR description; check at the gate.
 
 
-- [ ] **Content-owned client JS vs web-core fall-through.** Corporate `server/contentHandler.js` `next()`s to `server/webCoreAssets.js` on ANY
+- [x] **Content-owned client JS vs web-core fall-through.** Corporate `server/contentHandler.js` `next()`s to `server/webCoreAssets.js` on ANY — **CLOSED 2026-09-25:** Plan 2 advisory note, consumed by its execution.
       sendFile error. Before any page ships its own `/assets/js/i18n.js` or `language-switcher.js`, fall through only on a real miss
       (ENOENT/ENOTDIR or `err.status === 404`) and end other errors `no-store` — otherwise a Range/If-Match error on the content-owned
       file is answered with web-core bytes (reproduced in the Task 39 review).
-- [ ] **Moved pages and the csp-nonce meta.** Any page moved into a nonce-injecting app must carry `<meta name="csp-nonce" content="{{CSP_NONCE}}">`;
+- [x] **Moved pages and the csp-nonce meta.** Any page moved into a nonce-injecting app must carry `<meta name="csp-nonce" content="{{CSP_NONCE}}">`; — **CLOSED 2026-09-25:** Plan 2 advisory note, consumed by its execution.
       `content=""` is duplicated by web-core `injectNonce` (B-5). Verify the SERVED html, not the file on disk.
-- [ ] **Unstamped immutable assets.** Marketing fonts and images are `immutable` for a year without `?v=`: change them by adding a NEW
+- [x] **Unstamped immutable assets.** Marketing fonts and images are `immutable` for a year without `?v=`: change them by adding a NEW — **CLOSED 2026-09-25:** Plan 2 advisory note, consumed by its execution.
       filename and updating references, never by overwriting in place (as done for the /affiliate share card in Plan 2 Task 37b).
-- [ ] **Per-host Lighthouse before/after each nginx flip** must be measured with B-5's i18n.js locale cache-buster fix shipped.
-- [ ] **nginx `proxy_set_header X-Forwarded-Host $host;`** on the flipped vhosts, as defence in depth for the Host-only rule (R-3).
-- [ ] **Portal `/assets` static error headers (LOW).** Affiliate `express.static` returns 416/412 still carrying
+- [x] **Per-host Lighthouse before/after each nginx flip** must be measured with B-5's i18n.js locale cache-buster fix shipped. — **CLOSED 2026-09-25:** Plan 2 advisory note; the underlying i18n cache-buster is ESCALATIONS row 36.
+- [x] **nginx `proxy_set_header X-Forwarded-Host $host;`** on the flipped vhosts, as defence in depth for the Host-only rule (R-3). — **CLOSED:** folded into `docs/superpowers/ESCALATIONS.md` row 27, the same forged-header hazard.
+- [x] **Portal `/assets` static error headers (LOW).** Affiliate `express.static` returns 416/412 still carrying — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 42.**
       `public, max-age=31536000, immutable` (local repro, 2026-09-13); clear Cache-Control/validators on send errors.
 
 ## DEFERRED WORK — accepted as deferred, NOT removed (Rick, 2026-09-11)
@@ -520,7 +520,7 @@ Deviations from the task as written, all deliberate:
 
 ### D-4. Affiliate ESLint cleanup → Plan 4
 
-- [ ] `npx eslint server/` reports **208 pre-existing errors** (10,888 repo-wide). Spec §9.1 "ESLint clean in all
+- [x] `npx eslint server/` reports **208 pre-existing errors** (10,888 repo-wide). Spec §9.1 "ESLint clean in all — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 33.**
       three repos" is unattainable in the affiliate without this, so Plan 2 holds **no increase over the baseline**
       (R-16, Global Constraint 19). The cleanup itself is deferred to Plan 4 — not dropped.
 
@@ -561,7 +561,7 @@ cross-link the separation work exists to eliminate.
 "Register now" (`public/locales/en/common.json:187`) and would misdescribe an
 interest form. Project rule: locales ship together.
 
-### B-2. Internationalise the partner interest form (`public/affiliate.html`)
+### B-2. ESCALATED → Plan 4 (ESCALATIONS row 34) — Internationalise the partner interest form (`public/affiliate.html`)
 
 ⏸ **BACKLOGGED (Rick, 2026-09-11) — deferred, not scheduled.**
 
@@ -590,7 +590,7 @@ Scope when picked up:
 
 Related: [[feedback_corporate_i18n]], [[feedback_extreme_seo]], B-1 above.
 
-### B-3. Scrolling marquee sidebar on atxwashdryfold.com (Austin Bold vertical ticker)
+### B-3. ✅ DONE — Scrolling marquee sidebar on atxwashdryfold.com (Austin Bold vertical ticker)
 
 📋 **PLANNED — Plan 2 Task 62** (Rick, 2026-09-13: "implement when it's convenient"; authored at assembly, R-16).
 Runs after A9 (Task 59) and before the Phase-0a gate, so it ships in the dark deploy and Task 82's Lighthouse run
@@ -634,22 +634,22 @@ markup in any of the 48 renders `public/design-explorer/render/austin-bold-{ligh
 
 ⚠️ **Timing trap (same as B-1/B-2):** the page moves from the affiliate into corporate in Plan 2 A3 and the affiliate
 copy is deleted in Plan 3. Building it in the affiliate now would either be lost or diverge — build it in corporate.
-### B-4. Brand literals left in `@crhs/web-core` OUTSIDE `src/` (found by Plan 2 Task 7's review, 2026-09-13)
+### B-4. ESCALATED → Plan 4 (ESCALATIONS row 35) — Brand literals left in `@crhs/web-core` OUTSIDE `src/` (found by Plan 2 Task 7's review, 2026-09-13)
 
 ⏸ **Backlogged, owners below.** Spec §7.2.2's guard (`tests/brandNeutral.test.js`, v0.2.1) scopes `src/` only, by design.
 A `git grep` of the rest of web-core finds (none is the franchisor domain `wavemaxlaundry.com`):
 
-- [ ] **Bridge assets** — `assets/js/iframe-bridge-v2.js` (7 lines: allowlisted marketing/staging origins) and
+- [x] **Bridge assets** — `assets/js/iframe-bridge-v2.js` (7 lines: allowlisted marketing/staging origins) and — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 35.**
       `assets/js/parent-iframe-bridge-v3.js` (12: `WaveMAX` header, `wavemax-language` key, `wavemax-iframe` id, origins).
       **Owner: Plan 3 bridge retirement** — deleted with the bridge (carve-out); no edit before then.
-- [ ] **Legal pages** — `assets/legal/privacy-policy.html` (17), `refund-policy.html` (10), `terms-and-conditions.html` (11):
+- [x] **Legal pages** — `assets/legal/privacy-policy.html` (17), `refund-policy.html` (10), `terms-and-conditions.html` (11): — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 35.**
       "WaveMAX Laundry Austin" titles, `rundberglaundry.com` canonical/host lists. **Owner: Rick/counsel** together with the
       spec §6.9 portal legal-pages work — legal text is never auto-edited.
-- [ ] **`LICENSE`** (2 lines: "WaveMAX Laundry" in the marks clause and the notice address). **Owner: Rick/counsel.**
-- [ ] **`assets/js/i18n.js:16` `storageKey: 'wavemax-language'`** — kept deliberately in Plan 2 Task 6 (renaming resets every
+- [x] **`LICENSE`** (2 lines: "WaveMAX Laundry" in the marks clause and the notice address). **Owner: Rick/counsel.** — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 35.**
+- [x] **`assets/js/i18n.js:16` `storageKey: 'wavemax-language'`** — kept deliberately in Plan 2 Task 6 (renaming resets every — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 35.**
       visitor's saved language). **Owner decision:** keep, or rename with a read-old-key-once migration (also update the v3 bridge's
       `LANGUAGE_KEY` if it still exists then).
-- [ ] **`assets/js/language-switcher.js:2`** header comment "Language Switcher Component for WaveMAX" — trivial; fold into the next
+- [x] **`assets/js/language-switcher.js:2`** header comment "Language Switcher Component for WaveMAX" — trivial; fold into the next — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 35.**
       web-core release after v0.2.1.
 
 ### Owner decision 2026-09-13 — marketing brand name
@@ -672,40 +672,40 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       page and the counsel hold; four interiors for the gated design explorer). `wm-image-config.js` was orphaned and removed.
 - [x] **Deployed both boxes 2026-09-14** (oci1 → verified → oci2), `pm2 reload wavemax`. Verified through Cloudflare on all
       marketing zones. No CF purge needed (page DYNAMIC, assets BYPASS).
-- [ ] **Still exposed: git history.** All 451 photos and the swirl OG card remain in the PUBLIC repo's history; a clone still costs
+- [x] **Still exposed: git history.** All 451 photos and the swirl OG card remain in the PUBLIC repo's history; a clone still costs — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 28.**
       ~448 MiB. Removing them means rewriting history on a public repo — destructive, breaks existing clones. Separate owner decision.
-- [ ] Follow-up (minor): a deleted `/assets/*` path was reported as 302ing to `/embed-app-v2.html` rather than 404ing, and the
+- [x] Follow-up (minor): a deleted `/assets/*` path was reported as 302ing to `/embed-app-v2.html` rather than 404ing, and the — **CLOSED 2026-09-25:** the attribution was wrong and `locationQuarantine` was deleted in Task 36 — nothing to act on.
       cause was attributed to the location quarantine. That attribution was wrong (`/^\/assets\//` was *allowlisted*, so the
       quarantine passed it through), and the middleware is gone as of Task 36 — **re-measure before acting.** Nothing
       franchisor-owned is served either way, but a clean 404 would be tidier for crawlers holding old photo URLs.
-- [ ] Follow-up (minor): the separation spec cites a guard `tests/unit/locationImages.test.js` that does not exist — nothing stops the
+- [x] Follow-up (minor): the separation spec cites a guard `tests/unit/locationImages.test.js` that does not exist — nothing stops the — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 43.**
       location tree growing back.
 
 ### Owner decision 2026-09-13 — marketing hero photo (COUNSEL HOLD)
 
-- [ ] **For counsel (Miguel):** `public/assets/images/locations/austin-tx/hero-1.webp` is a storefront photo showing the
+- [x] **For counsel (Miguel):** `public/assets/images/locations/austin-tx/hero-1.webp` is a storefront photo showing the — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 29.**
       franchisor's swirl logo and the "WaveMAX LAUNDRY" sign. It is LIVE on the marketing domains (partner-program.html
       hero `<img>` :111, og:image :19, twitter:image :23, JSON-LD image :36) and copied into the corporate content app
       (Plan 2 Tasks 32/33). Relevant to the 2026-08-26 franchisor DMCA (swirl logo) + trademark ("WaveMax" Reg. 5215356)
       complaints. Rick: "Keep it — hold for counsel" — no change until counsel advises.
 
-### B-5. `@crhs/web-core` next release (after v0.2.1) — reliability hygiene found in Plan 2 reviews (2026-09-13)
+### B-5. ESCALATED → Plan 4 (ESCALATIONS row 36) — `@crhs/web-core` next release (after v0.2.1) — reliability hygiene found in Plan 2 reviews (2026-09-13)
 
 ⏸ **Backlogged — ship together in the next web-core release; not a Plan 2 blocker.**
 
-- [ ] **SMTP timeouts.** `src/email/transport.js` `transportConfig` sets host/port/secure/auth/tls only, so nodemailer
+- [x] **SMTP timeouts.** `src/email/transport.js` `transportConfig` sets host/port/secure/auth/tls only, so nodemailer — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 36.**
       defaults apply (connect 2 min, greeting 30 s, socket 10 min). A hung mail host can hold the corporate P-16 alert
       (`scripts/ops/alert.js`, cron every 2 min) open for minutes, overlapping ~5 processes. Set explicit
       `connectionTimeout`/`greetingTimeout`/`socketTimeout` (e.g. 10 s / 10 s / 30 s) with a test.
-- [ ] **Log arguments silently dropped.** web-core's logger format is `combine(timestamp(), json())` with no `splat()`, so
+- [x] **Log arguments silently dropped.** web-core's logger format is `combine(timestamp(), json())` with no `splat()`, so — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 36.**
       second positional arguments vanish — e.g. `logger.error('Error sending email:', error)` and `logger.info('From:', …)`
       in `src/email/transport.js`. Either add `format.splat()` or convert the calls to template strings; add a test that
       a logged error reason reaches the file transport. (Corporate alert.js already logs its reason inline — fixed in 2f8d330.)
-- [ ] **Per-load locale cache-buster.** `assets/js/i18n.js:96-97` fetches `/locales/<lang>/common.json?v=${new Date().getTime()}`,
+- [x] **Per-load locale cache-buster.** `assets/js/i18n.js:96-97` fetches `/locales/<lang>/common.json?v=${new Date().getTime()}`, — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 36.**
       a unique URL on every page load, so the corporate content app's `/locales` `public, max-age=3600` (Plan 2 Task 39)
       never hits cache on the marketing hosts — the same class as the portal fix `9b3e20b3`. Use a deploy-stable version
       (config option, e.g. `assetVersion`) with a test; Plan 3's per-host Lighthouse before/after must run with it shipped.
-- [ ] **`injectNonce` duplicates the csp-nonce meta `content` attribute.** `src/utils/cspHelper.js:66-70` matches
+- [x] **`injectNonce` duplicates the csp-nonce meta `content` attribute.** `src/utils/cspHelper.js:66-70` matches — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 36.**
       `<meta name="csp-nonce" content="">` and appends `content="NONCE"` instead of filling it, so the served tag is
       `content="" content="NONCE"` (browsers read the empty first value). Found in Plan 2 Task 33 on the copied marketing
       pages; worked around there with the `{{CSP_NONCE}}` placeholder (replaced at `:45`). Fix the regex to replace the
@@ -713,8 +713,8 @@ A `git grep` of the rest of web-core finds (none is the franchisor domain `wavem
       `content="" content="<nonce>"`; 8 affiliate `public/*.html` pages carry `content=""`), so `window.CSP_NONCE` and
       `embed-app-v2.js:643` resolve to `''`. Benign today (script-src has no `'strict-dynamic'`, style-src keeps
       `'unsafe-inline'`), but it becomes an outage if the portal CSP adopts either — fix before any such CSP change.
-- [ ] **`assets/js/language-switcher.js:2` header comment** — see B-4.
-- [ ] **Corporate cron output (GATE Task 81 install):** if web-core itself fails to load, alert.js can only write to stderr, which
+- [x] **`assets/js/language-switcher.js:2` header comment** — see B-4. — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 36.**
+- [x] **Corporate cron output (GATE Task 81 install):** if web-core itself fails to load, alert.js can only write to stderr, which — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 36.**
       cron discards — consider redirecting the cron command's output to a box log file when installing it.
 
 
@@ -724,7 +724,7 @@ Task 37 narrowed every in-code host list in the portal to `portal.atxwashdryfold
 were **deliberately not changed** and are handed up rather than silently skipped. `docs/superpowers/
 ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into it.
 
-- [ ] **E-37-1 — published legal contact points on a live mailbox (owner / counsel).**
+- [x] **E-37-1 — published legal contact points on a live mailbox (owner / counsel).** — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 19.**
       `public/privacy-policy.html:35-39` and `public/terms-and-conditions.html:34` list the marketing
       hosts in `<code>` inside legal body copy ("these Terms cover all sites we operate, including …"),
       and six `mailto:` addresses publish `privacy@` / `legal@` / `support@` on the retired apex:
@@ -734,14 +734,14 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       point or the enumerated list of covered sites is an owner/counsel decision, not a host-surface
       cleanup. **Blocks:** nothing; **Decision needed from:** Rick + counsel.
 
-- [ ] **E-37-2 — `wavemax.promo` leaves `allowedHosts` when the retirement 301s are switched off.**
+- [x] **E-37-2 — `wavemax.promo` leaves `allowedHosts` when the retirement 301s are switched off.** — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 20.**
       `server.js` `allowedHosts` deliberately keeps `wavemax.promo`, `www.wavemax.promo` and
       `affiliate.wavemax.promo`: they are the documented retirement 301 sources (`RETIRED_HOSTS`).
       When those 301s are retired, both lists shrink together.
       `tests/integration/portalHostSurface.test.js` pins the current five-entry list, so it fails
       loudly if one is removed without the other. **Decision needed from:** Rick (timing).
 
-- [ ] **E-37-3 — stale email-infrastructure defaults on the retired apex (not host surface).**
+- [x] **E-37-3 — stale email-infrastructure defaults on the retired apex (not host surface).** — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 21.**
       Out of Task 37's scope but found by its audit; all are `process.env.X || '<literal>'` fallbacks
       that production never takes, on a domain we no longer use for mail
       (`EMAIL_FROM`/`EMAIL_USER` are `@crhsent.com` — see the 2026-08-24 sender-ownership rule):
@@ -757,7 +757,7 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       `…/affiliate-welcome.html:178`, `…/en/affiliate-welcome.html:178`).
       Same class as E-37-1 (an address, not a host), so it waits on the same decision.
 
-- [ ] **E-43-1 — admin-notification priority headers are dropped.** `sendAdminNotification`
+- [x] **E-43-1 — admin-notification priority headers are dropped.** `sendAdminNotification` — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 23.**
       (`server/services/email/dispatcher/admin.js:180-205`) builds `{ 'X-Priority': '1', Importance:
       'high' }` for high-priority alerts and passes it as `sendEmail`'s 4th argument. Until PR B10 that
       object was used AS the `From` header, so the message went out with **no From header at all**
@@ -766,7 +766,7 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       either a `headers` passthrough in web-core + the wrapper, or a dispatcher change (B10's acceptance
       forbade touching a dispatcher). Low severity: priority headers are advisory.
 
-- [ ] **E-43-2 — `ops.js` computes a `From` it never sends.** `server/services/email/dispatcher/ops.js:18`
+- [x] **E-43-2 — `ops.js` computes a `From` it never sends.** `server/services/email/dispatcher/ops.js:18` — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 24.**
       builds `"<brand> Monitoring" <${EMAIL_FROM || 'no-reply@rundberglaundry.com'}>` into
       `mailOptions.from`, and `:76` calls `sendEmail(to, subject, html)` — three arguments, so the `from`
       is discarded and service-down alerts send with the default sender. Dead code that also holds one of
@@ -774,7 +774,7 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       the 4th argument, or delete the field. Out of PR B10's scope (zero dispatcher edits was its
       acceptance).
 
-- [ ] **E-44-1 — `.env.example` tells the operator to re-grant the origins Task 37 removed.**
+- [x] **E-44-1 — `.env.example` tells the operator to re-grant the origins Task 37 removed.** — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 25.**
       ⚠️ **HUMAN-CONFIRM, and security-relevant since PR B11** (`4d3f6543`). `.env.example:78` reads
       `#   CORS_ORIGIN=https://portal.atxwashdryfold.com,https://atxwashateria.com,https://atxwashdryfold.com,https://rundberglaundry.com`
       and `:79-86` claims production also carries `localhost:3000`, `127.0.0.1:3000` and the retired
@@ -810,13 +810,13 @@ ESCALATIONS.md` does not exist yet (Task 35 creates it) — harvest these into i
       #CORS_EXTRA_ORIGINS=
       ```
 
-- [ ] **E-44-2 — `INFRA_ALLOW` row `/wavemaxDomains/g` no longer shields any app identifier.** PR B11
+- [x] **E-44-2 — `INFRA_ALLOW` row `/wavemaxDomains/g` no longer shields any app identifier.** PR B11 — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 26.**
       deleted the `wavemaxDomains` array from `server.js`; the name now survives only inside two
       **absence** matchers (`tests/unit/corsOriginPolicy.test.js`, `tests/integration/portalHostSurface.test.js`)
       and one comment. The allowlist row in `tests/unit/branding-guard.test.js` is still load-bearing for
       those matchers, so it cannot simply be dropped — but it should be re-scoped or retired in the next
       guard pass, alongside a check that no `INFRA_ALLOW` row is dead.
 
-- [ ] **E-37-4 — franchisor UTM tag in client JS.** `public/assets/js/embed-navigation.js:187` sets
+- [x] **E-37-4 — franchisor UTM tag in client JS.** `public/assets/js/embed-navigation.js:187` sets — **ESCALATED → `docs/superpowers/ESCALATIONS.md` row 22.**
       `data-utm-source="wavemaxlaundry.com"` on outbound links — an attribution literal naming the
       franchisor, not a host allowlist, so Task 37 left it. Worth a look alongside the DMCA work.

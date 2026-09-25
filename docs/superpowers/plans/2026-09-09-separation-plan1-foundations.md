@@ -1,5 +1,9 @@
 # Plan 1 — Dependency topology, `@crhs/web-core` v0.2.0, and cutover gates G1 / G2
 
+> **Plan 3 closed this line of work (2026-09-25).** Anything this plan handed to the owner or to
+> counsel now lives in **`docs/superpowers/ESCALATIONS.md`** — the single register, one row per item,
+> every row owned. `npm run check:backlog` fails if `tasks/todo.md` regains an open item.
+
 > **Agentic-worker note (mandatory, applies to every task in this plan).** Each task below is executed by a fresh agentic worker with **no memory of this conversation and no knowledge of the sibling tasks**. Everything a worker needs is inside its own task block: absolute paths, exact line numbers, real code, real commands, and the exact expected output. Before writing any production code invoke `superpowers:test-driven-development`; before claiming a task complete invoke `superpowers:verification-before-completion`. Never mark a step done on an unrun command. If a file does not match the line numbers quoted in a task, STOP and re-read the file — do not guess; the line numbers in this plan were read from the working tree on 2026-09-09 (affiliate `main` @ `43f6dfc8`, web-core `main` @ `c4db167` v0.1.2, corporate `main` @ `bc86055`).
 
 ## Goal
