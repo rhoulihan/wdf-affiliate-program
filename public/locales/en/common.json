@@ -211,7 +211,8 @@
       "inactive": "Inactive",
       "allAffiliates": "All Affiliates",
       "name": "Name",
-      "affiliateId": "Affiliate ID"
+      "affiliateId": "Affiliate ID",
+      "usernameOrEmail": "Username or email"
     },
     "username": "Username",
     "usernameDesc": "Your unique login identifier",

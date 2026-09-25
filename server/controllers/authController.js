@@ -32,10 +32,19 @@ exports.affiliateLogin = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Find affiliate by username (case-insensitive)
-    const affiliate = await Affiliate.findOne({
-      username: { $regex: new RegExp('^' + escapeRegex(username) + '$', 'i') }
-    });
+    // Find the affiliate by username OR email, both case-insensitive.
+    //
+    // Password reset is keyed on EMAIL, so an affiliate who has just proved they
+    // control an address should be able to sign in with it; requiring the username
+    // instead produced a 401 that cannot say which half was wrong.
+    //
+    // Username is tried FIRST, deliberately. Each field is unique on its own, but
+    // nothing stops one account's username equalling another account's email, and
+    // in that case an exact username must win rather than whichever query ran
+    // first. Guarded by tests/integration/affiliateLoginIdentifier.test.js.
+    const identifier = { $regex: new RegExp('^' + escapeRegex(username) + '$', 'i') };
+    const affiliate = await Affiliate.findOne({ username: identifier })
+      || await Affiliate.findOne({ email: identifier });
 
     if (!affiliate) {
       logLoginAttempt(false, 'affiliate', username, req, 'User not found');

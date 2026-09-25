@@ -211,7 +211,8 @@
       "inactive": "Inactivo",
       "allAffiliates": "Todos los afiliados",
       "name": "Nombre",
-      "affiliateId": "ID de afiliado"
+      "affiliateId": "ID de afiliado",
+      "usernameOrEmail": "Nombre de usuario o correo electrónico"
     },
     "username": "Nombre de usuario",
     "usernameDesc": "Tu identificador único de inicio de sesión",

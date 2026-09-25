@@ -211,7 +211,8 @@
       "inactive": "Inaktiv",
       "allAffiliates": "Alle Partner",
       "name": "Name",
-      "affiliateId": "Partner-ID"
+      "affiliateId": "Partner-ID",
+      "usernameOrEmail": "Benutzername oder E-Mail"
     },
     "username": "Benutzername",
     "usernameDesc": "Ihre eindeutige Anmelde-ID",
