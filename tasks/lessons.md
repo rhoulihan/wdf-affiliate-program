@@ -201,3 +201,22 @@ propagation latency across PoPs.
   the aggregate hid a 62/38 split.
 - A self-healing cron can fix the box *faster than the LB converges*, which means the outage can end
   before failover completes. Both mechanisms are worth having; neither alone makes an outage invisible.
+
+## A shared service must not branch per type on how a model stores credentials
+*Pattern from 2026-09-25 (`ac91869d`), after Rick: "both resets should use the same path."*
+
+`passwordResetService` branched on `userType` and, for administrators, assigned
+`user.password` under a comment asserting a pre-save hook would hash it. No such hook
+existed, `password` was not a declared path, and `strict: true` discarded the write in
+silence — the reset reported success, spent the token, and left the old password live.
+This was the **third** strict:true silent-discard in the same flow.
+
+**Rules that prevent a repeat:**
+1. A service may not encode per-model hashing knowledge. Give every model the same
+   method (`setPassword()`) and call it unconditionally; then the service cannot target
+   a path a schema does not declare.
+2. Never trust a comment that claims a hook exists — open the model and read the hook.
+   Grep for the path in the schema, not for the feature's name.
+3. A credential test that mocks the model **passes vacuously** (a plain object accepts
+   the discarded assignment). Use the real model and assert the **old** credential stops
+   working and the stored hash **changes** — not merely that the call resolved.
