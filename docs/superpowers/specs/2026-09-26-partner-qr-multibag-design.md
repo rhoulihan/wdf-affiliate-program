@@ -39,13 +39,7 @@ change below may be made destructively.
 | D12 | **Rename `Bag` → `CustomerCode`.** The entity is a credential, not an object. Done now, while there is no data to migrate | Rick 2026-09-26 |
 | D13 | **Escalations never block a transition** — but they always notify | Rick 2026-09-26 |
 | D14 | **The delivery scan also declares a count**, symmetric with pickup; a mismatch escalates | Rick 2026-09-26 |
-| D15 | **The pickup count field defaults to `bagCount`**; the delivery count field is **blank** | Rick 2026-09-26 (see ⚠ below) |
-
-⚠ **D15 needs confirming.** The instruction said both "leave the field blank" and "pickup field should
-default to order bagCount" about the same control. Specced as: **pickup defaults** (the partner is at the
-door with the expected count on screen) and **delivery is blank** (forces an honest count at handover,
-where an undetected shortfall is the more expensive error). Correct this if it is not what you meant —
-it decides whether D9's escalation has teeth.
+| D15 | **The pickup count field defaults to `bagCount`**; the delivery count field is **blank** — an undetected shortfall at handover is the more expensive error | Rick 2026-09-26, confirmed |
 
 **D1's accepted cost:** because every bag carries the same token, the system **cannot detect a missing
 bag**. If a partner scans 3 and 2 arrive, only a human notices. The operator therefore owns the
@@ -403,7 +397,50 @@ Order payloads carry, among others:
 | `pickupDeliveryFee`, `returnDeliveryFee` | Cents already models delivery fees — see the D2 interaction below |
 | `customer.centsCustomerId`, `customer.phoneNumber` | candidate join keys |
 
-There is also a **companion REST API** ("How to Connect the Cents API to Your Systems"), details via CSM.
+### The "companion REST API" is NOT publicly documented
+
+Both help articles whose titles mention the API are in fact **webhook** docs. There is no published base
+URL, no auth scheme, no endpoint list, and **no documented way to create an order**. The only pointer is
+*"If you're looking for a more comprehensive API guide, please reach out to your CSM."* So a REST API
+exists contractually — their Terms of Service say *"Cents offers an API that customers can use to access
+and integrate the Service"* — but nothing about it is public.
+
+**Consequence: the join-key problem (below) cannot be solved today.** We cannot create the Cents order and
+receive its id, so the link between their order and ours needs either a CSM-supplied API or a manual step.
+
+### Webhook mechanics, confirmed
+
+Setup is **self-serve** — Business Manager → **Integrations > Webhooks** → **+ Webhook** — but the feature
+*"must be enabled for your business"*, so there is still a one-time access request. Multiple endpoints
+allowed.
+
+| Property | Value |
+|---|---|
+| Events | `customer_created`, `customer_updated`, `customer_marketing_optin`, `order_created`, `order_updated`, `order_completed` |
+| Signature | ⛔ **"Cents does not currently provide HMAC or other cryptographic request signatures."** Explicitly confirmed, not merely undocumented |
+| Only auth offered | a query token — `/webhooks/cents?token=YOURSECRET` |
+| Response deadline | **HTTP 200 within 3 seconds** |
+| Retries | exponential backoff; repeated non-2xx **disables delivery** |
+| Event Log | in-UI, with bodies and response statuses — **retained 7 days only** |
+| Test events | **none** — *"A qualifying real event must occur to generate a webhook delivery"* |
+
+### What those mechanics force on our implementation
+
+1. **ACK first, process async.** A 3-second deadline against Oracle ADB behind Cloudflare is not safe for
+   inline work. The handler validates the token, writes the raw event, returns 200, and processes on a
+   job. Anything else risks the auto-disable.
+2. **The query token is not sufficient authority for money.** A secret in a URL leaks through logs,
+   referrers and proxies. Compare it in constant time, never log the query string — and still treat the
+   webhook as *advisory*, with the operator's confirmation remaining the authority (§4).
+3. **Persist every event ourselves.** A 7-day retention window is not an audit trail.
+4. **Dedupe defensively.** Retries are guaranteed, no event id or idempotency key is documented, and
+   ordering is not promised. Key on `(event, order.id, order.status)` plus arrival time until a real event
+   id is confirmed.
+5. **Monitor for silence.** An auto-disabled endpoint looks exactly like a quiet day. Alert on "no events
+   in N hours" rather than on errors.
+6. **No sandbox.** Development would run against real laundry, which is an argument on its own for
+   keeping webhooks out of phase 1.
+
 
 ### What this could automate
 
@@ -454,20 +491,22 @@ is ever disabled.
 
 ### Ask the CSM
 
-1. Webhook **signing / shared secret**, and the exact IP ranges (the header detail is an image).
-2. Retry policy, delivery guarantees, and what exactly triggers the auto-disable.
-3. REST API scope — specifically whether we can **create an order** and receive its id, which is the
-   difference between automation and yet another manual step.
-4. Sandbox/test account, so this is not developed against production laundry.
-5. Whether **Cents Connect** (their machine-payment product) exposes anything additional.
+Answered by the docs: signing (none), retries (exponential backoff), auto-disable (repeated non-2xx),
+self-serve setup (yes, after an enablement request). Still needed:
+
+1. **The REST API guide** — above all, whether we can **create an order and receive its id**. That single
+   answer decides whether Cents automation is real or just another manual step.
+2. Whether an **event id / idempotency key** exists in the payload, so dedupe is exact rather than heuristic.
+3. Whether a **signing secret** is on their roadmap, since the query token is weak.
+4. A **sandbox or test account** — there are no test events, so today this can only be built against real orders.
+5. IP ranges to allowlist (the header detail in the doc is an unreadable image).
 6. Whether `pickupDeliveryFee` can be **set** by us, which would resolve the D2 overlap cleanly.
 
 ## 10. Still open
 
-1. **D15** — the pickup-defaults / delivery-blank reading above needs your confirmation.
-2. **Bag accumulation has no ceiling.** `bagsIssued` now tracks it, so the data exists; nothing caps or
+1. **Bag accumulation has no ceiling.** `bagsIssued` now tracks it, so the data exists; nothing caps or
    reclaims. Fine until churn or deposits matter.
-3. **Escalation resolution flow** — specced as admin-only with a note. Whether a partner can resolve
+2. **Escalation resolution flow** — specced as admin-only with a note. Whether a partner can resolve
    their own pickup mismatch (they have the knowledge; they also have the incentive) is unsettled.
 
 ## Verification
