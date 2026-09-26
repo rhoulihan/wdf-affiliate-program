@@ -55,9 +55,39 @@ router.get('/:affiliateId', authenticate, affiliateController.getAffiliateProfil
  * @desc    Update affiliate profile
  * @access  Private (self or admin)
  */
+// Self-service profile validation. Mirrors the admin PATCH rules in
+// administratorRoutes.js so the two surfaces cannot drift apart, minus
+// affiliateType and isActive, which stay admin-only. Before this existed the route
+// validated only the four address fields, so an out-of-range deliveryFee reached
+// the schema's max and surfaced as a 500 rather than telling the user the value
+// was wrong.
+const profileFieldValidation = [
+  body('firstName').optional().trim().notEmpty().isLength({ max: 50 }),
+  body('lastName').optional().trim().notEmpty().isLength({ max: 50 }),
+  body('email').optional().isEmail().withMessage('A valid email address is required'),
+  body('phone').optional().trim().notEmpty().isLength({ max: 25 }),
+  body('businessName').optional({ nullable: true }).isString().trim().isLength({ max: 100 }),
+  body('languagePreference').optional().isIn(['en', 'es', 'pt', 'de']),
+  body('serviceType').optional().isIn(['pickup_location', 'full_service']),
+  body('orderNotificationsEnabled').optional().isBoolean(),
+  body('paymentMethod').optional().isIn(['check', 'paypal', 'venmo']),
+  body('deliveryFee').optional().isFloat({ min: 0, max: 1000 })
+    .withMessage('Delivery fee must be between 0 and 1000'),
+  // Customer-geolocation radius gate (opt-in, fails open).
+  body('geoValidationEnabled').optional().isBoolean(),
+  body('geoRadiusMiles').optional({ nullable: true }).isFloat({ min: 1, max: 50 })
+    .withMessage('Service radius must be between 1 and 50 miles'),
+  // Pickup instructions are shown to the customer, so they may not be blanked
+  // once set (trim BEFORE notEmpty, as the admin route does).
+  body('pickupInstructions').optional().trim().notEmpty().isLength({ max: 2000 })
+    .withMessage('Pickup instructions cannot be empty'),
+  body('deliveryInstructions').optional({ nullable: true }).isString().trim().isLength({ max: 2000 })
+];
+
 router.put('/:affiliateId',
   authenticate,
   profileAddressValidation,
+  profileFieldValidation,
   handleValidationErrors,
   affiliateController.updateAffiliateProfile
 );

@@ -213,15 +213,31 @@ exports.getAffiliateProfile = ControllerHelpers.asyncWrapper(async (req, res) =>
     email: affiliate.email,
     phone: Formatters.phone(affiliate.phone),
     businessName: affiliate.businessName,
+    // `address` stays the combined display string for existing callers, but the
+    // settings form must bind to RAW values — binding an input to a formatted
+    // string and PUTting it back writes the formatting into storage, degrading
+    // the stored value a little more on every save.
     address: Formatters.address({
       address: affiliate.address,
       city: affiliate.city,
       state: affiliate.state,
       zipCode: affiliate.zipCode
     }),
+    addressLine: affiliate.address,
+    phoneRaw: affiliate.phone,
     city: affiliate.city,
     state: affiliate.state,
     zipCode: affiliate.zipCode,
+    // Self-service editable settings (mirrors updateAffiliateProfile's allowlist).
+    pickupInstructions: affiliate.pickupInstructions,
+    deliveryInstructions: affiliate.deliveryInstructions,
+    serviceType: affiliate.serviceType,
+    orderNotificationsEnabled: affiliate.orderNotificationsEnabled,
+    languagePreference: affiliate.languagePreference,
+    geoValidationEnabled: affiliate.geoValidationEnabled,
+    geoRadiusMiles: affiliate.geoRadiusMiles,
+    // Read-only for the affiliate: the commission class is an admin decision.
+    affiliateType: affiliate.affiliateType,
     // Flat per-affiliate delivery fee (raw number) — the partner's commission per
     // order; single source of truth (the V1 min/per-bag pair was removed).
     deliveryFee: affiliate.deliveryFee || 0,
@@ -255,8 +271,14 @@ exports.updateAffiliateProfile = async (req, res) => {
     const { affiliateId } = req.params;
     const updates = req.body;
 
-    // Check authorization (admin or self)
-    if (req.user.role !== 'admin' && req.user.affiliateId !== affiliateId) {
+    // Check authorization (administrator or self).
+    // NOTE: the literal 'admin' alone was a latent bug — no code path issues that
+    // role. Administrators are issued 'administrator' (see authController), so every
+    // real admin was 403'd here. Both are accepted now. Deliberately NOT using
+    // AuthorizationHelpers.canAccessAffiliate: that also grants operators of the
+    // affiliate, which would widen access beyond what these routes intend.
+    if (req.user.role !== 'administrator' && req.user.role !== 'admin' &&
+        req.user.affiliateId !== affiliateId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
@@ -273,12 +295,56 @@ exports.updateAffiliateProfile = async (req, res) => {
       });
     }
 
-    // Fields that can be updated
+    // Everything an affiliate owns about themselves. This mirrors the admin edit
+    // surface (administratorRoutes.js PATCH /affiliates/:affiliateId) MINUS the two
+    // fields that stay an admin decision:
+    //   - affiliateType: the commission class (standard vs location). The affiliate
+    //     may see it but must not reclassify their own pay terms.
+    //   - isActive: an affiliate must not reactivate themselves after an
+    //     administrator deactivates them.
+    // deliveryFee IS here on purpose: it is the affiliate's own price to their
+    // customer, which they keep in full — not a payout this app controls.
     const updatableFields = [
-      'firstName', 'lastName', 'phone', 'businessName',
+      'firstName', 'lastName', 'email', 'phone', 'businessName',
       'address', 'city', 'state', 'zipCode',
-      'deliveryFee', 'paymentMethod'
+      'deliveryFee', 'paymentMethod',
+      'pickupInstructions', 'deliveryInstructions',
+      'serviceType', 'orderNotificationsEnabled',
+      'languagePreference',
+      'geoValidationEnabled', 'geoRadiusMiles'
     ];
+
+    // Accepted, but not copied straight onto the document.
+    const indirectFields = ['paypalEmail', 'venmoHandle', 'currentPassword', 'newPassword'];
+
+    // Reject anything unrecognised rather than answering 200 and dropping it. This
+    // loop used to ignore unknown keys silently, which is exactly how the dashboard's
+    // email edit appeared to succeed while discarding the value: an omission from the
+    // allowlist was indistinguishable from success.
+    const unknownFields = Object.keys(updates)
+      .filter(k => !updatableFields.includes(k) && !indirectFields.includes(k));
+    if (unknownFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Unknown or non-editable field(s): ${unknownFields.join(', ')}`,
+        errors: unknownFields.map(field => ({ field, msg: 'Not editable by an affiliate' }))
+      });
+    }
+
+    // A new email must stay unique — the schema's unique index would otherwise
+    // surface as a generic 500 instead of telling the user what went wrong.
+    if (updates.email !== undefined && updates.email !== affiliate.email) {
+      const taken = await Affiliate.findOne({
+        email: updates.email,
+        affiliateId: { $ne: affiliateId }
+      });
+      if (taken) {
+        return res.status(409).json({
+          success: false,
+          message: 'That email address is already in use'
+        });
+      }
+    }
 
     // Update fields
     updatableFields.forEach(field => {
@@ -318,7 +384,9 @@ exports.updateAffiliateProfile = async (req, res) => {
         });
       }
 
-      // Update password
+      // Update password. Assigning `affiliate.password` instead would be a silent
+      // no-op on an existing account: the pre-validate hook hashes that virtual only
+      // while passwordHash is still empty.
       const { salt, hash } = encryptionUtil.hashPassword(updates.newPassword);
       affiliate.passwordSalt = salt;
       affiliate.passwordHash = hash;
@@ -347,8 +415,14 @@ exports.getAffiliateEarnings = async (req, res) => {
     const { affiliateId } = req.params;
     const { period } = req.query;
 
-    // Check authorization (admin or self)
-    if (req.user.role !== 'admin' && req.user.affiliateId !== affiliateId) {
+    // Check authorization (administrator or self).
+    // NOTE: the literal 'admin' alone was a latent bug — no code path issues that
+    // role. Administrators are issued 'administrator' (see authController), so every
+    // real admin was 403'd here. Both are accepted now. Deliberately NOT using
+    // AuthorizationHelpers.canAccessAffiliate: that also grants operators of the
+    // affiliate, which would widen access beyond what these routes intend.
+    if (req.user.role !== 'administrator' && req.user.role !== 'admin' &&
+        req.user.affiliateId !== affiliateId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
@@ -534,8 +608,14 @@ exports.getAffiliateOrders = async (req, res) => {
       limit = 10
     } = req.query;
 
-    // Check authorization (admin or self)
-    if (req.user.role !== 'admin' && req.user.affiliateId !== affiliateId) {
+    // Check authorization (administrator or self).
+    // NOTE: the literal 'admin' alone was a latent bug — no code path issues that
+    // role. Administrators are issued 'administrator' (see authController), so every
+    // real admin was 403'd here. Both are accepted now. Deliberately NOT using
+    // AuthorizationHelpers.canAccessAffiliate: that also grants operators of the
+    // affiliate, which would widen access beyond what these routes intend.
+    if (req.user.role !== 'administrator' && req.user.role !== 'admin' &&
+        req.user.affiliateId !== affiliateId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
@@ -629,10 +709,16 @@ exports.getAffiliateOrders = async (req, res) => {
         } : null,
         bagId: order.bagId,
         status: order.status,
+        // The four scan events, named as the model declares them. This read
+        // `processing: order.processing` — a field the Order model never had — so
+        // the value was always undefined and the tab could not show store intake.
         pickup: order.pickup,
-        processing: order.processing,
+        intake: order.intake,
         storePickup: order.storePickup,
         delivery: order.delivery,
+        // The affiliate's own delivery fee for this order, frozen at send-out.
+        // It is their money, so it belongs in their view.
+        deliveryFeeCharged: order.deliveryFeeCharged,
         completedAt: order.completedAt,
         cancelledAt: order.cancelledAt,
         createdAt: order.createdAt
@@ -668,8 +754,14 @@ exports.getAffiliateTransactions = async (req, res) => {
     const { affiliateId } = req.params;
     const { status, page = 1, limit = 10 } = req.query;
 
-    // Check authorization (admin or self)
-    if (req.user.role !== 'admin' && req.user.affiliateId !== affiliateId) {
+    // Check authorization (administrator or self).
+    // NOTE: the literal 'admin' alone was a latent bug — no code path issues that
+    // role. Administrators are issued 'administrator' (see authController), so every
+    // real admin was 403'd here. Both are accepted now. Deliberately NOT using
+    // AuthorizationHelpers.canAccessAffiliate: that also grants operators of the
+    // affiliate, which would widen access beyond what these routes intend.
+    if (req.user.role !== 'administrator' && req.user.role !== 'admin' &&
+        req.user.affiliateId !== affiliateId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
@@ -786,8 +878,14 @@ exports.getAffiliateDashboardStats = async (req, res) => {
   try {
     const { affiliateId } = req.params;
 
-    // Check authorization (admin or self)
-    if (req.user.role !== 'admin' && req.user.affiliateId !== affiliateId) {
+    // Check authorization (administrator or self).
+    // NOTE: the literal 'admin' alone was a latent bug — no code path issues that
+    // role. Administrators are issued 'administrator' (see authController), so every
+    // real admin was 403'd here. Both are accepted now. Deliberately NOT using
+    // AuthorizationHelpers.canAccessAffiliate: that also grants operators of the
+    // affiliate, which would widen access beyond what these routes intend.
+    if (req.user.role !== 'administrator' && req.user.role !== 'admin' &&
+        req.user.affiliateId !== affiliateId) {
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
