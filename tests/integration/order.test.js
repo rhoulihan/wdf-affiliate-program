@@ -252,6 +252,23 @@ describe('Order Integration Tests', () => {
   // the revenue snapshot). The single-order PUT /:orderId/status now records the
   // same send-out revenue snapshot the scan path does — no longer a divergence.
   describe('Order status revenue snapshot (out_for_delivery)', () => {
+    it('refuses send-out via PUT when payment is not confirmed', async () => {
+      // The gate lives in the state machine precisely so this route cannot bypass
+      // it — it was previously the widest hole, being reachable by an affiliate.
+      const order = await seedOrder({ status: 'in_progress' });
+
+      const response = await agent
+        .put(`/api/v1/orders/${order.orderId}/status`)
+        .set('Authorization', `Bearer ${affiliateToken}`)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ status: 'out_for_delivery', orderTotal: 42.5 });
+
+      expect(response.status).toBe(400);
+      const saved = await Order.findOne({ orderId: order.orderId });
+      expect(saved.status).toBe('in_progress');
+      expect(saved.orderTotal).toBeUndefined();
+    });
+
     it('records deliveryFeeCharged + operator orderTotal on send-out via PUT /:orderId/status', async () => {
       await Affiliate.updateOne({ affiliateId: 'AFF123' }, { deliveryFee: 8 });
       const order = await seedOrder({ status: 'in_progress' });
@@ -260,7 +277,7 @@ describe('Order Integration Tests', () => {
         .put(`/api/v1/orders/${order.orderId}/status`)
         .set('Authorization', `Bearer ${affiliateToken}`)
         .set('X-CSRF-Token', csrfToken)
-        .send({ status: 'out_for_delivery', orderTotal: 42.5 });
+        .send({ status: 'out_for_delivery', orderTotal: 42.5, paymentConfirmed: true });
 
       expect(response.status).toBe(200);
       const saved = await Order.findOne({ orderId: order.orderId });
@@ -276,7 +293,7 @@ describe('Order Integration Tests', () => {
         .put(`/api/v1/orders/${order.orderId}/status`)
         .set('Authorization', `Bearer ${affiliateToken}`)
         .set('X-CSRF-Token', csrfToken)
-        .send({ status: 'out_for_delivery', orderTotal: -5 });
+        .send({ status: 'out_for_delivery', orderTotal: -5, paymentConfirmed: true });
 
       expect(response.status).toBe(400);
       const saved = await Order.findOne({ orderId: order.orderId });

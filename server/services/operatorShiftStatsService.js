@@ -151,7 +151,7 @@ async function getNewCustomersCount() {
 
 async function printNewCustomerLabels() {
   const customers = await Customer.find({ bagLabelsGenerated: false })
-    .select('customerId firstName lastName phone email numberOfBags affiliateId');
+    .select('customerId firstName lastName phone email affiliateId');
 
   if (customers.length === 0) {
     return { customersProcessed: 0, labelsGenerated: 0, labelData: [], customerIds: [] };
@@ -159,7 +159,11 @@ async function printNewCustomerLabels() {
 
   const labelData = [];
   for (const customer of customers) {
-    const bagCount = customer.numberOfBags || 1;
+    // One label per customer. This used to read customer.numberOfBags, a field the
+    // Customer schema does not declare, so the loop has always run exactly once —
+    // mongoose returns undefined for an undeclared path rather than throwing.
+    // Real per-order bag counts arrive with Order.bagCount (see the 2026-09-26 spec).
+    const bagCount = 1;
     for (let bagNumber = 1; bagNumber <= bagCount; bagNumber++) {
       labelData.push({
         customerId: customer.customerId,

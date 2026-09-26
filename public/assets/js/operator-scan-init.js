@@ -226,8 +226,12 @@
     }
 
     // Payment + receipt confirmation is REQUIRED before handing a bag back for
-    // delivery: the checkbox must be ticked to enable Confirm (the server also
-    // hard-rejects the transition without it).
+    // delivery: the checkbox must be ticked to enable Confirm, and the server now
+    // genuinely hard-rejects the transition without it — orderStateMachine's
+    // applyTransition throws payment_not_confirmed (400) for any caller, this UI
+    // included. This comment previously made that claim while nothing enforced it,
+    // so a disabled button in one UI was the only thing standing between an unpaid
+    // order and the door.
     var needsPayment = resolveData.proposedAction === 'advance' &&
       resolveData.to === 'out_for_delivery';
     paymentRow.hidden = !needsPayment;

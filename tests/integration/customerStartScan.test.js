@@ -112,7 +112,8 @@ describe('customer-initiated start (phone/email)', () => {
     const op = (await mint(bagToken, OP_CODE)).body.sessionToken;
     await applyWith(op, bagToken, 'create-pending');
     await applyWith(op, bagToken, 'advance'); // -> in_progress
-    await applyWith(op, bagToken, 'advance'); // -> out_for_delivery
+    // send-out now requires payment confirmation server-side (money gate)
+    await applyWith(op, bagToken, 'advance', { paymentConfirmed: true }); // -> out_for_delivery
     // the registered bag owner scans + confirms delivery with their phone
     const cust = (await mint(bagToken, '5125552222')).body.sessionToken;
     const res = await applyWith(cust, bagToken, 'advance'); // out_for_delivery -> complete
@@ -178,7 +179,7 @@ describe('customer-initiated start (phone/email)', () => {
     const op = (await mint(bagToken, OP_CODE)).body.sessionToken;
     await applyWith(op, bagToken, 'create-pending');
     await applyWith(op, bagToken, 'advance'); // in_progress
-    await applyWith(op, bagToken, 'advance'); // out_for_delivery
+    await applyWith(op, bagToken, 'advance', { paymentConfirmed: true }); // out_for_delivery
     await applyWith(op, bagToken, 'advance'); // complete
     // within the reopen window a fresh scan resolves to delivery-rescan-prompt
     const cust = (await mint(bagToken, '5125552222')).body.sessionToken;

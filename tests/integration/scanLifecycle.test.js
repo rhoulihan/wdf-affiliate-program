@@ -58,6 +58,72 @@ function authed(req, opJwt) {
 describe('Scan resolve/apply lifecycle (operator kiosk JWT)', () => {
   beforeAll(async () => { await SystemConfig.initializeDefaults(); });
 
+  test('send-out records the orderTotal the kiosk sends, and the fee snapshot', async () => {
+    // The client used to drop orderTotal before it ever reached this endpoint
+    // (ScanSession.apply omitted it from the payload), so Order.orderTotal — which
+    // the admin revenue view reads — stayed undefined on every kiosk send-out.
+    // This asserts the server half of that round trip by re-reading the document.
+    const { bagToken, opJwt, affiliate } = await createWorld();
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'create-pending' });
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance' });
+
+    const out = await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance', paymentConfirmed: true, orderTotal: 42.5 });
+    expect(out.status).toBe(200);
+    expect(out.body.newStatus).toBe('out_for_delivery');
+
+    const saved = await Order.findOne({ orderId: out.body.orderId });
+    expect(saved.orderTotal).toBeCloseTo(42.5, 2);
+    expect(saved.deliveryFeeCharged).toBeCloseTo(Number(affiliate.deliveryFee) || 0, 2);
+  });
+
+  test('an orderTotal of 0 is recorded, not treated as absent', async () => {
+    const { bagToken, opJwt } = await createWorld();
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'create-pending' });
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance' });
+    const out = await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance', paymentConfirmed: true, orderTotal: 0 });
+
+    const saved = await Order.findOne({ orderId: out.body.orderId });
+    expect(saved.orderTotal).toBe(0);
+  });
+
+  test('send-out WITHOUT paymentConfirmed is rejected by the server', async () => {
+    // operator-scan-init.js told the reader "the server also hard-rejects the
+    // transition without it". It did not — the flag was merely stamped when truthy,
+    // so the only thing standing between an unpaid order and send-out was a
+    // disabled button in one UI. Any other caller walked straight through.
+    const { bagToken, opJwt } = await createWorld();
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'create-pending' });
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance' });
+
+    const out = await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance', orderTotal: 20 });
+    expect(out.status).toBe(400);
+
+    const Order2 = require('../../server/models/Order');
+    const still = await Order2.findOne({ codeToken: bagToken }) || await Order2.findOne({ bagToken });
+    expect(still.status).toBe('in_progress');
+    expect(still.orderTotal).toBeUndefined();
+  });
+
+  test('a negative orderTotal is rejected rather than stored', async () => {
+    const { bagToken, opJwt } = await createWorld();
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'create-pending' });
+    await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance' });
+    const out = await authed(request(app).post('/api/v1/scan/apply'), opJwt)
+      .send({ bagToken, expectedAction: 'advance', paymentConfirmed: true, orderTotal: -5 });
+    expect(out.status).toBe(400);
+  });
+
   test('full lifecycle pickup -> intake -> store-pickup -> delivery', async () => {
     const { bagToken, customer, operator, opJwt } = await createWorld();
 

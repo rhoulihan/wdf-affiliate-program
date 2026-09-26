@@ -127,6 +127,15 @@
     if (opts && opts.paymentConfirmed) payload.paymentConfirmed = true;
     if (opts && Array.isArray(opts.addOns) && opts.addOns.length) payload.addOns = opts.addOns;
     if (opts && opts.specialInstructions) payload.specialInstructions = opts.specialInstructions;
+    // orderTotal is the send-out figure the operator types, and the kiosk will not
+    // enable Confirm without it. It was missing from this list, so every kiosk
+    // send-out silently discarded it and Order.orderTotal — which the admin revenue
+    // view reads — stayed undefined. Tested explicitly for presence rather than
+    // truthiness: a genuinely free order is 0, and `if (opts.orderTotal)` would drop
+    // it exactly the same way.
+    if (opts && opts.orderTotal !== undefined && opts.orderTotal !== null && opts.orderTotal !== '') {
+      payload.orderTotal = opts.orderTotal;
+    }
     return postScan('apply', payload);
   }
 

@@ -223,7 +223,10 @@ async function sendWelcomeEmails(customer, affiliate, bagToken, emailVerifyToken
     logger.error('Failed to send welcome email:', emailError);
   }
   try {
-    await emailService.sendAffiliateNewCustomerEmail(affiliate, customer, { numberOfBags: 0, totalCredit: 0, bagFee: 0 });
+    // numberOfBags was passed as 0 here, which the dispatcher turned straight back
+    // into 1 via `|| 1`. Omitted rather than faked; a real count arrives with
+    // Order.bagCount.
+    await emailService.sendAffiliateNewCustomerEmail(affiliate, customer, { totalCredit: 0, bagFee: 0 });
   } catch (emailError) {
     logger.error('Failed to send affiliate notification:', emailError);
   }

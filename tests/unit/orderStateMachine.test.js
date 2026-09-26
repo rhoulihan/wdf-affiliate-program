@@ -74,10 +74,28 @@ describe('orderStateMachine (4-state)', () => {
       expect(order.paymentConfirmedManually).toBe(true);
     });
 
-    it('out_for_delivery without paymentConfirmed leaves the flag falsey', () => {
+    it('out_for_delivery WITHOUT paymentConfirmed is refused outright', () => {
+      // Previously this merely left the flag falsey and let the order leave the
+      // store. Confirmation was enforced only by a disabled button in the operator
+      // kiosk — whose own comment wrongly told the reader the server rejected it
+      // too — so every other caller, including PUT /orders/:orderId/status, walked
+      // straight through. Send-out is where the fee is snapshotted, so the rule
+      // lives in the state machine and applies to every path.
       const order = { status: 'in_progress' };
-      applyTransition(order, 'out_for_delivery', stamp);
-      expect(order.paymentConfirmedManually).toBeFalsy();
+      expect(() => applyTransition(order, 'out_for_delivery', stamp))
+        .toThrow(/[Pp]ayment must be confirmed/);
+      expect(order.status).toBe('in_progress');
+      expect(order.storePickup).toBeUndefined();
+    });
+
+    it('the refusal carries payment_not_confirmed and a 400', () => {
+      try {
+        applyTransition({ status: 'in_progress' }, 'out_for_delivery', stamp);
+        throw new Error('expected applyTransition to throw');
+      } catch (err) {
+        expect(err.code).toBe('payment_not_confirmed');
+        expect(err.statusCode).toBe(400);
+      }
     });
 
     it('complete stamps delivery + completedAt', () => {

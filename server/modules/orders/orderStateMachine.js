@@ -58,6 +58,23 @@ function applyTransition(order, to, meta = {}) {
   if (!canTransition(order.status, to)) {
     throw new TransitionError(order.status, to);
   }
+  // Send-out is the money gate: the laundry leaves the store here and the fee is
+  // snapshotted here. Confirmation used to be enforced only by a disabled button in
+  // the operator kiosk, and a comment in that UI told the reader the server rejected
+  // it too — it did not, so every other caller walked straight through. Enforced for
+  // real now, in the state machine rather than in one controller, so the REST status
+  // route cannot bypass it either.
+  if (to === 'out_for_delivery' && !meta.paymentConfirmed) {
+    const err = new Error('Payment must be confirmed before an order can leave the store');
+    err.code = 'payment_not_confirmed';
+    // Carry the full flag set the callers map on: the scan path reads statusCode,
+    // and orderController's catch maps on isTransitionError — without that flag this
+    // surfaces as a 500, which tells the operator nothing and reads as our fault.
+    err.status = 400;
+    err.statusCode = 400;
+    err.isTransitionError = true;
+    throw err;
+  }
   const at = meta.at || new Date();
   const event = { at, by: meta.by, role: meta.role };
   order.status = to;
@@ -67,7 +84,7 @@ function applyTransition(order, to, meta = {}) {
     break;
   case 'out_for_delivery':
     order.storePickup = event;
-    if (meta.paymentConfirmed) order.paymentConfirmedManually = true;
+    order.paymentConfirmedManually = true; // guaranteed by the gate above
     break;
   case 'complete':
     order.delivery = event;
