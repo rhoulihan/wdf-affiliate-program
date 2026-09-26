@@ -102,6 +102,25 @@ describe('the dashboard no longer calls routes that do not exist', () => {
   });
 });
 
+describe('the page actually translates itself', () => {
+  it('calls translatePage, not just i18n.t at render time', () => {
+    // The SPA injects this page after DOMContentLoaded, so the page bootstrap's
+    // DOMContentLoaded listener never fires here. Without an explicit translate
+    // call every data-i18n label and <option> renders its raw key — which is what
+    // shipped when the old setTimeout re-translate was deleted.
+    expect(INIT_CODE).toContain('translatePage');
+  });
+
+  it('awaits i18n.init before translating, rather than using a timeout', () => {
+    expect(INIT_CODE).toMatch(/await window\.i18n\.init\(/);
+    expect(INIT_CODE).not.toMatch(/setTimeout\([^)]*[Tt]ranslat/);
+  });
+
+  it('invokes the translate helper during initialisation', () => {
+    expect(INIT_CODE).toMatch(/applyPageTranslations\(\)/);
+  });
+});
+
 describe('development-only affordances are gone', () => {
   it('has no delete-all-data danger zone', () => {
     expect(HTML).not.toContain('deleteDataSection');

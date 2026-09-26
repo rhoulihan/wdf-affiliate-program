@@ -4,6 +4,24 @@ if (window.ApiClient) {
 }
 
 // Affiliate dashboard functionality for embedded environment
+/**
+ * Run i18n against this page, initialising it first if the SPA loaded us before it
+ * was ready. Safe to call more than once; translatePage() is idempotent.
+ */
+async function applyPageTranslations() {
+  if (!window.i18n) return;
+  try {
+    if (!window.i18n.currentLanguage) {
+      await window.i18n.init({ debugMode: false });
+    }
+    if (typeof window.i18n.translatePage === 'function') {
+      window.i18n.translatePage();
+    }
+  } catch (error) {
+    console.error('i18n translation failed on the affiliate dashboard:', error);
+  }
+}
+
 function initializeAffiliateDashboard() {
   const isEmbedded = window.EMBED_CONFIG?.isEmbedded || false;
   const baseUrl = window.EMBED_CONFIG?.baseUrl || window.location.origin;
@@ -279,9 +297,16 @@ function initializeAffiliateDashboard() {
   // Update translations for dynamically loaded content
   // This is needed because the modal content might not be translated on initial load
     
-  // Translation is driven by i18n.translatePage(); this page previously carried a
-  // debug routine that dumped the whole translation table to the console and
-  // rejected any translation containing a period.
+  // Translate this page once i18n is genuinely ready.
+  //
+  // affiliate-dashboard-i18n.js binds window.i18n.init() to DOMContentLoaded, but the
+  // SPA injects this page with fetch + innerHTML long AFTER that event has fired, so
+  // that listener never runs on this path. The loader does call translatePage() after
+  // injecting scripts, but that can land before i18n has fetched its locale JSON,
+  // leaving every data-i18n element showing its raw key — which is exactly what
+  // happened when the old setTimeout(..., 500) re-translate was removed. Awaiting
+  // init() removes the race rather than papering over it with another timeout.
+  applyPageTranslations();
 
   // Settings form edit mode
   const editBtn = document.getElementById('editBtn');
