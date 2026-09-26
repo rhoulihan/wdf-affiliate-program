@@ -695,12 +695,19 @@
         "totalOrders": "Bestellungen gesamt",
         "service": "Service",
         "orderTotal": "Bestellsumme",
-        "yourCommission": "Ihre Provision"
+        "yourCommission": "Ihre Provision",
+        "bag": "Beutel",
+        "created": "Erstellt",
+        "yourFee": "Ihre Gebühr"
       },
       "messages": {
         "loadingOrders": "Bestellungen werden geladen...",
         "loadingCustomers": "Kunden werden geladen...",
-        "loadingTransactions": "Transaktionen werden geladen..."
+        "loadingTransactions": "Transaktionen werden geladen...",
+        "noOrders": "Keine Bestellungen gefunden",
+        "noCustomers": "Keine Kunden gefunden",
+        "noTransactions": "Noch keine abgeschlossenen Bestellungen",
+        "newRegistration": "(Neue Registrierung)"
       },
       "pagination": {
         "showing": "Zeige",
@@ -1116,14 +1123,11 @@
   },
   "orders": {
     "status": {
-      "pending": "Ausstehend",
-      "scheduled": "Geplant",
-      "pickedUp": "Abgeholt",
-      "processing": "In Bearbeitung",
-      "readyForDelivery": "Lieferbereit",
-      "outForDelivery": "In Zustellung",
-      "delivered": "Geliefert",
-      "cancelled": "Storniert"
+      "pending": "Wartet auf Annahme",
+      "outForDelivery": "In Lieferung",
+      "cancelled": "Storniert",
+      "inProgress": "In Bearbeitung",
+      "complete": "Abgeschlossen"
     },
     "schedule": {
       "title": "Abholung planen",

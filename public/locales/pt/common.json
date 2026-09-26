@@ -695,12 +695,19 @@
         "totalOrders": "Total de Pedidos",
         "service": "Serviço",
         "orderTotal": "Total do Pedido",
-        "yourCommission": "Sua Comissão"
+        "yourCommission": "Sua Comissão",
+        "bag": "Sacola",
+        "created": "Criado",
+        "yourFee": "Sua taxa"
       },
       "messages": {
         "loadingOrders": "Carregando pedidos...",
         "loadingCustomers": "Carregando clientes...",
-        "loadingTransactions": "Carregando transações..."
+        "loadingTransactions": "Carregando transações...",
+        "noOrders": "Nenhum pedido encontrado",
+        "noCustomers": "Nenhum cliente encontrado",
+        "noTransactions": "Ainda não há pedidos concluídos",
+        "newRegistration": "(Novo registro)"
       },
       "pagination": {
         "showing": "Mostrando",
@@ -1116,14 +1123,11 @@
   },
   "orders": {
     "status": {
-      "pending": "Pendente",
-      "scheduled": "Agendado",
-      "pickedUp": "Coletado",
-      "processing": "Processando",
-      "readyForDelivery": "Pronto para Entrega",
-      "outForDelivery": "Saiu para Entrega",
-      "delivered": "Entregue",
-      "cancelled": "Cancelado"
+      "pending": "Aguardando recebimento",
+      "outForDelivery": "Em entrega",
+      "cancelled": "Cancelado",
+      "inProgress": "Em andamento",
+      "complete": "Concluído"
     },
     "schedule": {
       "title": "Agendar Coleta",

@@ -130,8 +130,8 @@ function initializeAffiliateDashboard() {
       loadPickupRequests(affiliateId);
     } else if (tabId === 'customers') {
       loadCustomers(affiliateId);
-    } else if (tabId === 'invoices') {
-      loadInvoices(affiliateId);
+    } else if (tabId === 'earnings') {
+      loadEarnings(affiliateId);
     } else if (tabId === 'settings') {
       loadSettingsData(affiliateId);
     }
@@ -278,72 +278,10 @@ function initializeAffiliateDashboard() {
 
   // Update translations for dynamically loaded content
   // This is needed because the modal content might not be translated on initial load
-  function updateDashboardTranslations() {
-    if (window.i18n && window.i18n.translatePage) {
-      console.log('Updating translations for dashboard content');
-      
-      // Debug: Check what translations are available
-      if (window.i18n.translations && window.i18n.currentLanguage) {
-        console.log('Current language:', window.i18n.currentLanguage);
-        console.log('Available translations:', window.i18n.translations[window.i18n.currentLanguage]);
-        
-        // Try to access the marketing links translations
-        try {
-          const trans = window.i18n.translations[window.i18n.currentLanguage];
-          console.log('Affiliate section:', trans?.affiliate);
-          console.log('Dashboard section:', trans?.affiliate?.dashboard);
-          console.log('Marketing links translations:', trans?.affiliate?.dashboard?.marketingLinks);
-        } catch (e) {
-          console.error('Error accessing translations:', e);
-        }
-      }
-      
-      // Call the standard translate page function
-      window.i18n.translatePage();
-      
-      // Force update specific elements that might not be translating
-      const elementsToTranslate = [
-        { id: 'marketingLinksBtn', selector: '[data-i18n]' },
-        { id: 'marketingLinksModal', selector: '[data-i18n]' }
-      ];
-      
-      elementsToTranslate.forEach(({ id, selector }) => {
-        const container = document.getElementById(id);
-        if (container) {
-          const elements = container.querySelectorAll(selector);
-          elements.forEach(element => {
-            const key = element.getAttribute('data-i18n');
-            if (key && window.i18n && window.i18n.t) {
-              const translation = window.i18n.t(key);
-              console.log(`Forcing translation - Key: "${key}", Result: "${translation}"`);
-              
-              // Only update if we got a valid translation (not the key itself)
-              if (translation && translation !== key && !translation.includes('.')) {
-                element.textContent = translation;
-                console.log(`Updated element with translation: "${translation}"`);
-              } else {
-                console.warn(`Translation failed for key: "${key}"`);
-              }
-            }
-          });
-        }
-      });
-    }
-  }
-  
-  // Call after a delay to ensure all content is loaded
-  setTimeout(updateDashboardTranslations, 500);
-  
-  // Also call when showing the modal for the first time
-  if (marketingLinksBtn) {
-    marketingLinksBtn.addEventListener('mouseenter', function() {
-      // Update translations when modal is first shown
-      if (window.i18n && !this.dataset.translationsUpdated) {
-        updateDashboardTranslations();
-        this.dataset.translationsUpdated = 'true';
-      }
-    }, { once: true });
-  }
+    
+  // Translation is driven by i18n.translatePage(); this page previously carried a
+  // debug routine that dumped the whole translation table to the console and
+  // rejected any translation containing a period.
 
   // Settings form edit mode
   const editBtn = document.getElementById('editBtn');
@@ -380,24 +318,37 @@ function initializeAffiliateDashboard() {
     });
   }
 
-  // Delete data button (development only)
-  const deleteBtn = document.getElementById('deleteAllDataBtn');
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', function() {
-      deleteAllData(affiliateId);
-    });
-  }
 
-  // Check if we should show delete section
-  checkAndShowDeleteSection();
+  // Filter, search and paging controls. These existed in the markup with no
+  // listeners at all, so the server-side filtering they imply was unreachable.
+  const reloadOrders = () => { ordersPage = 1; loadPickupRequests(affiliateId); };
+  const reloadCustomers = () => { customersPage = 1; loadCustomersWithHighlight(affiliateId); };
+  document.getElementById('orderStatusFilter')?.addEventListener('change', reloadOrders);
+  document.getElementById('dateFilter')?.addEventListener('change', reloadOrders);
+  document.getElementById('orderSearch')?.addEventListener('change', reloadOrders);
+  document.getElementById('customerSearch')?.addEventListener('change', reloadCustomers);
+  document.getElementById('customerSort')?.addEventListener('change', reloadCustomers);
+
+  const page = (variable, delta, reload) => () => {
+    const next = variable() + delta;
+    if (next >= 1) reload(next);
+  };
+  document.getElementById('prevOrdersPage')?.addEventListener('click',
+    page(() => ordersPage, -1, n => { ordersPage = n; loadPickupRequests(affiliateId); }));
+  document.getElementById('nextOrdersPage')?.addEventListener('click',
+    page(() => ordersPage, 1, n => { ordersPage = n; loadPickupRequests(affiliateId); }));
+  document.getElementById('prevCustomersPage')?.addEventListener('click',
+    page(() => customersPage, -1, n => { customersPage = n; loadCustomersWithHighlight(affiliateId); }));
+  document.getElementById('nextCustomersPage')?.addEventListener('click',
+    page(() => customersPage, 1, n => { customersPage = n; loadCustomersWithHighlight(affiliateId); }));
 
   // Make functions available globally (they're used by the existing dashboard code)
   window.loadAffiliateData = loadAffiliateData;
   window.loadDashboardStats = loadDashboardStats;
   window.loadPickupRequests = loadPickupRequests;
   window.loadCustomers = loadCustomers;
-  window.loadInvoices = loadInvoices;
   window.loadSettingsData = loadSettingsData;
+  window.loadEarnings = loadEarnings;
 }
 
 // Function to switch to customers tab and highlight specific customer
@@ -545,75 +496,118 @@ async function loadDashboardStats(affiliateId) {
       const ordersElement = document.getElementById('activeOrders');
       if (ordersElement) ordersElement.textContent = stats.activeOrderCount || 0;
 
-      const revenueElement = document.getElementById('monthlyRevenue');
-      if (revenueElement) revenueElement.textContent = `$${(stats.monthEarnings || 0).toFixed(2)}`;
-
-      const paymentElement = document.getElementById('pendingPayment');
-      if (paymentElement) paymentElement.textContent = `$${(stats.pendingEarnings || 0).toFixed(2)}`;
+      // #monthlyRevenue and #pendingPayment do not exist on this page — those writes
+      // were null-guarded and silently did nothing. These are the elements that do.
+      const set = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      };
+      set('monthEarnings', formatMoney(stats.monthEarnings));
+      set('weekEarnings', formatMoney(stats.weekEarnings));
+      set('monthOrderCount', String(stats.monthlyOrders ?? 0));
+      set('weekOrderCount', String(stats.weeklyOrders ?? 0));
     }
   } catch (error) {
     console.error('Error loading dashboard stats:', error);
   }
 }
 
+// The five states of the order machine, each with its badge class and i18n key. The
+// previous renderer hard-coded six statuses the model rejects, printed the raw value
+// with underscores swapped for spaces (so every badge showed untranslated lowercase
+// English), and gave two of the five real states no colour at all.
+const ORDER_STATUS_META = {
+  pending: { badge: 'bg-gray-100 text-gray-800', key: 'orders.status.pending', fallback: 'Awaiting intake' },
+  in_progress: { badge: 'bg-blue-100 text-blue-800', key: 'orders.status.inProgress', fallback: 'In progress' },
+  out_for_delivery: { badge: 'bg-yellow-100 text-yellow-800', key: 'orders.status.outForDelivery', fallback: 'Out for delivery' },
+  complete: { badge: 'bg-green-100 text-green-800', key: 'orders.status.complete', fallback: 'Complete' },
+  cancelled: { badge: 'bg-red-100 text-red-800', key: 'orders.status.cancelled', fallback: 'Cancelled' }
+};
+
+let ordersPage = 1;
+let customersPage = 1;
+
+function tr(key, fallback) {
+  return (window.i18n?.t ? window.i18n.t(key) || fallback : fallback);
+}
+
+function escapeHtml(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function statusBadge(status) {
+  const meta = ORDER_STATUS_META[status];
+  const badge = meta ? meta.badge : 'bg-gray-100 text-gray-800';
+  const label = meta ? tr(meta.key, meta.fallback) : status;
+  return `<span class="px-2 py-1 rounded text-xs ${badge}">${escapeHtml(label)}</span>`;
+}
+
+function formatDate(value) {
+  if (!value) return '\u2014';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '\u2014' : d.toLocaleDateString();
+}
+
+function formatMoney(value) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '\u2014';
+}
+
+/** Fill the "showing X of Y" counters, which nothing ever wrote to. */
+function updatePaginationText(prefix, shown, pagination) {
+  const showing = document.getElementById(`${prefix}Showing`);
+  const total = document.getElementById(`${prefix}Total`);
+  if (showing) showing.textContent = String(shown);
+  if (total) total.textContent = String(pagination?.total ?? shown);
+}
+
 async function loadPickupRequests(affiliateId) {
+  const tbody = document.getElementById('ordersTableBody');
   try {
     const token = localStorage.getItem('affiliateToken');
-    const data = await ApiClient.get(`/api/v1/affiliates/${affiliateId}/orders`, {
-      showError: false,
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+    // The status, date and search controls were inert: the request carried no query
+    // string, so the server-side filtering already implemented here was unreachable
+    // and the selected option had no effect on what came back.
+    const params = new URLSearchParams();
+    const status = document.getElementById('orderStatusFilter')?.value;
+    const date = document.getElementById('dateFilter')?.value;
+    const search = document.getElementById('orderSearch')?.value;
+    if (status && status !== 'all') params.set('status', status);
+    if (date && date !== 'all') params.set('date', date);
+    if (search && search.trim()) params.set('search', search.trim());
+    params.set('page', String(ordersPage));
 
-    if (data) {
-      console.log('Orders response:', data);
+    const data = await ApiClient.get(
+      `/api/v1/affiliates/${affiliateId}/orders?${params.toString()}`,
+      { showError: false, headers: { 'Authorization': `Bearer ${token}` } });
+    if (!data || !tbody) return;
 
-      // Extract orders array from response
-      const orders = data.orders || [];
-      const tbody = document.getElementById('ordersTableBody');
-      tbody.innerHTML = '';
+    const orders = data.orders || [];
+    tbody.innerHTML = '';
 
-      if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No orders found</td></tr>';
-      } else {
-        orders.forEach(order => {
-          // Get customer info from order
-          const customerName = order.customer ?
-            order.customer.name :
-            'Unknown Customer';
-
-          const address = order.customer ?
-            order.customer.address :
-            'No address';
-
-          const row = document.createElement('tr');
-          row.className = 'border-b hover:bg-gray-50';
-          row.innerHTML = `
-            <td class="py-3 px-4">${new Date(order.pickupDate).toLocaleDateString()}</td>
-            <td class="py-3 px-4">${customerName}</td>
-            <td class="py-3 px-4">${address}</td>
-            <td class="py-3 px-4">
-              <span class="px-2 py-1 rounded text-xs ${
-  order.status === 'pending' ? 'bg-gray-100 text-gray-800' :
-    order.status === 'scheduled' ? 'bg-yellow-100 text-yellow-800' :
-      order.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-        order.status === 'processed' ? 'bg-purple-100 text-purple-800' :
-          order.status === 'complete' ? 'bg-green-100 text-green-800' :
-            order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-              'bg-gray-100 text-gray-800'
-}">
-                ${order.status.replace(/_/g, ' ')}
-              </span>
-            </td>
-            <td class="py-3 px-4">
-              <span class="text-gray-600">Order #${order.orderId}</span>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
-      }
+    if (orders.length === 0) {
+      // 7 columns: Order ID, Customer, Address, Bag, Created, Status, Your Fee.
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-gray-500">${
+        escapeHtml(tr('affiliate.dashboard.messages.noOrders', 'No orders found'))}</td></tr>`;
+    } else {
+      orders.forEach(order => {
+        const row = document.createElement('tr');
+        row.className = 'border-b hover:bg-gray-50';
+        row.innerHTML = `
+          <td class="py-3 px-4">${escapeHtml(order.orderId)}</td>
+          <td class="py-3 px-4">${escapeHtml(order.customer?.name || '\u2014')}</td>
+          <td class="py-3 px-4">${escapeHtml(order.customer?.address || '\u2014')}</td>
+          <td class="py-3 px-4">${escapeHtml(order.bagId || '\u2014')}</td>
+          <td class="py-3 px-4">${escapeHtml(formatDate(order.createdAt))}</td>
+          <td class="py-3 px-4">${statusBadge(order.status)}</td>
+          <td class="py-3 px-4">${escapeHtml(formatMoney(order.deliveryFeeCharged))}</td>
+        `;
+        tbody.appendChild(row);
+      });
     }
+    updatePaginationText('orders', orders.length, data.pagination);
   } catch (error) {
     console.error('Error loading pickup requests:', error);
   }
@@ -624,113 +618,112 @@ async function loadCustomers(affiliateId) {
 }
 
 async function loadCustomersWithHighlight(affiliateId, highlightCustomerId) {
+  const tbody = document.getElementById('customersTableBody');
   try {
     const token = localStorage.getItem('affiliateToken');
-    const data = await ApiClient.get(`/api/v1/affiliates/${affiliateId}/customers`, {
-      showError: false,
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+    // Search and sort were inert here too — the controller implements both and the
+    // client sent neither.
+    const params = new URLSearchParams();
+    const search = document.getElementById('customerSearch')?.value;
+    const sort = document.getElementById('customerSort')?.value;
+    if (search && search.trim()) params.set('search', search.trim());
+    if (sort) params.set('sort', sort);
+    params.set('page', String(customersPage));
 
-    if (data) {
-      console.log('Customers response:', data);
+    const data = await ApiClient.get(
+      `/api/v1/affiliates/${affiliateId}/customers?${params.toString()}`,
+      { showError: false, headers: { 'Authorization': `Bearer ${token}` } });
+    if (!data || !tbody) return;
 
-      // Extract customers array from response
-      const customers = data.customers || [];
-      const tbody = document.getElementById('customersTableBody');
-      tbody.innerHTML = '';
+    const customers = data.customers || [];
+    tbody.innerHTML = '';
 
-      if (customers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">No customers found</td></tr>';
-      } else {
-        customers.forEach(customer => {
-          const row = document.createElement('tr');
-          const isHighlighted = highlightCustomerId && customer.customerId === highlightCustomerId;
-
-          row.className = `border-b ${isHighlighted ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50'}`;
-
-          row.innerHTML = `
-            <td class="py-3 px-4">
-              ${isHighlighted ? '<span class="font-bold text-blue-800">★ </span>' : ''}
-              ${customer.firstName} ${customer.lastName}
-              ${isHighlighted ? ' <span class="text-xs text-blue-600">(New Registration)</span>' : ''}
-            </td>
-            <td class="py-3 px-4">${customer.email}</td>
-            <td class="py-3 px-4">${customer.phone}</td>
-            <td class="py-3 px-4">
-              <span class="px-2 py-1 rounded text-xs ${
-  customer.isActive !== false ? 'bg-green-100 text-green-800' :
-    'bg-gray-100 text-gray-800'
-}">
-                ${customer.isActive !== false ? 'Active' : 'Inactive'}
-              </span>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
-
-        // Scroll highlighted customer into view if found
-        if (highlightCustomerId) {
-          const highlightedRow = tbody.querySelector('tr.bg-blue-50');
-          if (highlightedRow) {
-            setTimeout(() => {
-              highlightedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 100);
-          }
-        }
+    if (customers.length === 0) {
+      // 6 columns: Customer ID, Name, Contact Info, Address, Registered, Orders.
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-gray-500">${
+        escapeHtml(tr('affiliate.dashboard.messages.noCustomers', 'No customers found'))}</td></tr>`;
+    } else {
+      customers.forEach(customer => {
+        const highlighted = highlightCustomerId && customer.customerId === highlightCustomerId;
+        const row = document.createElement('tr');
+        row.className = `border-b ${highlighted ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50'}`;
+        if (highlighted) row.id = `customer-${customer.customerId}`;
+        // customerId, registrationDate and orderCount are all returned by the server
+        // and were thrown away. The previous renderer also showed an Active/Inactive
+        // badge built from `isActive`, a field this projection does not include, so
+        // every customer always read "Active".
+        const newBadge = highlighted
+          ? ` <span class="text-xs text-blue-600">${escapeHtml(tr('affiliate.dashboard.messages.newRegistration', '(New Registration)'))}</span>`
+          : '';
+        const star = highlighted ? '<span class="font-bold text-blue-800">&#9733; </span>' : '';
+        const name = customer.name || `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
+        row.innerHTML = `
+          <td class="py-3 px-4">${escapeHtml(customer.customerId)}</td>
+          <td class="py-3 px-4">${star}${escapeHtml(name)}${newBadge}</td>
+          <td class="py-3 px-4">${escapeHtml(customer.email || '\u2014')}<br><span class="text-sm text-gray-500">${escapeHtml(customer.phone || '')}</span></td>
+          <td class="py-3 px-4">${escapeHtml(customer.fullAddress || '\u2014')}</td>
+          <td class="py-3 px-4">${escapeHtml(customer.registrationDate || '\u2014')}</td>
+          <td class="py-3 px-4">${escapeHtml(String(customer.orderCount ?? 0))}</td>
+        `;
+        tbody.appendChild(row);
+      });
+      if (highlightCustomerId) {
+        const target = document.getElementById(`customer-${highlightCustomerId}`);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
+    updatePaginationText('customers', customers.length, data.pagination);
   } catch (error) {
     console.error('Error loading customers:', error);
   }
 }
 
-async function loadInvoices(affiliateId) {
+/**
+ * The Earnings tab had no JS at all — no branch in switchToTab and not one element
+ * written, so it showed $0.00 and a permanent "Loading transactions..." row.
+ *
+ * It is rebuilt from the two endpoints that already exist. GET /:id/earnings defaults
+ * to all-time and returns the partner's own delivery-fee total plus the completed
+ * orders behind it, which is what "Total Earnings" in the header should say; the
+ * dashboard-stats endpoint supplies the month and week figures.
+ */
+async function loadEarnings(affiliateId) {
+  const tbody = document.getElementById('transactionsTableBody');
   try {
     const token = localStorage.getItem('affiliateToken');
-    const invoices = await ApiClient.get(`/api/v1/affiliates/${affiliateId}/invoices`, {
-      showError: false,
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+    const data = await ApiClient.get(`/api/v1/affiliates/${affiliateId}/earnings`, {
+      showError: false, headers: { 'Authorization': `Bearer ${token}` }
     });
+    if (!data) return;
 
-    if (invoices) {
-      const tbody = document.querySelector('#invoicesTable tbody');
-      tbody.innerHTML = '';
+    const total = document.getElementById('totalEarnings');
+    if (total) total.textContent = formatMoney(data.totalEarnings);
 
-      if (invoices.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No invoices found</td></tr>';
-      } else {
-        invoices.forEach(invoice => {
-          const row = document.createElement('tr');
-          row.className = 'border-b hover:bg-gray-50';
-          row.innerHTML = `
-            <td class="py-3 px-4">${invoice.number}</td>
-            <td class="py-3 px-4">${new Date(invoice.date).toLocaleDateString()}</td>
-            <td class="py-3 px-4">$${invoice.amount.toFixed(2)}</td>
-            <td class="py-3 px-4">
-              <span class="px-2 py-1 rounded text-xs ${
-  invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
-    invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-      'bg-gray-100 text-gray-800'
-}">
-                ${invoice.status}
-              </span>
-            </td>
-            <td class="py-3 px-4">
-              <button class="text-blue-600 hover:underline">Download</button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
-      }
+    if (!tbody) return;
+    const rows = data.orders || [];
+    tbody.innerHTML = '';
+    if (rows.length === 0) {
+      // 4 columns: Date, Order ID, Customer, Your Fee.
+      tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-gray-500">${
+        escapeHtml(tr('affiliate.dashboard.messages.noTransactions', 'No completed orders yet'))}</td></tr>`;
+      return;
     }
+    rows.forEach(row => {
+      const el = document.createElement('tr');
+      el.className = 'border-b hover:bg-gray-50';
+      el.innerHTML = `
+        <td class="px-6 py-4">${escapeHtml(formatDate(row.completedAt))}</td>
+        <td class="px-6 py-4">${escapeHtml(row.orderId)}</td>
+        <td class="px-6 py-4">${escapeHtml(row.customerName || '\u2014')}</td>
+        <td class="px-6 py-4">${escapeHtml(formatMoney(row.commission))}</td>
+      `;
+      tbody.appendChild(el);
+    });
   } catch (error) {
-    console.error('Error loading invoices:', error);
+    console.error('Error loading earnings:', error);
   }
 }
+
 
 // Show manual copy prompt
 function showManualCopyPrompt(text) {
@@ -1062,73 +1055,7 @@ async function changePassword(affiliateId) {
   }
 }
 
-// Check and show delete section if enabled
-function checkAndShowDeleteSection() {
-  console.log('Checking environment for delete section visibility...');
-  const baseUrl = window.EMBED_CONFIG?.baseUrl || window.location.origin;
-  console.log('Fetching environment from:', `${baseUrl}/api/v1/environment`);
 
-  ApiClient.get('/api/v1/environment', { showError: false })
-    .then(data => {
-      console.log('Environment data received:', data);
-      if (data.enableDeleteDataFeature === true) {
-        console.log('Delete data feature enabled, showing delete section');
-        const deleteSection = document.getElementById('deleteDataSection');
-        if (deleteSection) {
-          deleteSection.style.display = 'block';
-          console.log('Delete section made visible');
-        } else {
-          console.error('Delete section element not found!');
-        }
-      } else {
-        console.log('Delete data feature not enabled, hiding delete section');
-      }
-    })
-    .catch(error => console.error('Environment check failed:', error));
-}
-
-// Delete all data function
-async function deleteAllData(affiliateId) {
-  if (!confirm('Are you absolutely sure? This will delete ALL your data permanently!')) {
-    return;
-  }
-
-  if (!confirm('This is your last chance to cancel. Do you really want to delete everything?')) {
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem('affiliateToken');
-    const data = await ApiClient.delete(`/api/v1/affiliates/${affiliateId}/delete-all-data`, {
-      showLoading: true,
-      loadingMessage: 'Deleting all data...',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (data.success) {
-      alert('All data has been deleted successfully.');
-      // Clear local storage and redirect to login
-      localStorage.removeItem('affiliateToken');
-      localStorage.removeItem('currentAffiliate');
-
-      if (window.EMBED_CONFIG?.isEmbedded) {
-        window.parent.postMessage({
-          type: 'navigate',
-          data: { url: '/affiliate-login' }
-        }, '*');
-      } else {
-        window.location.href = '/embed-app-v2.html?route=/affiliate-login';
-      }
-    } else {
-      alert(data.message || 'Failed to delete data');
-    }
-  } catch (error) {
-    console.error('Delete error:', error);
-    alert('An error occurred while deleting data');
-  }
-}
 
 // ---- PR 9: vendor delivery code card ---------------------------------------
 async function initDeliveryCodeCard(affiliateId) {

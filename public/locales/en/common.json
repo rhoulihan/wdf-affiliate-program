@@ -695,12 +695,19 @@
         "totalOrders": "Total Orders",
         "service": "Service",
         "orderTotal": "Order Total",
-        "yourCommission": "Your Commission"
+        "yourCommission": "Your Commission",
+        "bag": "Bag",
+        "created": "Created",
+        "yourFee": "Your Fee"
       },
       "messages": {
         "loadingOrders": "Loading orders...",
         "loadingCustomers": "Loading customers...",
-        "loadingTransactions": "Loading transactions..."
+        "loadingTransactions": "Loading transactions...",
+        "noOrders": "No orders found",
+        "noCustomers": "No customers found",
+        "noTransactions": "No completed orders yet",
+        "newRegistration": "(New Registration)"
       },
       "pagination": {
         "showing": "Showing",
@@ -1116,14 +1123,11 @@
   },
   "orders": {
     "status": {
-      "pending": "Pending",
-      "scheduled": "Scheduled",
-      "pickedUp": "Picked Up",
-      "processing": "Processing",
-      "readyForDelivery": "Ready for Delivery",
-      "outForDelivery": "Out for Delivery",
-      "delivered": "Delivered",
-      "cancelled": "Cancelled"
+      "pending": "Awaiting intake",
+      "outForDelivery": "Out for delivery",
+      "cancelled": "Cancelled",
+      "inProgress": "In progress",
+      "complete": "Complete"
     },
     "schedule": {
       "title": "Schedule Pickup",

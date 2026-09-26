@@ -100,11 +100,10 @@
                         <label for="orderStatusFilter" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.filters.status">Filter by Status</label>
                         <select id="orderStatusFilter" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="all" data-i18n="affiliate.dashboard.filters.allOrders">All Orders</option>
-                            <option value="scheduled" selected data-i18n="orders.status.scheduled">Scheduled</option>
-                            <option value="picked_up" data-i18n="orders.status.pickedUp">Picked Up</option>
-                            <option value="processing" data-i18n="orders.status.processing">Processing</option>
-                            <option value="ready_for_delivery" data-i18n="orders.status.readyForDelivery">Ready for Delivery</option>
-                            <option value="delivered" data-i18n="orders.status.delivered">Delivered</option>
+                            <option value="pending" data-i18n="orders.status.pending">Awaiting intake</option>
+                            <option value="in_progress" data-i18n="orders.status.inProgress">In progress</option>
+                            <option value="out_for_delivery" data-i18n="orders.status.outForDelivery">Out for delivery</option>
+                            <option value="complete" data-i18n="orders.status.complete">Complete</option>
                             <option value="cancelled" data-i18n="orders.status.cancelled">Cancelled</option>
                         </select>
                     </div>
@@ -136,10 +135,10 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.orderId">Order ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.customer">Customer</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.address">Address</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.type">Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.dateTime">Date & Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.bag">Bag</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.created">Created</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.status">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.actions">Actions</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.yourFee">Your Fee</th>
                             </tr>
                         </thead>
                         <tbody id="ordersTableBody" class="divide-y divide-gray-200">
@@ -196,12 +195,12 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.address">Address</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.registrationDate">Registration Date</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.totalOrders">Total Orders</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.actions">Actions</th>
+                                
                             </tr>
                         </thead>
                         <tbody id="customersTableBody" class="divide-y divide-gray-200">
                             <tr class="text-center">
-                                <td colspan="7" class="px-6 py-4 text-gray-500" data-i18n="affiliate.dashboard.messages.loadingCustomers">Loading customers...</td>
+                                <td colspan="6" class="px-6 py-4 text-gray-500" data-i18n="affiliate.dashboard.messages.loadingCustomers">Loading customers...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -233,12 +232,7 @@
                     <p class="text-sm text-gray-500 mt-1"><span data-i18n="affiliate.dashboard.earnings.from">From</span> <span id="weekOrderCount">0</span> <span data-i18n="affiliate.dashboard.earnings.orders">orders</span></p>
                 </div>
                 
-                <div class="bg-white rounded-lg shadow-md p-6">
-                    <h3 class="text-lg font-bold text-gray-600 mb-2" data-i18n="affiliate.dashboard.earnings.pendingPayment">Pending Payment</h3>
-                    <p class="text-3xl font-bold" id="pendingEarnings">$0.00</p>
-                    <p class="text-sm text-gray-500 mt-1"><span data-i18n="affiliate.dashboard.earnings.nextPayout">Next payout:</span> <span id="nextPayoutDate">--</span></p>
-                </div>
-            </div>
+                            </div>
             
             <!-- Recent Transactions -->
             <div class="bg-white rounded-lg shadow-md overflow-hidden">
@@ -252,14 +246,12 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.date">Date</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.orderId">Order ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.customer">Customer</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.service">Service</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.orderTotal">Order Total</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.yourCommission">Your Commission</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-i18n="affiliate.dashboard.table.yourFee">Your Fee</th>
                             </tr>
                         </thead>
                         <tbody id="transactionsTableBody" class="divide-y divide-gray-200">
                             <tr class="text-center">
-                                <td colspan="6" class="px-6 py-4 text-gray-500" data-i18n="affiliate.dashboard.messages.loadingTransactions">Loading transactions...</td>
+                                <td colspan="4" class="px-6 py-4 text-gray-500" data-i18n="affiliate.dashboard.messages.loadingTransactions">Loading transactions...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -487,25 +479,6 @@
                         <p id="delivery-code-result" class="mt-2 text-green-700 font-semibold" hidden></p>
                     </div>
 
-                    <!-- Delete Data Section (Development Only) -->
-                    <div id="deleteDataSection" class="mt-8 pt-6 border-t delete-data-section">
-                        <h3 class="text-lg font-bold mb-4 text-red-600">Danger Zone - Development Only</h3>
-                        <div class="bg-red-50 border border-red-300 rounded-lg p-4">
-                            <p class="text-red-800 mb-4">
-                                <strong>Warning:</strong> This will permanently delete ALL your data including:
-                            </p>
-                            <ul class="list-disc list-inside text-red-700 mb-4">
-                                <li>Your affiliate account</li>
-                                <li>All customers registered under you</li>
-                                <li>All orders and transactions</li>
-                                <li>All bag assignments</li>
-                            </ul>
-                            <p class="text-red-800 font-bold mb-4">This action cannot be undone!</p>
-                            <button type="button" id="deleteAllDataBtn" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
-                                Delete All My Data
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -515,7 +488,7 @@
     <script src="/assets/js/i18n.js"></script>
     <script src="/assets/js/language-switcher.js"></script>
     <script src="/assets/js/pricing-preview-component.js?v=20260826b"></script>
-    <script src="/assets/js/affiliate-dashboard-init.js?v=20260925a"></script>
+    <script src="/assets/js/affiliate-dashboard-init.js?v=20260925b"></script>
     <!-- CSRF Utils -->
     <script src="/assets/js/csrf-utils.js"></script>
     <!-- Embed communication script -->
