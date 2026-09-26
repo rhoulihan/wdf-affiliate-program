@@ -244,6 +244,15 @@ describe('Affiliate self-service profile update', () => {
       expect(res.body.affiliate[field]).toBe(value);
     });
 
+    it('returns the venmo handle, as it already did for the paypal email', async () => {
+      // Only paypalEmail was decrypted and returned, so a venmo affiliate could
+      // never see the handle they had entered — the field looked empty and saving
+      // the form would appear to wipe it.
+      const aff = await makeAffiliate({ paymentMethod: 'venmo', venmoHandle: '@bubbles' });
+      const res = await get(aff.affiliateId, asSelf(aff));
+      expect(res.body.affiliate.venmoHandle).toBe('@bubbles');
+    });
+
     it('exposes orderNotificationsEnabled', async () => {
       const aff = await makeAffiliate({ serviceType: 'full_service' });
       const res = await get(aff.affiliateId, asSelf(aff));

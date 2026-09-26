@@ -283,62 +283,164 @@
                                 <button type="button" id="editBtn" class="text-blue-600 hover:text-blue-700 font-medium" data-i18n="common.buttons.edit">Edit</button>
                             </div>
                             <div class="grid md:grid-cols-2 gap-4">
-                                <div>
-                                    <label for="settingsFirstName" class="block text-gray-700 mb-2" data-i18n="common.labels.firstName">First Name</label>
-                                    <input type="text" id="settingsFirstName" name="firstName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
-                                </div>
-                                
-                                <div>
-                                    <label for="settingsLastName" class="block text-gray-700 mb-2" data-i18n="common.labels.lastName">Last Name</label>
-                                    <input type="text" id="settingsLastName" name="lastName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
-                                </div>
-                                
-                                <div>
-                                    <label for="settingsEmail" class="block text-gray-700 mb-2" data-i18n="common.labels.email">Email Address</label>
-                                    <input type="email" id="settingsEmail" name="email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
-                                </div>
-                                
-                                <div>
-                                    <label for="settingsPhone" class="block text-gray-700 mb-2" data-i18n="common.labels.phoneNumber">Phone Number</label>
-                                    <input type="tel" id="settingsPhone" name="phone" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
-                                </div>
-
-                                <div>
-                                    <label for="settingsBusinessName" class="block text-gray-700 mb-2" data-i18n="affiliate.register.businessName">Business Name</label>
-                                    <input type="text" id="settingsBusinessName" name="businessName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
-                                </div>
-
+                            <div>
+                                <label for="settingsFirstName" class="block text-gray-700 mb-2" data-i18n="common.labels.firstName">First Name</label>
+                                <input type="text" id="settingsFirstName" name="firstName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsLastName" class="block text-gray-700 mb-2" data-i18n="common.labels.lastName">Last Name</label>
+                                <input type="text" id="settingsLastName" name="lastName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsEmail" class="block text-gray-700 mb-2" data-i18n="common.labels.email">Email Address</label>
+                                <input type="email" id="settingsEmail" name="email" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsPhone" class="block text-gray-700 mb-2" data-i18n="common.labels.phoneNumber">Phone Number</label>
+                                <input type="tel" id="settingsPhone" name="phone" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
                             </div>
                         </div>
 
-                        <!-- Delivery Fee (read-only; admin-managed) -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-bold mb-4" data-i18n="affiliate.dashboard.settings.sectionBusiness">Business & Address</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="settingsBusinessName" class="block text-gray-700 mb-2" data-i18n="affiliate.register.businessName">Business Name</label>
+                                <input type="text" id="settingsBusinessName" name="businessName" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsAddress" class="block text-gray-700 mb-2" data-i18n="common.labels.address">Street Address</label>
+                                <input type="text" id="settingsAddress" name="address" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsCity" class="block text-gray-700 mb-2" data-i18n="common.labels.city">City</label>
+                                <input type="text" id="settingsCity" name="city" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsState" class="block text-gray-700 mb-2" data-i18n="common.labels.state">State</label>
+                                <input type="text" id="settingsState" name="state" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            <div>
+                                <label for="settingsZipCode" class="block text-gray-700 mb-2" data-i18n="common.labels.zipCode">ZIP Code</label>
+                                <input type="text" id="settingsZipCode" name="zipCode" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100" readonly>
+                            </div>
+                            </div>
+                        </div>
+
+                        <!-- Service: how this partner operates. Instructions are customer-facing. -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-bold mb-4" data-i18n="affiliate.dashboard.settings.sectionService">Service</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="settingsServiceType" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.serviceType">Service Type</label>
+                                    <select id="settingsServiceType" name="serviceType" class="w-full px-4 py-2 border rounded-lg bg-gray-100" disabled>
+                                        <option value="pickup_location" data-i18n="affiliate.dashboard.settings.serviceTypePickupLocation">Pickup location</option>
+                                        <option value="full_service" data-i18n="affiliate.dashboard.settings.serviceTypeFullService">Full service (pickup &amp; delivery)</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.serviceTypeHelp">Full service means you collect from and deliver to your customers.</p>
+                                </div>
+                                <div>
+                                    <label for="settingsAffiliateType" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.affiliateType">Partner Type</label>
+                                    <input type="text" id="settingsAffiliateType" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly disabled>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.affiliateTypeHelp">Set by your administrator. Contact us if this looks wrong.</p>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label for="settingsPickupInstructions" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.pickupInstructions">Pickup Instructions</label>
+                                    <textarea id="settingsPickupInstructions" name="pickupInstructions" rows="2" maxlength="2000" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly></textarea>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.pickupInstructionsHelp">Shown to your customers when they register a bag. Cannot be left empty.</p>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label for="settingsDeliveryInstructions" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.deliveryInstructions">Delivery Instructions</label>
+                                    <textarea id="settingsDeliveryInstructions" name="deliveryInstructions" rows="2" maxlength="2000" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly></textarea>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.deliveryInstructionsHelp">Included in the email your customer receives when their order is on the way.</p>
+                                </div>
+                                <div>
+                                    <label class="flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" id="settingsGeoValidationEnabled" name="geoValidationEnabled" class="rounded" disabled>
+                                        <span data-i18n="affiliate.dashboard.settings.geoValidationEnabled">Limit bag claims by distance</span>
+                                    </label>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.geoValidationHelp">Off by default. When on, customers outside your radius cannot claim your bags.</p>
+                                </div>
+                                <div>
+                                    <label for="settingsGeoRadiusMiles" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.geoRadiusMiles">Service Radius (miles)</label>
+                                    <input type="number" id="settingsGeoRadiusMiles" name="geoRadiusMiles" min="1" max="50" step="1" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.geoRadiusHelp">Between 1 and 50 miles.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Your fee: the partner sets their own price and keeps all of it. -->
                         <div class="mb-6">
                             <h3 class="text-lg font-bold mb-4" data-i18n="affiliate.dashboard.settings.deliveryFeeStructure">Delivery Fee</h3>
                             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                                 <p class="text-sm text-gray-700">
-                                    <strong data-i18n="affiliate.dashboard.settings.flatFeeTitle">Flat delivery fee:</strong> <span data-i18n="affiliate.dashboard.settings.flatFeeDesc">Your flat delivery fee per order — you keep 100% of it as commission. Contact us to change it.</span>
+                                    <strong data-i18n="affiliate.dashboard.settings.flatFeeTitle">Flat delivery fee:</strong> <span data-i18n="affiliate.dashboard.settings.flatFeeDesc">Your flat delivery fee per order — you keep 100% of it. You can change it here at any time.</span>
                                 </p>
                             </div>
-
                             <div class="grid md:grid-cols-2 gap-6">
-                                <!-- Fee Display Column -->
                                 <div class="space-y-4">
                                     <div>
                                         <label for="settingsDeliveryFee" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.deliveryFee">Delivery Fee ($)</label>
-                                        <input type="number" id="settingsDeliveryFee" name="deliveryFee" min="0" max="1000" step="0.01" class="w-full px-4 py-2 border rounded-lg bg-gray-100" disabled>
+                                        <input type="number" id="settingsDeliveryFee" name="deliveryFee" min="0" max="1000" step="0.01" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly>
                                         <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.deliveryFeeDesc">Your flat delivery fee charged per order</p>
                                     </div>
                                 </div>
-
-                                <!-- Fee Calculator Preview Column -->
                                 <div>
                                     <div id="settingsPricingPreview" class="p-4 bg-white rounded-lg border border-gray-300">
-                                        <!-- Pricing preview component will be inserted here -->
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
+
+                        <!-- How we pay you. Handles are encrypted at rest. -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-bold mb-4" data-i18n="affiliate.dashboard.settings.sectionPayment">Payment</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="settingsPaymentMethod" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.paymentMethod">Payment Method</label>
+                                    <select id="settingsPaymentMethod" name="paymentMethod" class="w-full px-4 py-2 border rounded-lg bg-gray-100" disabled>
+                                        <option value="check" data-i18n="affiliate.dashboard.settings.paymentMethodCheck">Check</option>
+                                        <option value="paypal" data-i18n="affiliate.dashboard.settings.paymentMethodPaypal">PayPal</option>
+                                        <option value="venmo" data-i18n="affiliate.dashboard.settings.paymentMethodVenmo">Venmo</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.paymentMethodHelp">How you would like to be paid.</p>
+                                </div>
+                                <div id="paypalEmailGroup">
+                                    <label for="settingsPaypalEmail" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.paypalEmail">PayPal Email</label>
+                                    <input type="email" id="settingsPaypalEmail" name="paypalEmail" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly>
+                                </div>
+                                <div id="venmoHandleGroup">
+                                    <label for="settingsVenmoHandle" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.venmoHandle">Venmo Handle</label>
+                                    <input type="text" id="settingsVenmoHandle" name="venmoHandle" class="w-full px-4 py-2 border rounded-lg bg-gray-100" readonly>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Preferences -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-bold mb-4" data-i18n="affiliate.dashboard.settings.sectionPreferences">Preferences</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="settingsLanguagePreference" class="block text-gray-700 mb-2" data-i18n="affiliate.dashboard.settings.language">Language</label>
+                                    <select id="settingsLanguagePreference" name="languagePreference" class="w-full px-4 py-2 border rounded-lg bg-gray-100" disabled>
+                                        <option value="en">English</option>
+                                        <option value="es">Espa&#241;ol</option>
+                                        <option value="pt">Portugu&#234;s</option>
+                                        <option value="de">Deutsch</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.languageHelp">The language we use in emails we send you.</p>
+                                </div>
+                                <div>
+                                    <label class="flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" id="settingsOrderNotificationsEnabled" name="orderNotificationsEnabled" class="rounded" disabled>
+                                        <span data-i18n="affiliate.dashboard.settings.orderNotifications">Email me about new orders</span>
+                                    </label>
+                                    <p class="text-xs text-gray-500 mt-1" data-i18n="affiliate.dashboard.settings.orderNotificationsHelp">Turn this off to stop per-order emails.</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="formButtons" class="form-buttons-hidden">
                             <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition mr-2" data-i18n="affiliate.dashboard.settings.saveChanges">Save Changes</button>
                             <button type="button" id="cancelBtn" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition" data-i18n="common.buttons.cancel">Cancel</button>
@@ -413,7 +515,7 @@
     <script src="/assets/js/i18n.js"></script>
     <script src="/assets/js/language-switcher.js"></script>
     <script src="/assets/js/pricing-preview-component.js?v=20260826b"></script>
-    <script src="/assets/js/affiliate-dashboard-init.js?v=20260824a"></script>
+    <script src="/assets/js/affiliate-dashboard-init.js?v=20260925a"></script>
     <!-- CSRF Utils -->
     <script src="/assets/js/csrf-utils.js"></script>
     <!-- Embed communication script -->

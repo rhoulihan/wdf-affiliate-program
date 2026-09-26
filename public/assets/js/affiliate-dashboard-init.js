@@ -842,139 +842,162 @@ function showCopySuccess(button) {
 // Load settings data
 async function loadSettingsData(affiliateId) {
   try {
-    console.log('Loading settings data for affiliate:', affiliateId);
     const token = localStorage.getItem('affiliateToken');
     const result = await ApiClient.get(`/api/v1/affiliates/${affiliateId}`, {
       showError: false,
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      headers: { 'Authorization': `Bearer ${token}` }
     });
+    if (!result) return;
 
-    if (result) {
-      console.log('Affiliate data received:', result);
+    const data = result.affiliate || result;
 
-      // Extract the actual affiliate data from the response
-      const data = result.affiliate || result;
-      console.log('Extracted affiliate data:', data);
+    // Bind to the RAW values, never the display-formatted ones. `address` and
+    // `phone` come back formatted for display; writing those back on save would
+    // store the formatting and degrade the field a little more every time.
+    const setValue = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value === undefined || value === null ? '' : value;
+    };
+    const setChecked = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = Boolean(value);
+    };
 
-      // Wait a bit to ensure DOM is ready
-      setTimeout(() => {
-        // Populate settings fields with null checks
-        const firstNameField = document.getElementById('settingsFirstName');
-        const lastNameField = document.getElementById('settingsLastName');
-        const emailField = document.getElementById('settingsEmail');
-        const phoneField = document.getElementById('settingsPhone');
-        const businessNameField = document.getElementById('settingsBusinessName');
-        const deliveryFeeField = document.getElementById('settingsDeliveryFee');
+    setValue('settingsFirstName', data.firstName);
+    setValue('settingsLastName', data.lastName);
+    setValue('settingsEmail', data.email);
+    setValue('settingsPhone', data.phoneRaw ?? data.phone);
+    setValue('settingsBusinessName', data.businessName);
+    setValue('settingsAddress', data.addressLine);
+    setValue('settingsCity', data.city);
+    setValue('settingsState', data.state);
+    setValue('settingsZipCode', data.zipCode);
+    setValue('settingsServiceType', data.serviceType || 'pickup_location');
+    setValue('settingsPickupInstructions', data.pickupInstructions);
+    setValue('settingsDeliveryInstructions', data.deliveryInstructions);
+    setValue('settingsGeoRadiusMiles', data.geoRadiusMiles);
+    setValue('settingsLanguagePreference', data.languagePreference || 'en');
+    setValue('settingsDeliveryFee', parseFloat(data.deliveryFee) || 0);
+    setChecked('settingsGeoValidationEnabled', data.geoValidationEnabled);
+    setChecked('settingsOrderNotificationsEnabled', data.orderNotificationsEnabled);
 
-        if (firstNameField) firstNameField.value = data.firstName || '';
-        if (lastNameField) lastNameField.value = data.lastName || '';
-        if (emailField) emailField.value = data.email || '';
-        if (phoneField) phoneField.value = data.phone || '';
-        if (businessNameField) businessNameField.value = data.businessName || '';
+    // Partner type is an admin decision — shown, never editable.
+    const typeField = document.getElementById('settingsAffiliateType');
+    if (typeField) {
+      const key = data.affiliateType === 'location'
+        ? 'affiliate.dashboard.settings.affiliateTypeLocation'
+        : 'affiliate.dashboard.settings.affiliateTypeStandard';
+      const fallback = data.affiliateType === 'location' ? 'Pickup location' : 'Standard partner';
+      typeField.value = window.i18n?.t ? window.i18n.t(key) || fallback : fallback;
+    }
 
-        // Flat delivery fee (read-only; admin-managed).
-        if (deliveryFeeField) deliveryFeeField.value = parseFloat(data.deliveryFee) || 0;
+    if (window.PricingPreviewComponent) initializePricingPreview(data);
 
-        // Initialize pricing preview component (flat-fee)
-        if (window.PricingPreviewComponent) {
-          initializePricingPreview(data);
-        }
-
-        // Set landing page link
-        const landingPageLinkField = document.getElementById('landingPageLink');
-        const landingPageLink = `${window.EMBED_CONFIG?.baseUrl || window.location.origin}/embed-app-v2.html?route=/affiliate-landing&code=${affiliateId}`;
-        if (landingPageLinkField) landingPageLinkField.value = landingPageLink;
-
-        console.log('Settings fields populated');
-      }, 100);
-    } else {
-      console.error('Failed to load affiliate data:', response.status);
+    const landingPageLinkField = document.getElementById('landingPageLink');
+    if (landingPageLinkField) {
+      landingPageLinkField.value = `${window.EMBED_CONFIG?.baseUrl || window.location.origin}` +
+        `/embed-app-v2.html?route=/affiliate-landing&code=${affiliateId}`;
     }
   } catch (error) {
     console.error('Error loading settings data:', error);
   }
 }
 
-// Enable edit mode
-function enableEditMode() {
-  const inputs = document.querySelectorAll('#settingsForm input[type="text"], #settingsForm input[type="email"], #settingsForm input[type="tel"], #settingsForm input[type="number"]');
-  inputs.forEach(input => {
-    // Skip the registration link field
-    if (input.id !== 'landingPageLink') {
-      input.removeAttribute('readonly');
-      input.classList.remove('bg-gray-100');
+// Fields the affiliate may never edit here: the landing-page link is generated,
+// and partner type is an administrator's decision.
+const SETTINGS_LOCKED_IDS = ['landingPageLink', 'settingsAffiliateType'];
+
+function setSettingsEditable(editable) {
+  const selector = '#settingsForm input, #settingsForm select, #settingsForm textarea';
+  document.querySelectorAll(selector).forEach(el => {
+    if (SETTINGS_LOCKED_IDS.includes(el.id) || el.type === 'hidden') return;
+    // Some controls were shipped `disabled` and others `readonly`; clearing only
+    // readonly left the delivery fee looking editable while refusing input.
+    if (editable) {
+      el.removeAttribute('readonly');
+      el.removeAttribute('disabled');
+      el.classList.remove('bg-gray-100');
+    } else {
+      if (el.tagName === 'SELECT' || el.type === 'checkbox') {
+        el.setAttribute('disabled', true);
+      } else {
+        el.setAttribute('readonly', true);
+      }
+      el.classList.add('bg-gray-100');
     }
   });
 
-  // Enable select dropdowns
-  const selects = document.querySelectorAll('#settingsForm select');
-  selects.forEach(select => {
-    select.removeAttribute('disabled');
-    select.classList.remove('bg-gray-100');
-  });
-
-  document.getElementById('editBtn').style.display = 'none';
-  document.getElementById('formButtons').style.display = 'block';
-
-  // The pricing preview component handles its own event listeners
-  // No need to add additional listeners here
+  const editBtn = document.getElementById('editBtn');
+  const formButtons = document.getElementById('formButtons');
+  if (editBtn) editBtn.style.display = editable ? 'none' : 'block';
+  if (formButtons) formButtons.style.display = editable ? 'block' : 'none';
 }
 
-// Disable edit mode
-function disableEditMode() {
-  const inputs = document.querySelectorAll('#settingsForm input[type="text"], #settingsForm input[type="email"], #settingsForm input[type="tel"], #settingsForm input[type="number"]');
-  inputs.forEach(input => {
-    if (input.id !== 'landingPageLink') {
-      input.setAttribute('readonly', true);
-      input.classList.add('bg-gray-100');
-    }
-  });
-
-  // Disable select dropdowns
-  const selects = document.querySelectorAll('#settingsForm select');
-  selects.forEach(select => {
-    select.setAttribute('disabled', true);
-    select.classList.add('bg-gray-100');
-  });
-
-  document.getElementById('editBtn').style.display = 'block';
-  document.getElementById('formButtons').style.display = 'none';
-
-  // The pricing preview component handles its own event listeners
-  // No need to remove listeners here
-}
+function enableEditMode() { setSettingsEditable(true); }
+function disableEditMode() { setSettingsEditable(false); }
 
 // Save settings
 async function saveSettings(affiliateId) {
+  const t = (key, fallback) => (window.i18n?.t ? window.i18n.t(key) || fallback : fallback);
   try {
-    const formData = new FormData(document.getElementById('settingsForm'));
-    // Delivery fee is admin-managed (read-only here), so it is intentionally not
-    // submitted from the affiliate dashboard.
+    const value = id => document.getElementById(id)?.value;
+    const checked = id => Boolean(document.getElementById(id)?.checked);
+
+    // Send exactly what the affiliate owns. The server rejects unknown keys with a
+    // 400 naming them, so a stray field here is loud instead of being dropped in
+    // silence — which is what used to happen to the email field.
     const data = {
-      firstName: formData.get('firstName'),
-      lastName: formData.get('lastName'),
-      email: formData.get('email'),
-      phone: formData.get('phone'),
-      businessName: formData.get('businessName')
+      firstName: value('settingsFirstName'),
+      lastName: value('settingsLastName'),
+      email: value('settingsEmail'),
+      phone: value('settingsPhone'),
+      businessName: value('settingsBusinessName'),
+      address: value('settingsAddress'),
+      city: value('settingsCity'),
+      state: value('settingsState'),
+      zipCode: value('settingsZipCode'),
+      serviceType: value('settingsServiceType'),
+      deliveryInstructions: value('settingsDeliveryInstructions'),
+      languagePreference: value('settingsLanguagePreference'),
+      deliveryFee: parseFloat(value('settingsDeliveryFee')),
+      paymentMethod: value('settingsPaymentMethod'),
+      geoValidationEnabled: checked('settingsGeoValidationEnabled'),
+      orderNotificationsEnabled: checked('settingsOrderNotificationsEnabled')
     };
 
+    // The server writes only the handle matching the chosen method.
+    const method = value('settingsPaymentMethod');
+    if (method === 'paypal') {
+      const pp = value('settingsPaypalEmail');
+      if (pp && pp.trim()) data.paypalEmail = pp.trim();
+    } else if (method === 'venmo') {
+      const vh = value('settingsVenmoHandle');
+      if (vh && vh.trim()) data.venmoHandle = vh.trim();
+    }
+
+    // Optional-but-validated fields: send them only when they carry a value.
+    // pickupInstructions may not be blanked once set, and an empty geoRadiusMiles
+    // would fail the numeric range check.
+    const pickup = value('settingsPickupInstructions');
+    if (pickup && pickup.trim()) data.pickupInstructions = pickup.trim();
+    const radius = value('settingsGeoRadiusMiles');
+    if (radius !== undefined && radius !== '') data.geoRadiusMiles = parseFloat(radius);
+
     const token = localStorage.getItem('affiliateToken');
-    const result = await ApiClient.put(`/api/v1/affiliates/${affiliateId}`, data, {
+    await ApiClient.put(`/api/v1/affiliates/${affiliateId}`, data, {
       showLoading: true,
-      loadingMessage: 'Updating settings...',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+      loadingMessage: t('affiliate.dashboard.settings.saving', 'Updating settings...'),
+      headers: { 'Authorization': `Bearer ${token}` }
     });
 
-    alert('Settings updated successfully!');
+    alert(t('affiliate.dashboard.settings.savedOk', 'Settings updated successfully!'));
     disableEditMode();
-    loadSettingsData(affiliateId); // Reload data
+    loadSettingsData(affiliateId);
   } catch (error) {
     console.error('Error saving settings:', error);
-    alert('Error saving settings. Please try again.');
+    // Surface what the server objected to — validation errors name the field.
+    const detail = error?.response?.data?.message || error?.message;
+    alert(detail || t('affiliate.dashboard.settings.saveFailed', 'Error saving settings. Please try again.'));
   }
 }
 
@@ -1006,7 +1029,11 @@ async function changePassword(affiliateId) {
 
   try {
     const token = localStorage.getItem('affiliateToken');
-    const result = await ApiClient.post(`/api/v1/affiliates/${affiliateId}/change-password`, {
+    // PUT /:affiliateId, not POST /change-password — the latter route has never
+    // existed on the affiliate router, so this form always fell into its catch and
+    // told the user "Error changing password" no matter what they typed. The PUT
+    // handler takes currentPassword + newPassword and verifies the old one.
+    const result = await ApiClient.put(`/api/v1/affiliates/${affiliateId}`, {
       currentPassword: currentPassword,
       newPassword: newPassword
     }, {

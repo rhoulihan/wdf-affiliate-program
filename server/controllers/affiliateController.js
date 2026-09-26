@@ -247,18 +247,21 @@ exports.getAffiliateProfile = ControllerHelpers.asyncWrapper(async (req, res) =>
     lastLogin: Formatters.datetime(affiliate.lastLogin)
   };
 
-  // Include payment info if available (decrypt if necessary)
-  if (affiliate.paymentMethod === 'paypal' && affiliate.paypalEmail) {
+  // Include payment info if available (decrypt if necessary). Both handles are
+  // returned symmetrically: only paypalEmail used to be, so a venmo affiliate saw
+  // an empty field and saving the settings form looked like it had wiped it.
+  const decryptPaymentField = (field) => {
+    const value = affiliate[field];
+    if (!value) return;
     try {
-      // Decrypt PayPal email if it's encrypted
-      responseData.paypalEmail = typeof affiliate.paypalEmail === 'object'
-        ? encryptionUtil.decrypt(affiliate.paypalEmail)
-        : affiliate.paypalEmail;
+      responseData[field] = typeof value === 'object' ? encryptionUtil.decrypt(value) : value;
     } catch (error) {
-      logger.error('Error decrypting PayPal email:', error);
-      // Don't include if decryption fails
+      logger.error(`Error decrypting ${field}:`, error);
+      // Leave it out rather than returning ciphertext.
     }
-  }
+  };
+  if (affiliate.paymentMethod === 'paypal') decryptPaymentField('paypalEmail');
+  if (affiliate.paymentMethod === 'venmo') decryptPaymentField('venmoHandle');
 
   ControllerHelpers.sendSuccess(res, { affiliate: responseData }, 'Affiliate profile retrieved successfully');
 });
